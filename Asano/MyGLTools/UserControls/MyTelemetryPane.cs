@@ -65,7 +65,7 @@ namespace Asano.MyGLTools.UserControls
             lock (_lock)
             {
                 Interlocked.Increment(ref labelCount);
-                float yPos = MyGL.Height - 20 - labelCount * 50;
+                float yPos = MyGL.Height - 20 - labelCount * 32;
 
                 var labelBlock = new TextBlock(labelText, 126, yPos, font);
                 var valueBlock = new TextBlock("0.00"   , 120, yPos, font, TextAlign.Right, valueFormat);

@@ -28,19 +28,17 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             cbPorts = new ComboBox();
             labPorts = new Label();
             multiChart = new Asano.MyGLTools.UserControls.MyMultichart();
             butDBG = new Button();
             pHeader = new Panel();
-            pDebugPane = new Panel();
             dbg = new Asano.MyGLTools.UserControls.MyDebugPane();
-            pTelemetryPane = new Panel();
             TelemetryPane = new Asano.MyGLTools.UserControls.MyTelemetryPane();
-            signalViewer = new Asano.DataTools.Controls.SignalViewer();
+            pDiagnostics = new Panel();
             pHeader.SuspendLayout();
-            pDebugPane.SuspendLayout();
-            pTelemetryPane.SuspendLayout();
+            pDiagnostics.SuspendLayout();
             SuspendLayout();
             // 
             // cbPorts
@@ -63,11 +61,11 @@
             labPorts.Text = "COM Port:";
             // 
             // multiChart
-            //
+            // 
             multiChart.Dock = DockStyle.Fill;
             multiChart.Location = new Point(0, 42);
             multiChart.Name = "multiChart";
-            multiChart.Size = new Size(1060, 954);
+            multiChart.Size = new Size(1395, 1291);
             multiChart.TabIndex = 8;
             // 
             // butDBG
@@ -92,56 +90,40 @@
             pHeader.Size = new Size(1395, 42);
             pHeader.TabIndex = 10;
             // 
-            // pDebugPane
-            // 
-            pDebugPane.Controls.Add(dbg);
-            pDebugPane.Dock = DockStyle.Bottom;
-            pDebugPane.Location = new Point(0, 1312);
-            pDebugPane.Name = "pDebugPane";
-            pDebugPane.Padding = new Padding(4);
-            pDebugPane.Size = new Size(1395, 308);
-            pDebugPane.TabIndex = 11;
-            // 
             // dbg
             // 
             dbg.AutoClear = true;
+            dbg.BackColor = Color.AliceBlue;
             dbg.BorderStyle = BorderStyle.FixedSingle;
             dbg.Dock = DockStyle.Fill;
-            dbg.Location = new Point(4, 4);
+            dbg.Location = new Point(0, 0);
             dbg.Name = "dbg";
-            dbg.Size = new Size(1387, 300);
+            dbg.Size = new Size(1066, 287);
             dbg.TabIndex = 6;
-            // 
-            // pTelemetryPane
-            // 
-            pTelemetryPane.Controls.Add(TelemetryPane);
-            pTelemetryPane.Dock = DockStyle.Right;
-            pTelemetryPane.Location = new Point(1060, 42);
-            pTelemetryPane.Name = "pTelemetryPane";
-            pTelemetryPane.Padding = new Padding(3);
-            pTelemetryPane.Size = new Size(335, 1270);
-            pTelemetryPane.TabIndex = 12;
+            dbg.TextColour = Color.Black;
             // 
             // TelemetryPane
             // 
             TelemetryPane.AutoClear = true;
+            TelemetryPane.BackColor = Color.PapayaWhip;
             TelemetryPane.BorderStyle = BorderStyle.FixedSingle;
-            TelemetryPane.Dock = DockStyle.Fill;
-            TelemetryPane.Location = new Point(3, 3);
+            TelemetryPane.Dock = DockStyle.Right;
+            TelemetryPane.Location = new Point(1066, 0);
             TelemetryPane.Name = "TelemetryPane";
             TelemetryPane.Padding = new Padding(4);
-            TelemetryPane.Size = new Size(329, 1264);
+            TelemetryPane.Size = new Size(329, 287);
             TelemetryPane.TabIndex = 8;
+            TelemetryPane.TextColour = Color.Black;
             // 
-            // signalViewer
+            // pDiagnostics
             // 
-            signalViewer.AutoClear = true;
-            signalViewer.BorderStyle = BorderStyle.FixedSingle;
-            signalViewer.Dock = DockStyle.Bottom;
-            signalViewer.Location = new Point(0, 996);
-            signalViewer.Name = "noiseViewer";
-            signalViewer.Size = new Size(1060, 316);
-            signalViewer.TabIndex = 13;
+            pDiagnostics.Controls.Add(dbg);
+            pDiagnostics.Controls.Add(TelemetryPane);
+            pDiagnostics.Dock = DockStyle.Bottom;
+            pDiagnostics.Location = new Point(0, 1333);
+            pDiagnostics.Name = "pDiagnostics";
+            pDiagnostics.Size = new Size(1395, 287);
+            pDiagnostics.TabIndex = 14;
             // 
             // MainForm
             // 
@@ -149,18 +131,16 @@
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1395, 1620);
             Controls.Add(multiChart);
-            Controls.Add(signalViewer);
-            Controls.Add(pTelemetryPane);
-            Controls.Add(pDebugPane);
             Controls.Add(pHeader);
+            Controls.Add(pDiagnostics);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "MainForm";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "fNIRS Prototype Data Monitor";
             Shown += Form1_Shown;
             pHeader.ResumeLayout(false);
             pHeader.PerformLayout();
-            pDebugPane.ResumeLayout(false);
-            pTelemetryPane.ResumeLayout(false);
+            pDiagnostics.ResumeLayout(false);
             ResumeLayout(false);
         }
 
@@ -170,10 +150,9 @@
         private MyGLTools.UserControls.MyMultichart multiChart;
         private Button butDBG;
         private Panel pHeader;
-        private Panel pDebugPane;
         private MyGLTools.UserControls.MyDebugPane dbg;
-        private Panel pTelemetryPane;
         private MyGLTools.UserControls.MyTelemetryPane TelemetryPane;
         private DataTools.Controls.SignalViewer signalViewer;
+        private Panel pDiagnostics;
     }
 }

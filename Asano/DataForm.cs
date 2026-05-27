@@ -27,9 +27,10 @@ namespace Asano.MyGLTools.UserControls
                     break;
 
                 case "PSYC-ANDREW":
+                    this.WindowState = FormWindowState.Normal;
                     this.StartPosition = FormStartPosition.Manual;
-                    this.Location = new Point(4090, 100);
-                    this.WindowState = FormWindowState.Maximized;
+                    this.Location = new Point(2560, 1280);
+                    this.Size = new Size(1280, 2160);
                     break;
             }
 

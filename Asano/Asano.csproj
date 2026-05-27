@@ -23,6 +23,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="Resources\Asano.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3912.50" />
     <PackageReference Include="OpenTK.GLControl" Version="4.0.2" />
     <PackageReference Include="StbImageSharp" Version="2.30.15" />
@@ -104,6 +108,7 @@
 
   <PropertyGroup>
     <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
+    <ApplicationIcon>Resources\Asano.ico</ApplicationIcon>
   </PropertyGroup>
 	
 </Project>

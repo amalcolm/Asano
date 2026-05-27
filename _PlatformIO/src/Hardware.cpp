@@ -53,7 +53,7 @@ bool Hardware::debugLayerOverride() {
   static CTeleCounter TC_Update{TeleGroup::HARDWARE, 1};
   static CTelePeriod  TP_Update{TeleGroup::HARDWARE, 2};
 
-  static C32bitTimer sampleTimer = C32bitTimer::From_S(0.1).setPeriodic(true); 
+  static C32bitTimer sampleTimer = C32bitTimer::From_S(3.1).setPeriodic(true); 
 
   TP_Update.measure();
   TC_Update.increment();

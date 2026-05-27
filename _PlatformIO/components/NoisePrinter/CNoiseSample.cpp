@@ -42,7 +42,7 @@ void FillBufferWithNoise(TimedSample* buffer, size_t size, int sensorPin, double
 }
 
 
-C32bitTimer& getTimer(double period) {
+C32bitTimer& getTimer(double period) { if (period > 7.2) ERROR("getTimer: duration too long: %.2f seconds (max is ~7.2 seconds)", period);
   static std::deque<std::pair<double, C32bitTimer>> s_timers;
   
   for (auto& [p, timer] : s_timers) if (p == period) return timer;
