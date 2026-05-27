@@ -1,0 +1,55 @@
+.wiper-debug {
+  position: absolute;
+  z-index: 10;
+  bottom: 12px;
+  left: 250px;
+  min-width: 210px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--panel-text);
+  background: var(--panel-bg);
+  box-shadow: var(--panel-shadow);
+  font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+.wiper-debug__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.wiper-debug__header [data-wiper-debug-status] {
+  color: var(--panel-muted);
+  font-weight: 600;
+}
+
+.wiper-debug__keys {
+  max-width: 240px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  color: var(--panel-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wiper-debug__grid {
+  display: grid;
+  grid-template-columns: minmax(46px, 1fr) 52px 52px;
+  gap: 3px 10px;
+  align-items: baseline;
+}
+
+.wiper-debug__grid span:nth-child(3n + 2),
+.wiper-debug__grid span:nth-child(3n + 3) {
+  text-align: right;
+}
+
+.wiper-debug__grid span:nth-child(-n + 3) {
+  color: var(--panel-muted);
+  font-weight: 700;
+}

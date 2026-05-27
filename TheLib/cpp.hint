@@ -1,0 +1,12 @@
+// Hint files help the Visual Studio IDE interpret Visual C++ identifiers
+// such as names of functions and macros.
+// For more information see https://go.microsoft.com/fwlink/?linkid=865984
+#define TRUE
+#define FALSE
+#define CreateEvent
+#define INVALID_HANDLE_VALUE ((HANDLE)(LONG_PTR)-1)
+#define ERROR_IO_PENDING
+#define WAIT_OBJECT_0 ((STATUS_WAIT_0 ) + 0 )
+#define WAIT_TIMEOUT
+#define WAIT_FAILED ((DWORD)0xFFFFFFFF)
+#define ERROR_OPERATION_ABORTED

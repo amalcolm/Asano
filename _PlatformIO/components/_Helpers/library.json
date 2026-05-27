@@ -1,0 +1,9 @@
+{
+  "name": "_Helpers",
+  "version": "0.1.1",
+  
+  "build": {
+    "includeDir": ".",
+    "srcDir": "."
+  }
+}

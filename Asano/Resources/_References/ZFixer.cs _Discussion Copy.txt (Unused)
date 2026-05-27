@@ -1,0 +1,162 @@
+﻿using System.Text;
+using Asano.MyGLTools.UserControls;
+
+namespace Asano.MyGLTools.Helpers
+{
+    // Streaming step-discontinuity fixer (4-point gate: P1-P2 vs P3-P4).
+    // Uses: (1) slope similarity (dimensionless) and (2) Δy(mid) size check (y-units).
+    // Outputs corrected C (P3) with 1-sample delay via TryProcess().
+
+    public sealed class ZFixer(double slopeMismatchMax, double baseNoiseY, double kSlope, double kCurve, int cooldownSamples = 2)
+    {
+        public MyChart Chart { get; set; } = null!;
+        public IDictionary<string, double> Telemetry { get; set; } = null!;
+
+        // State
+        private double _globalOffset;
+        private int _cooldown;
+
+        private int _count; // 0..4
+        private Sample _a, _b, _c, _d; // oldest..newest
+
+        public double CurrentOffset => _globalOffset;
+
+        public void Reset(double offset = 0)
+        {
+            _globalOffset = offset;
+            _cooldown = 0;
+            _count = 0;
+            _a.Reset(); _b.Reset(); _c.Reset(); _d.Reset();
+
+            writer?.Dispose();
+            writer = null;
+        }
+
+        public double Fix(double x, double y)
+        {
+            writer ??= new StreamWriter("C:\\Temp\\ZFixer_Log.csv", append: false) { AutoFlush = true };
+
+            Insert(x, y);
+
+            if (_count < 4) return y;
+
+            sb.Append($"{x:F3},{y:F6}");
+
+
+            if (_cooldown > 0) _cooldown--;
+            if (_cooldown == 0)
+                if (TryDetectDelta(out double deltaYMid))
+                {
+                    _globalOffset += deltaYMid;
+                    _c.Offset += deltaYMid;
+                    _d.Offset += deltaYMid;
+
+                    _cooldown = cooldownSamples;
+                }
+
+            
+            writer?.WriteLine(sb.ToString());
+            sb.Clear();
+
+            return _c.Y + _c.Offset;
+        }
+
+        // ---------- detection ----------
+        bool firstCall = true;
+        private bool TryDetectDelta(out double deltaYMid)
+        {
+            deltaYMid = 0;
+
+            double dxLeft  = _b.X - _a.X; if (dxLeft  <= 0) return false;
+            double dxRight = _d.X - _c.X; if (dxRight <= 0) return false;
+            double dxGap   = _c.X - _b.X; if (dxGap   <= 0) return false;
+
+            double mLeft  = Slope(_a, _b);
+            double mRight = Slope(_c, _d);
+
+            double slopeDifference = Math.Abs(mLeft - mRight);
+            double slopeMagnitude  = 0.5 * (Math.Abs(mLeft) + Math.Abs(mRight));
+            double slopeMismatch   = slopeDifference / (slopeMagnitude + 1e-12);
+
+            double xMid = 0.5 * (_b.X + _c.X);
+
+            double?  yLeftMid = LineYAtX(_a, _b, xMid); if ( yLeftMid is null) return false;
+            double? yRightMid = LineYAtX(_c, _d, xMid); if (yRightMid is null) return false;
+
+            deltaYMid = yLeftMid.Value - yRightMid.Value;
+
+            double allowFromSlope = kSlope * slopeMagnitude  * dxGap;
+            double allowFromCurve = kCurve * slopeDifference * dxGap;
+
+            double metric = Math.Abs(deltaYMid) - (allowFromSlope + allowFromCurve) - baseNoiseY;
+
+            bool result = metric > 0 && slopeMismatch <= slopeMismatchMax;
+
+            if (Telemetry != null)
+            {
+                Telemetry["DeltaYMid"]= 512 + (result ? deltaYMid: 0);
+                Telemetry["-SlopeMismatch"] = slopeMismatch;
+                Telemetry["-AllowFromSlope"] = allowFromSlope;
+                Telemetry["-AllowFromCurve"] = allowFromCurve;
+            }
+
+            if (firstCall)
+            {
+                writer?.WriteLine("X,Y,GlobalOffset,SlopeMismatch,DeltaYMid,SlopeMagnitudeDxGap,SlopeDifferenceDxGap,Metric");
+                firstCall = false;
+            }
+
+            if (result)
+                sb.Append($",{_globalOffset+deltaYMid},{slopeMismatch:F6},{deltaYMid:F6},{slopeMagnitude * dxGap:F6},{slopeDifference * dxGap:F6},{metric:F6}");
+            else
+                sb.Append($",{_globalOffset:F6}");
+
+            return result;
+        }
+
+        private static double Slope(Sample a, Sample b)
+            => ((b.Y + b.Offset) - (a.Y + a.Offset)) / (b.X - a.X);
+
+
+        private static double? LineYAtX(Sample a, Sample b, double x)
+        {
+            double dx = b.X - a.X; if (Math.Abs(dx) < 1e-12) return null;
+            double m = ((b.Y + b.Offset) - (a.Y + a.Offset)) / dx;
+            return (a.Y + a.Offset) + m * (x - a.X);
+        }
+
+        // ---------- streaming window ----------
+
+        TextWriter? writer;
+        readonly StringBuilder sb = new(1024);
+        private void Insert(double x, double y)
+        {
+            var s = new Sample(x, y, _globalOffset);
+
+            if (_count == 0) { _a = s; _count = 1; return; }
+            if (_count == 1) { _b = s; _count = 2; return; }
+            if (_count == 2) { _c = s; _count = 3; return; }
+            if (_count == 3) { _d = s; _count = 4; return; }
+
+            _a = _b; _b = _c; _c = _d; _d = s;  // shift and insert
+        }
+
+        // ---------- tiny structs ----------
+
+        private struct Sample(double x, double y, double offset)
+        {
+            public double X = x;
+            public double Y = y;
+            public double Offset = offset; 
+            public void Reset() => X = Y = Offset = 0;
+        }
+
+        public struct XY(double x, double y)
+        {
+            public double X = x, Y = y;
+            public void Reset() => X = Y = 0;
+        }
+
+    }
+
+}

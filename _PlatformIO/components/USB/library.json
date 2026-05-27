@@ -1,0 +1,9 @@
+{
+  "name": "USB",
+  "version": "0.1.7",
+   
+  "build": {
+    "includeDir": ".",
+    "srcDir": "."
+  }
+}

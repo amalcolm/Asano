@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Discontinuity Sandbox (XY drag)</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --text:#e8ecff;
+      --muted:#a9b1d6;
+      --accent:#7aa2f7;
+      --good:#9ece6a;
+      --bad:#f7768e;
+    }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
+    .wrap{display:grid;grid-template-rows:auto 1fr;gap:10px;height:100%;padding:12px;box-sizing:border-box;}
+    .top{
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      border:1px solid rgba(255,255,255,0.10);
+      border-radius:14px;
+      padding:10px 12px;
+    }
+    .title{display:flex;flex-direction:column;gap:2px;}
+    .title b{font-size:14px;letter-spacing:.2px;}
+    .title span{font-size:12px;color:var(--muted)}
+
+    .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:flex-end}
+    .chip{display:flex;gap:8px;align-items:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.10);border-radius:999px;padding:7px 10px;font-size:12px;color:var(--muted)}
+    .chip input[type="checkbox"]{transform:translateY(1px)}
+    .chip input[type="range"]{width:140px}
+
+    button{
+      background:rgba(122,162,247,0.18);
+      border:1px solid rgba(122,162,247,0.35);
+      color:var(--text);
+      padding:8px 10px;
+      border-radius:12px;
+      font-size:12px;
+      cursor:pointer;
+    }
+    button:hover{background:rgba(122,162,247,0.28)}
+
+    button.toggle[data-active="1"]{
+      background:rgba(158,206,106,0.22);
+      border-color:rgba(158,206,106,0.55);
+    }
+    button.toggle[data-active="1"]:hover{
+      background:rgba(158,206,106,0.30);
+    }
+
+    .stage{
+      position:relative;
+      border-radius:14px;
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,0.10);
+      background:radial-gradient(1200px 600px at 40% 0%, rgba(122,162,247,0.18), transparent 60%),
+                 radial-gradient(900px 500px at 95% 100%, rgba(158,206,106,0.10), transparent 60%),
+                 rgba(255,255,255,0.02);
+      min-height:420px;
+    }
+
+    canvas{display:block;width:100%;height:100%}
+
+    .hint{
+      position:absolute;left:12px;bottom:12px;
+      font-size:12px;color:rgba(232,236,255,0.85);
+      background:rgba(0,0,0,0.28);
+      border:1px solid rgba(255,255,255,0.10);
+      border-radius:12px;
+      padding:8px 10px;
+      max-width:720px;
+      line-height:1.35;
+      backdrop-filter: blur(6px);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="title">
+        <b>Discontinuity Sandbox (XY drag)</b>
+        <span>Uniform axes (1 unit in X == 1 unit in Y). Drag points in X/Y. Fix toggles a constant Δy applied to P3 & P4.</span>
+      </div>
+      <div class="controls">
+        <label class="chip" title="Show the slope label per segment (dy/dx)">
+          <input id="chkSlopes" type="checkbox" checked />
+          <span>Slopes</span>
+        </label>
+        <label class="chip" title="Show inferred lines, perp distance, and suggested Δy">
+          <input id="chkInfer" type="checkbox" checked />
+          <span>Inferred</span>
+        </label>
+        <label class="chip" title="Drag gain applies to both X and Y">
+          <span>Drag gain</span>
+          <input id="rngGain" type="range" min="0.25" max="4" step="0.25" value="1" />
+          <span id="gainVal">1.00×</span>
+        </label>
+        <label class="chip" title="Visual guide for a future discontinuity threshold (same Y-units as the points)">
+          <span>Jump</span>
+          <input id="rngJump" type="range" min="0" max="2" step="0.01" value="0.40" />
+          <span id="jumpVal">0.40</span>
+        </label>
+        <button id="btnReset" title="Reset points to defaults">Reset</button>
+        <button id="btnFix" class="toggle" data-active="0" title="Apply suggested Δy(mid) to P3 and P4">Fix</button>
+      </div>
+    </div>
+
+    <div class="stage" id="stage">
+      <canvas id="cv"></canvas>
+      <div class="hint">
+        <div><b>Drag:</b> move dots freely. Hold <b>Shift</b> for fine control.</div>
+        <div style="margin-top:4px"><b>Perp dist:</b> from <b>P3</b> to the infinite line through <b>P1–P2</b> (direction/parallelism check).</div>
+        <div style="margin-top:4px"><b>Suggested Δy:</b> constant vertical shift for <b>P3,P4,…</b>, matching the two local trend lines at <b>xMid = (P2.x+P3.x)/2</b>.</div>
+        <div style="margin-top:4px"><b>Ordering:</b> X is constrained so points stay left→right (tiny minimum spacing), to keep the window meaning intact.</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+
+  const stage = document.getElementById('stage');
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+
+  const chkSlopes = document.getElementById('chkSlopes');
+  const chkInfer  = document.getElementById('chkInfer');
+  const rngGain   = document.getElementById('rngGain');
+  const gainVal   = document.getElementById('gainVal');
+  const rngJump   = document.getElementById('rngJump');
+  const jumpVal   = document.getElementById('jumpVal');
+  const btnReset  = document.getElementById('btnReset');
+  const btnFix    = document.getElementById('btnFix');
+
+  // ---------- Defaults (unit space) ----------
+  // Same starting Y formation you liked, with X initially 0..4.
+  const DEFAULTS = () => ([
+    { x: 0.000, y: 3.000 },
+    { x: 1.000, y: 2.254 },
+    { x: 2.000, y: 1.706 },
+    { x: 3.000, y: 1.966 },
+    { x: 4.000, y: 1.388 },
+  ]);
+
+  let points = [];
+
+  // Fix toggle state (applies a constant Δy to the right side: P3, P4, …)
+  let fixOn = false;
+  let fixSnapshot = null; // { y3, y4 } from before applying the fix
+  let fixAppliedDelta = 0;
+
+  function setFixButton(){
+    if (!btnFix) return;
+    btnFix.dataset.active = fixOn ? '1' : '0';
+    btnFix.textContent = fixOn ? 'Unfix' : 'Fix';
+    btnFix.title = fixOn
+      ? 'Revert the last fix (restores P3 & P4 Y values)'
+      : 'Apply suggested Δy(mid) to P3 and P4';
+  }
+
+  function resetPoints(){
+    points = DEFAULTS().map(p => ({...p}));
+    fixOn = false;
+    fixSnapshot = null;
+    fixAppliedDelta = 0;
+    setFixButton();
+  }
+  resetPoints();
+
+  // ---------- Fixed bounds & uniform axes ----------
+  // Keep y=0 pinned bottom; allow some x headroom for dragging.
+  const BOUNDS = { xMin: 0, xMax: 5, yMin: 0, yMax: 3.2 };
+  const MIN_X_SEP = 0.05; // keeps left→right ordering meaningful
+
+  const pad = { l: 52, r: 22, t: 24, b: 42 };
+
+  function resize(){
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const rect = stage.getBoundingClientRect();
+    cv.width = Math.floor(rect.width * dpr);
+    cv.height = Math.floor(rect.height * dpr);
+    cv.style.width = rect.width + 'px';
+    cv.style.height = rect.height + 'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0); // draw in CSS pixels
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function computeView(bounds, w, h){
+    const innerW = w - pad.l - pad.r;
+    const innerH = h - pad.t - pad.b;
+    const xRange = bounds.xMax - bounds.xMin;
+    const yRange = bounds.yMax - bounds.yMin;
+
+    const scale = Math.min(innerW / xRange, innerH / yRange); // uniform: px per unit
+    const plotW = xRange * scale;
+    const plotH = yRange * scale;
+
+    const originX = pad.l + (innerW - plotW) / 2; // center horizontally
+    const originYBottom = pad.t + innerH;          // yMin anchored to bottom
+
+    return { scale, plotW, plotH, originX, originYBottom };
+  }
+
+  function mapDataToScreen(p, bounds, view){
+    return {
+      x: view.originX + (p.x - bounds.xMin) * view.scale,
+      y: view.originYBottom - (p.y - bounds.yMin) * view.scale,
+    };
+  }
+
+  function mapScreenToData(pos, bounds, view){
+    return {
+      x: bounds.xMin + (pos.x - view.originX) / view.scale,
+      y: bounds.yMin + (view.originYBottom - pos.y) / view.scale,
+    };
+  }
+
+  // ---------- Interaction (Pointer Events; XY dragging) ----------
+  let draggingIndex = -1;
+  let dragOffsetPx = { x: 0, y: 0 };
+  let activePointerId = null;
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+  function getPointerPos(evt){
+    const r = cv.getBoundingClientRect();
+    return { x: evt.clientX - r.left, y: evt.clientY - r.top };
+  }
+
+  function hitTest(mouse, screenPts){
+    const R = 10;
+    let best = -1;
+    let bestD2 = Infinity;
+    for(let i=0;i<screenPts.length;i++){
+      const dx = mouse.x - screenPts[i].x;
+      const dy = mouse.y - screenPts[i].y;
+      const d2 = dx*dx + dy*dy;
+      if(d2 <= R*R && d2 < bestD2){ bestD2 = d2; best = i; }
+    }
+    return best;
+  }
+
+  cv.addEventListener('pointerdown', (evt) => {
+    const w = cv.clientWidth, h = cv.clientHeight;
+    const view = computeView(BOUNDS, w, h);
+    const screenPts = points.map(p => mapDataToScreen(p, BOUNDS, view));
+
+    const m = getPointerPos(evt);
+    const idx = hitTest(m, screenPts);
+    if(idx >= 0){
+      draggingIndex = idx;
+      activePointerId = evt.pointerId;
+      dragOffsetPx = { x: m.x - screenPts[idx].x, y: m.y - screenPts[idx].y };
+      try { cv.setPointerCapture(evt.pointerId); } catch { /* ignore */ }
+      evt.preventDefault();
+    }
+  });
+
+  cv.addEventListener('pointermove', (evt) => {
+    if(draggingIndex < 0) return;
+    if(activePointerId !== null && evt.pointerId !== activePointerId) return;
+
+    const w = cv.clientWidth, h = cv.clientHeight;
+    const view = computeView(BOUNDS, w, h);
+
+    const m = getPointerPos(evt);
+    const targetPx = { x: m.x - dragOffsetPx.x, y: m.y - dragOffsetPx.y };
+    const desired = mapScreenToData(targetPx, BOUNDS, view);
+
+    const gain = parseFloat(rngGain.value) || 1;
+    const fine = evt.shiftKey ? 0.2 : 1.0;
+
+    const cur = points[draggingIndex];
+    let nextX = cur.x + (desired.x - cur.x) * gain * fine;
+    let nextY = cur.y + (desired.y - cur.y) * gain * fine;
+
+    // Clamp Y to bounds
+    nextY = clamp(nextY, BOUNDS.yMin, BOUNDS.yMax);
+
+    // Clamp X to bounds + preserve left→right ordering.
+    const minX = (draggingIndex === 0) ? BOUNDS.xMin : (points[draggingIndex - 1].x + MIN_X_SEP);
+    const maxX = (draggingIndex === points.length - 1) ? BOUNDS.xMax : (points[draggingIndex + 1].x - MIN_X_SEP);
+    nextX = clamp(nextX, minX, maxX);
+
+    cur.x = nextX;
+    cur.y = nextY;
+
+    evt.preventDefault();
+  });
+
+  function endDrag(evt){
+    if(activePointerId !== null && evt.pointerId !== activePointerId) return;
+    if(activePointerId !== null){
+      try { cv.releasePointerCapture(activePointerId); } catch { /* ignore */ }
+    }
+    activePointerId = null;
+    draggingIndex = -1;
+  }
+
+  cv.addEventListener('pointerup', endDrag);
+  cv.addEventListener('pointercancel', endDrag);
+  cv.addEventListener('lostpointercapture', () => { draggingIndex = -1; activePointerId = null; });
+
+  // ---------- Vector helpers (unit space) ----------
+  function vsub(a,b){ return {x:a.x-b.x, y:a.y-b.y}; }
+  function vadd(a,b){ return {x:a.x+b.x, y:a.y+b.y}; }
+  function vmul(a,s){ return {x:a.x*s, y:a.y*s}; }
+  function vdot(a,b){ return a.x*b.x + a.y*b.y; }
+  function vcross(a,b){ return a.x*b.y - a.y*b.x; }
+  function vlen(a){ return Math.hypot(a.x, a.y); }
+  function vnorm(a){ const L = vlen(a); return (L > 1e-12) ? {x:a.x/L, y:a.y/L} : {x:0,y:0}; }
+  function vperp(a){ return {x:-a.y, y:a.x}; }
+
+  function lineYAtX(p0, p1, x){
+    const dx = (p1.x - p0.x);
+    if (Math.abs(dx) < 1e-12) return null;
+    const m = (p1.y - p0.y) / dx;
+    return p0.y + m * (x - p0.x);
+  }
+
+  function computeSuggestedDeltaMid(){
+    // Suggested constant shift to apply to the RIGHT side (P3, P4, ...)
+    // by matching the two local trend lines at xMid between P2.x and P3.x.
+    if (points.length < 5) return 0;
+    const A = points[1], B = points[2];
+    const C = points[3], D = points[4];
+
+    const xMid = (B.x + C.x) / 2;
+    const yLmid = lineYAtX(A, B, xMid);
+    const yRmid = lineYAtX(C, D, xMid);
+    if (yLmid === null || yRmid === null) return 0;
+    return yLmid - yRmid;
+  }
+
+  function drawExtendedLine(p0, p1, bounds, view, strokeStyle, dash){
+    const x0 = bounds.xMin;
+    const x1 = bounds.xMax;
+    const y0 = lineYAtX(p0, p1, x0);
+    const y1 = lineYAtX(p0, p1, x1);
+    if (y0 === null || y1 === null) return;
+
+    const s0 = mapDataToScreen({x:x0, y:y0}, bounds, view);
+    const s1 = mapDataToScreen({x:x1, y:y1}, bounds, view);
+
+    ctx.save();
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = 2;
+    ctx.setLineDash(dash || []);
+    ctx.beginPath();
+    ctx.moveTo(s0.x, s0.y);
+    ctx.lineTo(s1.x, s1.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawRightAngleMarker(P, As, Bs){
+    // small right-angle corner at foot point P
+    const d = vsub(Bs, As);
+    const u = vnorm(d);
+    const n = vnorm(vperp(d));
+    const s = 10;
+
+    const pU = vadd(P, vmul(u, s));
+    const pN = vadd(P, vmul(n, s));
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(232,236,255,0.60)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(pU.x, pU.y);
+    ctx.lineTo(P.x, P.y);
+    ctx.lineTo(pN.x, pN.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawArrow(A, B, strokeStyle){
+    // Simple line + filled triangular head at B
+    const d = vsub(B, A);
+    const L = vlen(d);
+
+    ctx.save();
+    ctx.strokeStyle = strokeStyle;
+    ctx.fillStyle = strokeStyle;
+    ctx.lineWidth = 2;
+
+    ctx.beginPath();
+    ctx.moveTo(A.x, A.y);
+    ctx.lineTo(B.x, B.y);
+    ctx.stroke();
+
+    if (L > 1e-6) {
+      const u = vnorm(d);
+      const n = vnorm(vperp(u));
+      const size = 10;
+      const half = 6;
+
+      const tip = B;
+      const left  = vadd(tip, vadd(vmul(u, -size), vmul(n,  half)));
+      const right = vadd(tip, vadd(vmul(u, -size), vmul(n, -half)));
+
+      ctx.beginPath();
+      ctx.moveTo(tip.x, tip.y);
+      ctx.lineTo(left.x, left.y);
+      ctx.lineTo(right.x, right.y);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  // ---------- Drawing ----------
+  function draw(){
+    try {
+      const w = cv.clientWidth;
+      const h = cv.clientHeight;
+      const view = computeView(BOUNDS, w, h);
+      const spts = points.map(p => mapDataToScreen(p, BOUNDS, view));
+
+      ctx.clearRect(0,0,w,h);
+
+      drawGrid(BOUNDS, view);
+      drawAxes(BOUNDS, view);
+
+      // Polyline
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(232,236,255,0.92)';
+      ctx.beginPath();
+      for(let i=0;i<spts.length;i++){
+        const p = spts[i];
+        if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
+      }
+      ctx.stroke();
+
+      if ((chkInfer?.checked ?? true) && points.length >= 5) {
+        const A = points[1], B = points[2]; // P1-P2
+        const C = points[3], D = points[4]; // P3-P4
+
+        const d1 = vsub(B, A);
+        const d2 = vsub(D, C);
+        const L1 = vlen(d1);
+        const L2 = vlen(d2);
+
+        if (L1 > 1e-9 && L2 > 1e-9) {
+          // Parallel-ness: |sin(theta)| = |cross(d1,d2)|/(|d1||d2|)
+          const sinTheta = Math.abs(vcross(d1, d2)) / (L1 * L2);
+          const nearParallel = sinTheta < 0.08;
+
+          drawExtendedLine(A, B, BOUNDS, view, 'rgba(158,206,106,0.70)', [7, 6]);
+          drawExtendedLine(C, D, BOUNDS, view, 'rgba(247,118,142,0.70)', [7, 6]);
+
+          // Perp distance from C to infinite line AB
+          const t = vdot(vsub(C, A), d1) / vdot(d1, d1);
+          const P = vadd(A, vmul(d1, t));
+          const perpDist = vlen(vsub(C, P));
+
+          // Suggested constant Y-offset (midpoint matching)
+          const deltaY = computeSuggestedDeltaMid();
+
+          // Endpoint variants (for intuition/debug)
+          const yLatC = lineYAtX(A, B, C.x);
+          const deltaAtC = (yLatC !== null) ? (yLatC - C.y) : 0;
+          const yRatB = lineYAtX(C, D, B.x);
+          const deltaAtB = (yRatB !== null) ? (B.y - yRatB) : 0;
+
+          const Cshift = { x: C.x, y: C.y + deltaY };
+          const Dshift = { x: D.x, y: D.y + deltaY };
+
+          // Preview shifted right-line
+          drawExtendedLine(Cshift, Dshift, BOUNDS, view, 'rgba(122,162,247,0.70)', [3, 5]);
+
+          // Arrow at P3 showing Δy(mid)
+          const Cs = mapDataToScreen(C, BOUNDS, view);
+          const CsShift = mapDataToScreen(Cshift, BOUNDS, view);
+          drawArrow(Cs, CsShift, 'rgba(122,162,247,0.85)');
+
+          // Perp connector and right-angle marker
+          const Ps = mapDataToScreen(P, BOUNDS, view);
+          ctx.save();
+          ctx.strokeStyle = nearParallel ? 'rgba(232,236,255,0.65)' : 'rgba(169,177,214,0.55)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 5]);
+          ctx.beginPath();
+          ctx.moveTo(Cs.x, Cs.y);
+          ctx.lineTo(Ps.x, Ps.y);
+          ctx.stroke();
+          ctx.restore();
+
+          const As = mapDataToScreen(A, BOUNDS, view);
+          const Bs = mapDataToScreen(B, BOUNDS, view);
+          drawRightAngleMarker(Ps, As, Bs);
+
+          // Labels
+          const appliedTxt = fixOn ? `  applied=${fixAppliedDelta.toFixed(3)}` : '';
+          const labelY = Math.min(Cs.y, CsShift.y, Ps.y) - 18;
+          drawPillText(
+            `Δy(mid)=${deltaY.toFixed(3)}${appliedTxt}   @x3=${deltaAtC.toFixed(3)}   @x2=${deltaAtB.toFixed(3)}   perp=${perpDist.toFixed(3)}   sinθ=${sinTheta.toFixed(3)}`,
+            (Cs.x + Ps.x) / 2,
+            labelY,
+            'rgba(0,0,0,0.30)',
+            'rgba(255,255,255,0.12)'
+          );
+        }
+      }
+
+      // Segment slopes
+      if (chkSlopes?.checked ?? true) {
+        for(let i=0;i<points.length-1;i++){
+          const a = points[i], b = points[i+1];
+          const dx = (b.x - a.x);
+          const dy = (b.y - a.y);
+          const slope = (Math.abs(dx) < 1e-12) ? Infinity : (dy/dx);
+
+          const sa = spts[i], sb = spts[i+1];
+          const midX = (sa.x + sb.x) / 2;
+          const midY = (sa.y + sb.y) / 2;
+
+          const slopeText = (Number.isFinite(slope) ? slope.toFixed(3) : '∞') + ' dy/dx';
+          drawPillText(slopeText, midX, midY - 14, 'rgba(122,162,247,0.18)', 'rgba(122,162,247,0.45)');
+        }
+      }
+
+      // Jump guide (horizontal band around each point)
+      const jump = parseFloat(rngJump.value) || 0;
+      if(jump > 0){
+        ctx.save();
+        ctx.strokeStyle = 'rgba(247,118,142,0.18)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([6,6]);
+        for(let i=0;i<points.length;i++){
+          const yPlus = points[i].y + jump;
+          const yMinus = points[i].y - jump;
+          if (yPlus >= BOUNDS.yMin && yPlus <= BOUNDS.yMax) {
+            const sy = mapDataToScreen({x: points[i].x, y: yPlus}, BOUNDS, view).y;
+            ctx.beginPath();
+            ctx.moveTo(view.originX, sy);
+            ctx.lineTo(view.originX + view.plotW, sy);
+            ctx.stroke();
+          }
+          if (yMinus >= BOUNDS.yMin && yMinus <= BOUNDS.yMax) {
+            const sy = mapDataToScreen({x: points[i].x, y: yMinus}, BOUNDS, view).y;
+            ctx.beginPath();
+            ctx.moveTo(view.originX, sy);
+            ctx.lineTo(view.originX + view.plotW, sy);
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+      }
+
+      // Dots + labels
+      for(let i=0;i<spts.length;i++){
+        const p = spts[i];
+        const isActive = (i === draggingIndex);
+
+        ctx.beginPath();
+        ctx.fillStyle = isActive ? 'rgba(158,206,106,0.95)' : 'rgba(232,236,255,0.95)';
+        ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
+        ctx.fill();
+
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = isActive ? 'rgba(158,206,106,0.55)' : 'rgba(232,236,255,0.30)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 10, 0, Math.PI*2);
+        ctx.stroke();
+
+        const pointText = `P${i}  x=${points[i].x.toFixed(3)}  y=${points[i].y.toFixed(3)}`;
+        drawPillText(pointText, p.x, p.y + 18, 'rgba(0,0,0,0.30)', 'rgba(255,255,255,0.10)');
+      }
+
+    } catch (e) {
+      console.error('Draw error:', e);
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  function drawPillText(text, x, y, fill, stroke){
+    ctx.save();
+    ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const padX = 8, padY = 5;
+    const tm = ctx.measureText(text);
+    const ww = tm.width + padX*2;
+    const hh = 12 + padY*2;
+    const r = 9;
+
+    const rx = x - ww/2;
+    const ry = y - hh/2;
+
+    roundRect(rx, ry, ww, hh, r);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(232,236,255,0.90)';
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+  }
+
+  function niceStep(raw){
+    const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+    const n = raw / pow;
+    if(n <= 1) return 1 * pow;
+    if(n <= 2) return 2 * pow;
+    if(n <= 5) return 5 * pow;
+    return 10 * pow;
+  }
+
+  function drawGrid(bounds, view){
+    const xStep = niceStep((bounds.xMax - bounds.xMin) / 8);
+    const yStep = niceStep((bounds.yMax - bounds.yMin) / 8);
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+
+    // horizontal
+    const yStart = Math.floor(bounds.yMin / yStep) * yStep;
+    for(let y = yStart; y <= bounds.yMax + 1e-9; y += yStep){
+      const sy = mapDataToScreen({x: bounds.xMin, y}, bounds, view).y;
+      ctx.beginPath();
+      ctx.moveTo(view.originX, sy);
+      ctx.lineTo(view.originX + view.plotW, sy);
+      ctx.stroke();
+    }
+
+    // vertical
+    const xStart = Math.floor(bounds.xMin / xStep) * xStep;
+    for(let x = xStart; x <= bounds.xMax + 1e-9; x += xStep){
+      const sx = mapDataToScreen({x, y: bounds.yMin}, bounds, view).x;
+      ctx.beginPath();
+      ctx.moveTo(sx, view.originYBottom - view.plotH);
+      ctx.lineTo(sx, view.originYBottom);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  function drawAxes(bounds, view){
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(view.originX, view.originYBottom - view.plotH, view.plotW, view.plotH);
+
+    const xStep = niceStep((bounds.xMax - bounds.xMin) / 8);
+    const yStep = niceStep((bounds.yMax - bounds.yMin) / 8);
+
+    ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    ctx.fillStyle = 'rgba(169,177,214,0.90)';
+
+    // y labels
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    const yStart = Math.floor(bounds.yMin / yStep) * yStep;
+    for(let y = yStart; y <= bounds.yMax + 1e-9; y += yStep){
+      const sy = mapDataToScreen({x: bounds.xMin, y}, bounds, view).y;
+      ctx.fillText(y.toFixed(1), view.originX - 8, sy);
+    }
+
+    // x labels
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const xStart = Math.floor(bounds.xMin / xStep) * xStep;
+    for(let x = xStart; x <= bounds.xMax + 1e-9; x += xStep){
+      const sx = mapDataToScreen({x, y: bounds.yMin}, bounds, view).x;
+      ctx.fillText(x.toFixed(1), sx, view.originYBottom + 8);
+    }
+
+    // origin marker
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('0', view.originX - 18, view.originYBottom + 4);
+
+    ctx.restore();
+  }
+
+  // ---------- UI wiring ----------
+  function updateUI(){
+    gainVal.textContent = Number(parseFloat(rngGain.value)).toFixed(2) + '×';
+    jumpVal.textContent = Number(parseFloat(rngJump.value)).toFixed(2);
+  }
+  rngGain.addEventListener('input', updateUI);
+  rngJump.addEventListener('input', updateUI);
+  updateUI();
+
+  btnReset.addEventListener('click', resetPoints);
+
+  btnFix?.addEventListener('click', () => {
+    if (points.length < 5) return;
+
+    if (!fixOn) {
+      fixSnapshot = { y3: points[3].y, y4: points[4].y };
+      fixAppliedDelta = computeSuggestedDeltaMid();
+
+      points[3].y = clamp(points[3].y + fixAppliedDelta, BOUNDS.yMin, BOUNDS.yMax);
+      points[4].y = clamp(points[4].y + fixAppliedDelta, BOUNDS.yMin, BOUNDS.yMax);
+
+      fixOn = true;
+    } else {
+      if (fixSnapshot) {
+        points[3].y = fixSnapshot.y3;
+        points[4].y = fixSnapshot.y4;
+      }
+      fixOn = false;
+      fixSnapshot = null;
+      fixAppliedDelta = 0;
+    }
+
+    setFixButton();
+  });
+
+  // ---------- Self-tests ----------
+  function runSelfTests(){
+    console.groupCollapsed('Self-tests');
+    try {
+      // Distance from (0,1) to line (0,0)-(2,0) is 1
+      const A = {x:0,y:0}, B = {x:2,y:0}, C = {x:0,y:1};
+      const d1 = vsub(B,A);
+      const dist = Math.abs(vcross(vsub(C,A), d1)) / vlen(d1);
+      console.assert(Math.abs(dist - 1) < 1e-9, 'dist point-to-line should be 1', dist);
+
+      // lineYAtX sanity: through (1,2) and (3,6) => y= x+1 => at x=2 => 3
+      const p0 = {x:1,y:2}, p1 = {x:3,y:6};
+      const y = lineYAtX(p0,p1,2);
+      console.assert(Math.abs(y - 4) < 1e-9, 'lineYAtX sanity', y);
+
+      // No accidental global "label"
+      console.assert(!('label' in window), 'window.label should not exist');
+
+    } finally {
+      console.groupEnd();
+    }
+  }
+  runSelfTests();
+
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>

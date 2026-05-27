@@ -1,0 +1,6 @@
+.agents
+.codex
+.vscode
+dist
+node_modules
+obj

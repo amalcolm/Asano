@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Asano": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}

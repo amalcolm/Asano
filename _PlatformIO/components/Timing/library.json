@@ -1,0 +1,9 @@
+{
+  "name": "Timing",
+  "version": "0.0.4",
+  
+  "build": {
+    "includeDir": ".",
+    "srcDir": "."
+  }
+}

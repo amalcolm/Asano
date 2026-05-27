@@ -1,0 +1,9 @@
+{
+  "name": "A2D",
+  "version": "0.1.4",
+
+  "build": {
+    "includeDir": ".",
+    "srcDir": "."
+  }
+}
