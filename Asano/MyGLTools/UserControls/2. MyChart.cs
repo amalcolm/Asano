@@ -25,7 +25,7 @@ namespace Asano.MyGLTools.UserControls
         public bool EnablePlots  { get; set; } = true;
         public bool EnableLabels { get; set; } = true;
 
-
+        public MyColour LabelAreaColour { get; set; } = new(226, 176, 113, 255);
 
         private readonly ConcurrentDictionary<uint, double> _latestValues = [];
         private readonly ConcurrentDictionary<uint, Tuple<TextBlock, TextBlock>> _blocks = [];
@@ -456,7 +456,7 @@ namespace Asano.MyGLTools.UserControls
                 );
                 var projection = Matrix4.CreateOrthographicOffCenter(0, MyGL.ClientSize.Width, 0, MyGL.ClientSize.Height, -1.0f, 1.0f);
 
-                _labelAreaRenderer?.Render(paddedBounds, projection);
+                _labelAreaRenderer?.Render(paddedBounds, projection, LabelAreaColour);
 
                 GL.UseProgram(_textShaderProgram);
             }

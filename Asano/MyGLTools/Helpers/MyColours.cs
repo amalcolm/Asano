@@ -4,19 +4,18 @@ using TheLib;
 namespace Asano.MyGLTools.Helpers
 {
 
-    public struct MyColour(float R, float G, float B, float A)
+    public struct MyColour(float r, float g, float b, float a = 1f)
     {
         public static readonly MyColour Unset = Color.Magenta;
 
-        public float r = R, g = G, b = B, a = A;
+        public float r = r > 1.0f ? r / 255f : r;
+        public float g = g > 1.0f ? g / 255f : g;
+        public float b = b > 1.0f ? b / 255f : b;
+        public float a = a > 1.0f ? a / 255f : a;
 
+        public MyColour(Color c) : this(c.R, c.G, c.B, c.A) { }
 
-
-        public MyColour(Color c) : this(c.R / 255f, c.G / 255f, c.B / 255f, c.A / 255f) { }
-
-
-        public static implicit operator MyColour(Color c) => new(c.R / 255f, c.G / 255f, c.B / 255f, c.A / 255f);
-
+        public static implicit operator MyColour(Color c) => new(c.R, c.G, c.B, c.A);
 
         public static readonly List<MyColour> BaseColours = [
             Color.FromArgb(0x4E, 0x79, 0xA7), // Muted Blue

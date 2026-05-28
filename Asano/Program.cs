@@ -36,9 +36,12 @@ namespace Asano
 
                 Application.Run(new MainForm());
 
+                IsRunning = false;
                 SocketWatcher.StopListening();
             }
 
+            Caldera?.Dispose();
+            Caldera = null;
             serialPort?.Close();
         }
     }

@@ -28,6 +28,8 @@
         /// </summary>
         private void InitializeComponent()
         {
+            components = new System.ComponentModel.Container();
+            MyGLTools.Helpers.PlotAxesRenderer._Options _Options1 = new MyGLTools.Helpers.PlotAxesRenderer._Options();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             cbPorts = new ComboBox();
             labPorts = new Label();
@@ -37,6 +39,7 @@
             dbg = new Asano.MyGLTools.UserControls.MyDebugPane();
             TelemetryPane = new Asano.MyGLTools.UserControls.MyTelemetryPane();
             pDiagnostics = new Panel();
+            signalViewer1 = new Asano.DataTools.Controls.SignalViewer();
             pHeader.SuspendLayout();
             pDiagnostics.SuspendLayout();
             SuspendLayout();
@@ -93,7 +96,7 @@
             // dbg
             // 
             dbg.AutoClear = true;
-            dbg.BackColor = Color.AliceBlue;
+            dbg.BackColor = Color.FromArgb(243, 223, 197);
             dbg.BorderStyle = BorderStyle.FixedSingle;
             dbg.Dock = DockStyle.Fill;
             dbg.Location = new Point(0, 0);
@@ -105,7 +108,7 @@
             // TelemetryPane
             // 
             TelemetryPane.AutoClear = true;
-            TelemetryPane.BackColor = Color.PapayaWhip;
+            TelemetryPane.BackColor = Color.FromArgb(243, 223, 197);
             TelemetryPane.BorderStyle = BorderStyle.FixedSingle;
             TelemetryPane.Dock = DockStyle.Right;
             TelemetryPane.Location = new Point(1066, 0);
@@ -125,18 +128,46 @@
             pDiagnostics.Size = new Size(1395, 287);
             pDiagnostics.TabIndex = 14;
             // 
+            // signalViewer1
+            // 
+            signalViewer1.AutoClear = true;
+            _Options1.AxesLabelVisible = true;
+            _Options1.AxesVisible = true;
+            _Options1.AxisColour = Color.FromArgb(180, 32, 32, 32);
+            _Options1.GridColour = Color.FromArgb(8, 32, 32, 32);
+            _Options1.GridSettings = MyGLTools.Helpers.PlotAxesRenderer.GridFlags.VerticalLines | MyGLTools.Helpers.PlotAxesRenderer.GridFlags.HorizontalLines | MyGLTools.Helpers.PlotAxesRenderer.GridFlags.YaxisLabels | MyGLTools.Helpers.PlotAxesRenderer.GridFlags.XaxisLabels;
+            _Options1.GridVisible = true;
+            _Options1.LabelColor = Color.FromArgb(180, 32, 32, 32);
+            _Options1.LabelPadding = 60F;
+            _Options1.TickColour = Color.FromArgb(140, 32, 32, 32);
+            _Options1.TicksVisible = true;
+            _Options1.XAxisLabelClipRightPadding = 0F;
+            _Options1.XAxisUnitScale = 1F;
+            signalViewer1.AxesOptions = _Options1;
+            signalViewer1.BackColor = Color.MistyRose;
+            signalViewer1.BorderStyle = BorderStyle.FixedSingle;
+            signalViewer1.Dock = DockStyle.Bottom;
+            signalViewer1.Location = new Point(0, 1031);
+            signalViewer1.MaxInteractionXRange = float.PositiveInfinity;
+            signalViewer1.MinInteractionXRange = 1E-06F;
+            signalViewer1.Name = "signalViewer1";
+            signalViewer1.Size = new Size(1395, 302);
+            signalViewer1.TabIndex = 15;
+            signalViewer1.TextColour = Color.Black;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1395, 1620);
+            Controls.Add(signalViewer1);
             Controls.Add(multiChart);
             Controls.Add(pHeader);
             Controls.Add(pDiagnostics);
             Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "MainForm";
             StartPosition = FormStartPosition.CenterScreen;
-            Text = "fNIRS Prototype Data Monitor";
+            Text = " ";
             Shown += Form1_Shown;
             pHeader.ResumeLayout(false);
             pHeader.PerformLayout();
@@ -152,7 +183,7 @@
         private Panel pHeader;
         private MyGLTools.UserControls.MyDebugPane dbg;
         private MyGLTools.UserControls.MyTelemetryPane TelemetryPane;
-        private DataTools.Controls.SignalViewer signalViewer;
         private Panel pDiagnostics;
+        private DataTools.Controls.SignalViewer signalViewer1;
     }
 }

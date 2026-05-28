@@ -43,6 +43,8 @@ namespace Asano.DataTools.Controls
         {
             InitializeComponent();
 
+            if (Program.IsRunning == false) { ShowDesignView(); return; }
+
             cmStrip.Closed += cmStrip_Closed;
 
             BackColor = Color.MistyRose;
@@ -136,16 +138,11 @@ namespace Asano.DataTools.Controls
         {
             if (base.requestHold || blockPacket.Count <= 0) return;
 
-            for (int i = blockPacket.Count - 1; i >= 0; i--)
-            {
-                DataPacket dataPacket = blockPacket.BlockData[i];
+            DataPacket dataPacket = blockPacket.BlockData[blockPacket.Count - 1];
 
-                lock (_lock)
-                    _latestHardware.CopyFrom(dataPacket);
-                return;
-            }
+            lock (_lock)
+                _latestHardware.CopyFrom(dataPacket);
         }
-
 
         private readonly MyGLVertexBuffer _vertexBuffer = new(MAX_VERTICES);
         private Vertex[] vertices = new Vertex[MAX_VERTICES];

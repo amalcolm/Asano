@@ -2,14 +2,16 @@ using Timer = System.Windows.Forms.Timer;
 
 namespace Asano
 {
-    using TheLib;
     using Asano.Caldera;
     using Asano.MyGLTools.Helpers;
+    using TheLib;
 
     public partial class MainForm : Form
     {
         readonly TeensySerial? SP = Program.serialPort;
         readonly CancellationTokenSource cts = new();
+        private bool _closeStarted;
+        private bool _shutdownComplete;
 
 
 
@@ -46,12 +48,7 @@ namespace Asano
                 }
             };
 
-            Caldera.Caldera.OnInit += (object? sender, EventArgs e) =>
-            {
-                if (sender is not Caldera.Caldera caldera) return;
-
-                caldera.TestStarted += (s, e) => dbg.Clear();
-            };
+            Caldera.Caldera.OnInit += Caldera_OnInit;
 
             multiChart.ChartCountChanged += MultiChart_ChartCountChanged;
 
@@ -62,6 +59,78 @@ namespace Asano
             SP.ErrorOccurred     += SP_ErrorOccurred;
 
             multiChart.Clear();
+        }
+
+        private void Caldera_OnInit(object? sender, EventArgs e)
+        {
+            if (sender is not Caldera.Caldera caldera) return;
+
+            caldera.TestStarted += (s, e) => dbg.Clear();
+        }
+
+        protected override async void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (!_shutdownComplete)
+            {
+                e.Cancel = true;  if (_closeStarted) return;
+
+                _closeStarted = true;
+
+                try   {await ShutdownAsync(); }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine("Error during shutdown: " + ex); }
+                finally { _shutdownComplete = true; BeginCloseAfterShutdown(); }
+                return;
+            }
+
+            base.OnFormClosing(e);
+        }
+
+        private void CalderaForm_FormClosed(object? sender, FormClosedEventArgs e)
+        {
+            if (!_closeStarted)
+                Close();
+        }
+
+        private async Task ShutdownAsync()
+        {
+            monitorTimer.Stop();
+            cts.Cancel();
+
+            Caldera.Caldera.OnInit -= Caldera_OnInit;
+            multiChart.ChartCountChanged -= MultiChart_ChartCountChanged;
+
+            if (SP != null)
+            {
+                SP.DataReceived      -= SP_DataReceived;
+                SP.ConnectionChanged -= SP_ConnectionChanged;
+                SP.ErrorOccurred     -= SP_ErrorOccurred;
+            }
+
+            await ShutdownCalderaFormAsync();
+        }
+
+        private void BeginCloseAfterShutdown()
+        {
+            if (IsDisposed) return;
+
+            BeginInvoke(new MethodInvoker(Close));
+        }
+
+        private async Task ShutdownCalderaFormAsync()
+        {
+            var form = calderaForm;
+            if (form == null)
+                return;
+
+            calderaForm = null;
+            form.FormClosed -= CalderaForm_FormClosed;
+
+            if (form.IsDisposed)
+                return;
+
+            await form.ShutdownCalderaAsync();
+            form.Close();
+            form.Dispose();
         }
 
         private readonly Timer monitorTimer = new() { Interval = 1000, Enabled = false };
@@ -111,28 +180,33 @@ namespace Asano
         {
             if (IsHandleCreated == false) return;
 
-            dbg.Log(AString.FromString(exception.Message + Environment.NewLine));
-
-            while (!cts.Token.IsCancellationRequested && SP?.IsOpen == false) // null check here
+            try
             {
-                await Task.Delay(500, cts.Token); // Wait before retrying
-                if (cts.Token.IsCancellationRequested) return;
+                dbg.Log(AString.FromString(exception.Message + Environment.NewLine));
 
-                var ports = SerialHelper.GetUSBSerialPorts();
-                if (ports?.Length > 0)
+                while (!cts.Token.IsCancellationRequested && SP?.IsOpen == false) // null check here
                 {
-                    await Task.Delay(200, cts.Token);
+                    await Task.Delay(500, cts.Token); // Wait before retrying
                     if (cts.Token.IsCancellationRequested) return;
 
-                    if (SP?.IsOpen == false) // check again before opening
-                        this.Invoker(() =>
-                        {
-                            cbPorts.Items.Clear();
-                            cbPorts.Items.AddRange(ports);
-                            cbPorts.SelectedIndex = cbPorts.Items.Count - 1;
-                        });
-                }
+                    var ports = SerialHelper.GetUSBSerialPorts();
+                    if (ports?.Length > 0)
+                    {
+                        await Task.Delay(200, cts.Token);
+                        if (cts.Token.IsCancellationRequested) return;
 
+                        if (SP?.IsOpen == false) // check again before opening
+                            this.Invoker(() =>
+                            {
+                                cbPorts.Items.Clear();
+                                cbPorts.Items.AddRange(ports);
+                                cbPorts.SelectedIndex = cbPorts.Items.Count - 1;
+                            });
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (cts.IsCancellationRequested)
+            {
             }
         }
         private void SP_ConnectionChanged(ConnectionState state)
@@ -230,7 +304,7 @@ namespace Asano
                 if (firstLoad)
                 {
                     calderaForm = new MyCalderaForm() ;
-                    calderaForm.FormClosed += (_, _) => this.Close();
+                    calderaForm.FormClosed += CalderaForm_FormClosed;
                     calderaForm.Show();
                 }
 
@@ -248,13 +322,13 @@ namespace Asano
 
 
 
+
         int index = -1;
         private void butDBG_Click(object sender, EventArgs e)
         {
             foreach (var chart in multiChart.GetCharts())
-            {
                 dbg.Log(chart.getDebugOutput(index));
-            }
+            
             butDBG.Text = $"DBG {index++}";
         }
 

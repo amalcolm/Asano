@@ -1,4 +1,4 @@
-﻿using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.Core;
 using TheLib;
 using TheLib.Packets;
 using System.Text.Json;
@@ -367,9 +367,20 @@ namespace Asano.Caldera
             _ready = false;
 
             if (Program.serialPort != null)
+            {
                 Program.serialPort.DataReceived -= SP_DataReceived;
-            WebView.WebMessageReceived  -= WebView_WebMessageReceived;
-            WebView.NavigationCompleted -= WebView_NavigationCompleted;
+                Program.serialPort.ConnectionChanged -= SP_ConnectionChanged;
+            }
+
+            try
+            {
+                WebView.WebMessageReceived  -= WebView_WebMessageReceived;
+                WebView.NavigationCompleted -= WebView_NavigationCompleted;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Error detaching Caldera WebView events: " + ex);
+            }
 
             _wipersPoster.Clear();
             _voltagesPoster.Clear();

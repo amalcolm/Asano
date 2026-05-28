@@ -1,8 +1,12 @@
-﻿
+
 namespace Asano.Caldera
 {
     public partial class MyCalderaForm : Form
     {
+        private bool _shutdownComplete;
+        private bool _closeAfterShutdown;
+        private Task? _shutdownTask;
+
         public MyCalderaForm()
         {
             InitializeComponent();
@@ -25,6 +29,36 @@ namespace Asano.Caldera
                     this.Size = new Size(1280, 2160-32);
                     break;
             }
+        }
+
+        public Task ShutdownCalderaAsync() => _shutdownTask ??= ShutdownCalderaCoreAsync();
+
+        protected override async void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (_shutdownComplete) { base.OnFormClosing(e); return; }
+
+            e.Cancel = true;
+
+            if (_closeAfterShutdown) return;
+
+            _closeAfterShutdown = true;
+            try   { await ShutdownCalderaAsync(); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("Error during Caldera shutdown: " + ex); }
+            finally { BeginCloseAfterShutdown(); }
+        }
+
+        private async Task ShutdownCalderaCoreAsync()
+        {
+            try     { await calderaControl.ShutdownAsync(); }
+            finally { _shutdownComplete = true;             }
+        }
+
+        private void BeginCloseAfterShutdown()
+        {
+            if (IsDisposed)
+                return;
+
+            BeginInvoke(new MethodInvoker(Close));
         }
     }
 }

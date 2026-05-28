@@ -36,7 +36,7 @@ namespace Asano.MyGLTools.Backgrounds
             _bgTextureId = LoadTexture(texturePath);
         }
 
-        public void Render(RectangleF bounds, Matrix4 projection)
+        public void Render(RectangleF bounds, Matrix4 projection, MyColour colour)
         {
             if (_bgVbo == 0 || bounds.IsEmpty) return;
 
@@ -49,6 +49,7 @@ namespace Asano.MyGLTools.Backgrounds
 
             GL.UniformMatrix4(GL.GetUniformLocation(_bgShaderProgram, "uTransform"), false, ref projection);
             GL.Uniform1(GL.GetUniformLocation(_bgShaderProgram, "uTexture"), 0);
+            GL.Uniform4(GL.GetUniformLocation(_bgShaderProgram, "uColor"), colour.r, colour.g, colour.b, colour.a);
 
             UpdateBackgroundVertices(bounds);
             GL.DrawArrays(PrimitiveType.TriangleStrip, 0, 4);

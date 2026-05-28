@@ -1,12 +1,13 @@
-﻿using OpenTK.Graphics.OpenGL4;
+﻿using System.Collections.Concurrent;
+
+using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 
 using TheLib;
 
-using System.Collections.Concurrent;
-using System.Windows.Forms;
 using Asano.MyGLTools.Backgrounds;
 using Asano.MyGLTools.Fonts;
+using Asano.MyGLTools.Helpers;
 
 namespace Asano.MyGLTools.UserControls
 {
@@ -19,6 +20,8 @@ namespace Asano.MyGLTools.UserControls
 
         private volatile int labelCount = 0;
         private readonly ConcurrentDictionary<uint, bool> _pendingStates = [];
+
+        private readonly MyColour LabelAreaColour = new(226,176,113, 255);
 
         private LabelAreaRenderer? _labelAreaRenderer;
 
@@ -138,7 +141,7 @@ namespace Asano.MyGLTools.UserControls
                 );
                 var projection = Matrix4.CreateOrthographicOffCenter(0, MyGL.ClientSize.Width, 0, MyGL.ClientSize.Height, -1.0f, 1.0f);
 
-                _labelAreaRenderer?.Render(paddedBounds, projection);
+                _labelAreaRenderer?.Render(paddedBounds, projection, LabelAreaColour);
 
                 GL.UseProgram(_textShaderProgram);
             }

@@ -1,9 +1,11 @@
-﻿using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.Core;
 
 namespace Asano.Caldera
 {
     public partial class CalderaControl : UserControl
     {
+        private static readonly TimeSpan WebViewShutdownTimeout = TimeSpan.FromSeconds(2);
+
         public CoreWebView2 CoreWebView2 => web.CoreWebView2;
 
         public Caldera? Caldera { get => _caldera; }
@@ -11,6 +13,8 @@ namespace Asano.Caldera
         private bool _disposedOrClosing = false;
 
         private readonly DevServer _devServer = new();
+        private CoreWebView2Environment? _webViewEnvironment;
+        private TaskCompletionSource<bool>? _browserProcessExited;
         private Caldera? _caldera;
 
         public CalderaControl()
@@ -25,6 +29,9 @@ namespace Asano.Caldera
        
         private void SerialPort_ConnectionChanged(TheLib.ConnectionState state)
         {
+            if (_disposedOrClosing)
+                return;
+
             if (state == TheLib.ConnectionState.Connected)
                 if (Caldera?.IsRunning == true)
                     this.Invoker(web.CoreWebView2.Reload);
@@ -35,35 +42,114 @@ namespace Asano.Caldera
             base.OnHandleCreated(e);
             if (Program.IsRunning == false || _webInitStarted) return;
 
-            await _devServer.EnsureViteRunningAsync();
-
             _webInitStarted = true;
 
-            try 
+            try
             {
+                await _devServer.EnsureViteRunningAsync();
+
+                if (_disposedOrClosing || IsDisposed || !IsHandleCreated)
+                {
+                    _devServer.StopViteIfStartedByMe();
+                    return;
+                }
+
                 await InitWebView();
+                if (_disposedOrClosing || IsDisposed || web.CoreWebView2 == null)
+                    return;
+
                 _caldera = new Caldera(this);
                 web.CoreWebView2.Navigate(DevServer.URL);
 
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Failed to initialize WebView2: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (!_disposedOrClosing && !IsDisposed)
+                    MessageBox.Show($"Failed to initialize WebView2: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
 
         protected override void OnHandleDestroyed(EventArgs e)
         {
-            if (!RecreatingHandle && !_disposedOrClosing)
-            {
-                _disposedOrClosing = true;
-                _caldera?.Dispose();
-                _caldera = null;
-                _devServer.StopViteIfStartedByMe();
-            }
+            if (!RecreatingHandle)
+                _ = ShutdownAsync(waitForBrowserProcessExit: false);
 
             base.OnHandleDestroyed(e);
+        }
+
+        public Task ShutdownAsync()
+            => ShutdownAsync(waitForBrowserProcessExit: true);
+
+        private async Task ShutdownAsync(bool waitForBrowserProcessExit)
+        {
+            if (_disposedOrClosing)
+                return;
+
+            _disposedOrClosing = true;
+
+            if (Program.serialPort != null)
+                Program.serialPort.ConnectionChanged -= SerialPort_ConnectionChanged;
+
+            try
+            {
+                _caldera?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Error disposing Caldera bridge: " + ex);
+            }
+            finally
+            {
+                _caldera = null;
+            }
+
+            var browserProcessExitedTask = waitForBrowserProcessExit
+                ? _browserProcessExited?.Task
+                : null;
+
+            try
+            {
+                if (!web.IsDisposed)
+                    web.Dispose();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Error disposing WebView2: " + ex);
+            }
+
+            if (browserProcessExitedTask != null)
+                await WaitForBrowserProcessExitAsync(browserProcessExitedTask);
+
+            try
+            {
+                if (_webViewEnvironment != null)
+                    _webViewEnvironment.BrowserProcessExited -= WebViewEnvironment_BrowserProcessExited;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Error detaching WebView2 environment: " + ex);
+            }
+            finally
+            {
+                _webViewEnvironment = null;
+                _browserProcessExited = null;
+            }
+
+            _devServer.StopViteIfStartedByMe();
+        }
+
+        private static async Task WaitForBrowserProcessExitAsync(Task browserProcessExitedTask)
+        {
+            var timeoutTask = Task.Delay(WebViewShutdownTimeout);
+            await Task.WhenAny(browserProcessExitedTask, timeoutTask);
+        }
+
+        private void WebViewEnvironment_BrowserProcessExited(
+            object? sender,
+            CoreWebView2BrowserProcessExitedEventArgs e)
+        {
+            _browserProcessExited?.TrySetResult(true);
         }
 
         private async Task InitWebView()
@@ -76,11 +162,21 @@ namespace Asano.Caldera
 
             Directory.CreateDirectory(userDataFolder);
 
-            var env = await CoreWebView2Environment.CreateAsync(
+            _webViewEnvironment = await CoreWebView2Environment.CreateAsync(
                 browserExecutableFolder: null,
                 userDataFolder: userDataFolder);
 
-            await web.EnsureCoreWebView2Async(env);
+            if (_disposedOrClosing || IsDisposed)
+            {
+                _webViewEnvironment = null;
+                return;
+            }
+
+            _browserProcessExited = new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            _webViewEnvironment.BrowserProcessExited += WebViewEnvironment_BrowserProcessExited;
+
+            await web.EnsureCoreWebView2Async(_webViewEnvironment);
         }
     }
 }
