@@ -21,7 +21,7 @@ namespace Asano.MyGLTools.UserControls
         private volatile int labelCount = 0;
         private readonly ConcurrentDictionary<uint, bool> _pendingStates = [];
 
-        private readonly MyColour LabelAreaColour = new(226,176,113, 255);
+        private readonly MyColour LabelAreaColour = new(216,201,178, 255);
 
         private LabelAreaRenderer? _labelAreaRenderer;
 
@@ -81,7 +81,7 @@ namespace Asano.MyGLTools.UserControls
         protected override void Init()
         {
             base.Init();
-            _labelAreaRenderer = new(this, "Resources/Backgrounds/LabelArea.png");
+            _labelAreaRenderer = new(this) { FillBackground = true };
             AutoClear = false;
         }
 

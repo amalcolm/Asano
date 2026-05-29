@@ -28,9 +28,17 @@
         /// </summary>
         private void InitializeComponent()
         {
-            components = new System.ComponentModel.Container();
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.BackColor = Color.AliceBlue;
+            SuspendLayout();
+            // 
+            // MyDebugPane
+            // 
+            AutoScaleDimensions = new SizeF(7F, 15F);
+            AutoScaleMode = AutoScaleMode.Font;
+            BackColor = Color.AliceBlue;
+            Margin = new Padding(0);
+            Name = "MyDebugPane";
+            Size = new Size(148, 148);
+            ResumeLayout(false);
 
         }
 

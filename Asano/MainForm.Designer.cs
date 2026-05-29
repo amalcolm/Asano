@@ -97,9 +97,9 @@
             // 
             dbg.AutoClear = true;
             dbg.BackColor = Color.FromArgb(243, 223, 197);
-            dbg.BorderStyle = BorderStyle.FixedSingle;
             dbg.Dock = DockStyle.Fill;
             dbg.Location = new Point(0, 0);
+            dbg.Margin = new Padding(0);
             dbg.Name = "dbg";
             dbg.Size = new Size(1066, 287);
             dbg.TabIndex = 6;
@@ -109,7 +109,6 @@
             // 
             TelemetryPane.AutoClear = true;
             TelemetryPane.BackColor = Color.FromArgb(243, 223, 197);
-            TelemetryPane.BorderStyle = BorderStyle.FixedSingle;
             TelemetryPane.Dock = DockStyle.Right;
             TelemetryPane.Location = new Point(1066, 0);
             TelemetryPane.Name = "TelemetryPane";

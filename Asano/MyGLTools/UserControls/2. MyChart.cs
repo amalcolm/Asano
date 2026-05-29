@@ -361,7 +361,7 @@ namespace Asano.MyGLTools.UserControls
         protected override void Init()
         {
             base.Init();
-            _labelAreaRenderer = new(this, "Resources/Backgrounds/LabelArea.png");
+            _labelAreaRenderer = new(this);
         }
 
         protected override void Shutdown()
