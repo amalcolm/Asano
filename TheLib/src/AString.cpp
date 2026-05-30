@@ -181,9 +181,8 @@ namespace TheLib
 
         // Return the wrapper itself to the pool for reuse
         if (s_pool == nullptr)
-        {
             s_pool = gcnew ConcurrentBag<AString^>();
-        }
+
         s_pool->Add(this);
     }
 

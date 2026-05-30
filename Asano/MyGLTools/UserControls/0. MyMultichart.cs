@@ -17,42 +17,24 @@ namespace Asano.MyGLTools.UserControls
         public event EventHandler<int>? ChartCountChanged;
         public bool SingleStateMode { get; private set; } = false;
 
-        private enum FormState
-        {
-            None,
-            Initialising,
-            Building,
-            Running
-        }
+        private enum FormState {  None, Initialising, Building, Running }
 
-        public MyMultichart()
-        {
-            InitializeComponent();
-        }
+        public MyMultichart() => InitializeComponent();
+        
 
         public bool IsRunning => _state == FormState.Running;
 
-        public IReadOnlyDictionary<HeadState, MyChart> Charts
-        {
-            get
-            {
-                lock (_lock)
-                    return new Dictionary<HeadState, MyChart>(_chartsByState);
-            }
-        }
+        public IReadOnlyDictionary<HeadState, MyChart> Charts { get { lock (_lock) return new Dictionary<HeadState, MyChart>(_chartsByState); } }
 
         public void BeginInitialising()
         {
             RefreshSingleStateMode();
 
-            if (_state == FormState.None)
-                SetState(FormState.Initialising);
+            if (_state == FormState.None) SetState(FormState.Initialising);
         }
 
-        public void Clear()
-        {
-            SetState(FormState.None);
-        }
+        public void Clear() => SetState(FormState.None);
+        
 
         public void AddBlockPacket(BlockPacket blockPacket)
         {
@@ -71,18 +53,13 @@ namespace Asano.MyGLTools.UserControls
             chart?.SP_DataReceived(blockPacket);
         }
 
-        private void RefreshSingleStateMode()
-            => SingleStateMode = Config.DEBUG_MODE == "SINGLE_STATE";
+        private void RefreshSingleStateMode() => SingleStateMode = Config.DEBUG_MODE == "SINGLE_STATE";
 
         public void AddData(Dictionary<string, double> data)   => PrimaryChart.AddData(data);
         public void AddData(Dictionary<string, XY> data)       => PrimaryChart.AddData(data);
         public void AddData(Dictionary<string, double[]> data) => PrimaryChart.AddData(data);
 
-        public MyChart[] GetCharts()
-        {
-            lock (_lock)
-                return [.. _chartsByState.OrderBy(pair => pair.Key).Select(pair => pair.Value)];
-        }
+        public MyChart[] GetCharts() { lock (_lock) return [.. _chartsByState.OrderBy(pair => pair.Key).Select(pair => pair.Value)]; }
 
         private void SetState(FormState state)
         {

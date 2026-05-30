@@ -255,6 +255,12 @@ namespace Asano.MyGLTools.UserControls
             renderingText = false;
         }
 
+        public void SetTextProjection(Matrix4 projection)
+        {
+            int uProjLoc = GL.GetUniformLocation(_textShaderProgram, "uProj");
+            GL.UniformMatrix4(uProjLoc, false, ref projection);
+        }
+
         public void ClearGL()
         {
             if (!IsLoaded || IsDisposed) return;

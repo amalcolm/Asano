@@ -1,11 +1,10 @@
-﻿using OpenTK.Mathematics;
-using TheLib;
-using Asano.MyGLTools.Fonts;
-
+﻿using Asano.MyGLTools.Fonts;
+using OpenTK.Mathematics;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.ComponentModel;
-using System.Diagnostics;
+using System.Drawing.Printing;
+using TheLib;
 
 
 namespace Asano.MyGLTools.UserControls
@@ -33,7 +32,9 @@ namespace Asano.MyGLTools.UserControls
 
         public void Clear() => log.Clear();
 
-        protected override void DrawText() => log.Render();
+        protected override void Render() => log.Update();
+
+        protected override void DrawText() => log.Draw();
 
     }
 
@@ -41,40 +42,55 @@ namespace Asano.MyGLTools.UserControls
     {
         public const int Margin = 8;
         public const double LineSpacing = 1.2;
-        readonly ArrayPool<FontVertex> VertexPool = ArrayPool<FontVertex>.Shared;
         int lineHeight;
+        LineVertices Elipses;
+
         public void Init()
         {
             var fr = control.fontRenderer;
             lineHeight = (int)(fr.Font.LineHeight * fr.Scaling * LineSpacing);
 
-            MaxNumberOfLines = (control.Height - 2 * Margin) / lineHeight;
+            MaxNumberOfLines = Math.Max(0, (control.Height - 2 * Margin) / lineHeight);
             Clear();
+
+            string elipsesStr = "...";
+            var buf = VertexPool.Rent(elipsesStr.Length * 6);
+            float x = 20;
+            float y = control.Height - lineHeight - Margin/2;
+
+            int numVerts = FontVertex.BuildString(buf, 0, elipsesStr.AsSpan(), FontFile.Default, x, y, control.fontRenderer.Scaling, TextAlign.Left);
+
+            Elipses = new LineVertices { Vertices = buf, Length = numVerts };
+
             control.AutoClear = false;
         }
 
         public void Clear()
         {
-            while (qLinesToAdd.TryDequeue(out var _)) 
-
             while (qStringsToAdd.TryDequeue(out AString? s))
                 s?.Dispose();
 
             for (int i = 0; i < LineBuffers.Length; i++)
-                if (LineBuffers[i].Vertices != null)
-                    VertexPool.Return(LineBuffers[i].Vertices);
+                ReturnLine(ref LineBuffers[i]);
             
             LineBuffers = new LineVertices[MaxNumberOfLines];
             
             UsedLines = 0;
+            scrolledLines = 0;
+            linesSinceUpdate = 0;
             baseHeight = -PrecisionBoundary;
             nextHeight = baseHeight + control.Height - Margin - lineHeight;
+            UpdateViewport();
         }
 
         private int MaxNumberOfLines;  // number of lines that fit in the control
         private volatile int nextHeight = 0;  // height of the next line to add
         private volatile int baseHeight = 0;  // base height offset for scrolling
         private int UsedLines = 0;     // total number of lines added so far
+        private int scrolledLines = 0; // total line-height scrolls applied to the viewport
+        private int linesSinceUpdate  = 0;
+        
+        readonly ArrayPool<FontVertex> VertexPool = ArrayPool<FontVertex>.Shared;
 
         private const int PrecisionBoundary = 0x200000;
         private LineVertices[] LineBuffers = [];
@@ -85,8 +101,6 @@ namespace Asano.MyGLTools.UserControls
             public int Length;
         }
 
-        private readonly ConcurrentQueue<LineVertices> qLinesToAdd = [];
-
         private readonly ConcurrentQueue<AString> qStringsToAdd = [];
 
         public void Add(AString? str)
@@ -94,71 +108,92 @@ namespace Asano.MyGLTools.UserControls
             if (str?.Length > 0)
             {
                 qStringsToAdd.Enqueue(str);
-                Debug.WriteLine($"Enqueued string: {str}");
+                Interlocked.Increment(ref linesSinceUpdate);
             }
-
+            else
+                str?.Dispose();
         }
 
-        public void Render()
+        public void Update()
         {
             if (MaxNumberOfLines <= 0) return;  // safety for weird resize states
 
-            // --- Phase 1: Build new lines ---
-            float buildY = nextHeight;  // snapshot
+            DrainIncomingStrings();
+            UpdateViewport();
 
-            while (qStringsToAdd.TryDequeue(out AString? str))
-            {
-                if (str?.Length > 0)
-                {
-                    try
-                    {
-                        var buf = VertexPool.Rent(str.Length * 6);
-                        var numVerts = FontVertex.BuildString(buf, 0, str.Buffer.AsSpan(), FontFile.Default, 0, buildY, control.fontRenderer.Scaling, TextAlign.Left);
-
-                        qLinesToAdd.Enqueue(new LineVertices { Vertices = buf, Length = numVerts });
-
-                        buildY -= lineHeight;
-                    }
-                    finally
-                    {
-                        str?.Dispose();
-                    }
-                }
-            }
-
-            nextHeight = (int)buildY;
-
-            // --- Phase 2: Slot into circular buffer ---
-            int overwritesThisFrame = 0;
-            bool needUpdate = false;
-
-            while (qLinesToAdd.TryDequeue(out LineVertices newLine))
-            {
-                int thisLine = UsedLines % MaxNumberOfLines;
-
-                if (UsedLines >= MaxNumberOfLines)
-                {
-                    VertexPool.Return(LineBuffers[thisLine].Vertices);
-                    overwritesThisFrame++;
-                }
-
-                LineBuffers[thisLine] = newLine;
-                UsedLines++;
-                needUpdate = true;
-            }
-
-            // Normal line-by-line scroll from overwrites
-            if (overwritesThisFrame > 0)
-            {
-                baseHeight -= overwritesThisFrame * lineHeight;
-            }
-
-
-            if (!needUpdate) return;
-
-            // --- Final render ---
             control.ClearViewport();
+        }
 
+        private void DrainIncomingStrings()
+        {
+            int linesAvailable = qStringsToAdd.Count;
+            int linesToSkip = Math.Max(0, linesAvailable - MaxNumberOfLines);
+
+            for (int i = 0; i < linesToSkip; i++)
+            {
+                if (!qStringsToAdd.TryDequeue(out AString? str)) return;
+
+                str?.Dispose();
+
+                UsedLines++;
+                nextHeight -= lineHeight;
+            }
+
+            int linesToBuild = linesAvailable - linesToSkip;
+
+            for (int i = 0; i < linesToBuild; i++)
+            {
+                if (!qStringsToAdd.TryDequeue(out AString? str)) break;
+
+                if (str?.Length > 0)
+                    AddLine(str);
+                else
+                    str?.Dispose();
+            }
+        }
+
+        private void AddLine(AString str)
+        {
+            if (str.Length <= 0) return;
+
+            int thisLine = UsedLines % MaxNumberOfLines;
+            ReturnLine(ref LineBuffers[thisLine]);
+
+            try
+            {
+                var buf = VertexPool.Rent(str.Length * 6);
+                int numVerts = FontVertex.BuildString(buf, 0, str.Buffer.AsSpan(), FontFile.Default, 0, nextHeight, control.fontRenderer.Scaling, TextAlign.Left);
+
+                LineBuffers[thisLine] = new LineVertices { Vertices = buf, Length = numVerts };
+            }
+            finally
+            {
+                str.Dispose();
+                UsedLines++;
+                nextHeight -= lineHeight;
+            }
+        }
+
+        private void ReturnLine(ref LineVertices line)
+        {
+            if (line.Vertices == null) return;
+
+            VertexPool.Return(line.Vertices);
+            line = default;
+        }
+
+        private void UpdateViewport()
+        {
+            int targetScrollLines = Math.Max(0, UsedLines - MaxNumberOfLines);
+            int newScrollLines = targetScrollLines - scrolledLines;
+
+            if (newScrollLines > 0)
+            {
+                baseHeight -= newScrollLines * lineHeight;
+                scrolledLines = targetScrollLines;
+            }
+
+            RebaseIfNeeded();
             var fr = control.fontRenderer;
             float fMargin = Margin;
 
@@ -166,6 +201,12 @@ namespace Asano.MyGLTools.UserControls
                 -fMargin, control.Width - fMargin,
                 fMargin + baseHeight, fMargin + control.Height + baseHeight,
                 -1, 1);
+        }
+
+
+        public void Draw()
+        {
+            var fr = control.fontRenderer;
 
             int activeLines = Math.Min(UsedLines, MaxNumberOfLines);
             for (int i = 0; i < activeLines; i++)
@@ -174,27 +215,29 @@ namespace Asano.MyGLTools.UserControls
                 if (line.Vertices != null)
                     fr.RenderText(line.Vertices, line.Length);
             }
-        }
-        private void ManageScrolling()
-        {
-            // Scroll is needed one before we exceed max lines
-            // No idea why, but it works.  Beats GPT-5.1 Thinking et.al.
-            if (UsedLines >= MaxNumberOfLines)
-            {
-                baseHeight -= lineHeight;
-                if (baseHeight > PrecisionBoundary)
-                {
-                    // reset base height to avoid float precision issues
-                    baseHeight = -PrecisionBoundary;
-                    nextHeight = baseHeight + control.Height - Margin - lineHeight;
-                    nextHeight = (MaxNumberOfLines - 1) * lineHeight;
 
-                    float offset = 2 * PrecisionBoundary;
-                    foreach (ref var line in LineBuffers.AsSpan())
-                        for (int i = 0; i < line.Length; i++)
-                            line.Vertices[i].Position.Y -= offset;
-                }
-            }
+            if (Interlocked.Exchange(ref linesSinceUpdate, 0) == 0) return;
+
+            var proj = Matrix4.CreateOrthographicOffCenter(
+                0, control.Width, control.Height, 0, -1, 1); // Y-down for text
+
+
+            control.SetTextProjection(proj);
+            fr.RenderText(Elipses.Vertices, Elipses.Length);
+        }
+
+        private void RebaseIfNeeded()
+        {
+            if (baseHeight > -2 * PrecisionBoundary) return;
+
+            int offset = -PrecisionBoundary - baseHeight;
+            baseHeight += offset;
+            nextHeight += offset;
+
+            foreach (ref var line in LineBuffers.AsSpan())
+                if (line.Vertices != null)
+                    for (int i = 0; i < line.Length; i++)
+                        line.Vertices[i].Position.Y += offset;
         }
     }
 }
