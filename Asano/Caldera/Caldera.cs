@@ -1,6 +1,7 @@
 using Microsoft.Web.WebView2.Core;
 using TheLib;
 using TheLib.Packets;
+using System.Text;
 using System.Text.Json;
 using Asano.MyGLTools.UserControls;
 
@@ -9,6 +10,8 @@ namespace Asano.Caldera
     public class Caldera : IDisposable
     {
         protected static TeensySerial SP => Program.serialPort ?? throw new InvalidOperationException("Serial port is not initialized.");
+        private static readonly Encoding CsvEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
         public CalderaControl Control { get; }
         public CoreWebView2 WebView { get; }
         public bool IsRunning => !_disposed && _ready;
@@ -216,6 +219,9 @@ namespace Asano.Caldera
                 case "setDebugFlags":
                     HandleSetDebugFlagsMessage(root);
                     break;
+                case "saveCsv":
+                    HandleSaveCsvMessage(root);
+                    break;
             }
         }
 
@@ -285,8 +291,92 @@ namespace Asano.Caldera
             Program.serialPort?.Write(xCMD);
         }
 
+        private void HandleSaveCsvMessage(JsonElement root)
+        {
+            string? content = GetStringProperty(root, "content");
+            if (content == null) return;
+
+            string filename = GetStringProperty(root, "filename") ?? "Dataset.csv";
+            ProcessCsvSaveRequest(filename, content);
+        }
+
+        protected virtual bool ProcessCsvSaveRequest(string suggestedFileName, string csvContent)
+            => SaveCsvWithDialog(suggestedFileName, csvContent);
+
+        protected virtual bool SaveCsvWithDialog(string suggestedFileName, string csvContent)
+        {
+            using SaveFileDialog dialog = CreateCsvSaveDialog(suggestedFileName);
+
+            if (dialog.ShowDialog(Control.FindForm()) != DialogResult.OK)
+                return false;
+
+            try
+            {
+                File.WriteAllText(dialog.FileName, csvContent, CsvEncoding);
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException
+                                   || ex is NotSupportedException
+                                   || ex is UnauthorizedAccessException)
+            {
+                ShowCsvSaveError(ex);
+                return false;
+            }
+        }
+
+        protected virtual SaveFileDialog CreateCsvSaveDialog(string suggestedFileName)
+        {
+            var dialog = new SaveFileDialog
+            {
+                AddExtension = true,
+                DefaultExt = "csv",
+                FileName = NormaliseCsvFilename(suggestedFileName),
+                Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+                OverwritePrompt = true,
+                RestoreDirectory = true,
+                Title = "Save Caldera CSV",
+            };
+            string? initialDirectory = GetCsvSaveInitialDirectory();
+
+            if (!string.IsNullOrWhiteSpace(initialDirectory))
+                dialog.InitialDirectory = initialDirectory;
+
+            return dialog;
+        }
+
+        protected virtual string? GetCsvSaveInitialDirectory()
+            => null;
+
+        protected virtual void ShowCsvSaveError(Exception ex)
+            => MessageBox.Show(
+                Control.FindForm(),
+                $"Failed to save CSV:\r\n{ex.Message}",
+                "Save Caldera CSV",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+
         private static byte ClampWiper(int value)
             => (byte)Math.Clamp(value, byte.MinValue, byte.MaxValue);
+
+        private static string? GetStringProperty(JsonElement root, string propertyName)
+            => root.TryGetProperty(propertyName, out var element) && element.ValueKind == JsonValueKind.String
+                ? element.GetString()
+                : null;
+
+        private static string NormaliseCsvFilename(string? suggestedFileName)
+        {
+            string? filename = Path.GetFileName(suggestedFileName);
+
+            if (string.IsNullOrWhiteSpace(filename))
+                filename = "Dataset.csv";
+
+            foreach (char invalid in Path.GetInvalidFileNameChars())
+                filename = filename.Replace(invalid, '_');
+
+            return string.Equals(Path.GetExtension(filename), ".csv", StringComparison.OrdinalIgnoreCase)
+                ? filename
+                : Path.ChangeExtension(filename, ".csv") ?? $"{filename}.csv";
+        }
 
         private void ScheduleHeldWiperRestore(CommandFlags flags, uint state)
         {

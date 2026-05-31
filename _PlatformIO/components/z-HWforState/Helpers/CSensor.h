@@ -34,6 +34,7 @@ protected:
 
   int _pin; 
   int _lastValue = 0;
+  int _counter = 0;
 
   bool _inverted = false;
   CRunningAverageMinMax<uint16_t> _ra{1};

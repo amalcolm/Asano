@@ -4,7 +4,7 @@
 static constexpr int    primeSamples = 20;
 static constexpr int    fineSamples  = 800;
 static const     double primeT = 1.0 - pow(0.05, 1.0 / primeSamples); // 95% settled
-static const     double fineT  = 1.0 - pow(0.50, 1.0 / fineSamples);  // gentler tracking
+static const     double fineT  = 1.0 - pow(0.05, 1.0 / fineSamples); 
 
 void HWforState::_measureSignal() {
   readCheck(); if (phase != Phase::MEASURE) return; // check if signal is lost before attempting to measure

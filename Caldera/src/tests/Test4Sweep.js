@@ -9,7 +9,7 @@ import {
   getVoltageAverage,
 } from "./DeltaSweepHelpers.js";
 
-export const TEST4_GAIN_VALUES = Object.freeze([0, 2, 4, 8, 16, 24, 32, 48, 64]);
+export const TEST4_GAIN_VALUES = Object.freeze([64, 48, 32, 24, 16, 8, 4, 2, 1]);
 
 export class Test4Sweep extends Sweep {
   constructor(options) {

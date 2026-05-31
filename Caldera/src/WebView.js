@@ -49,6 +49,17 @@ export class WebView {
     });
   }
 
+  postSaveCsv({
+    content,
+    filename,
+  }) {
+    return this.postMessage({
+      type: "saveCsv",
+      content,
+      filename,
+    });
+  }
+
   postSetWipers(wipers, {
     cmdFlags = this.getCommandFlags(),
   } = {}) {

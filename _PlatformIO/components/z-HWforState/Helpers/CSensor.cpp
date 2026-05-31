@@ -62,22 +62,30 @@ double CSensor::resetFilter() {
   read(); // update lastValue and zone
   uint16_t rawValue = _inverted ? 1023 - _lastValue : _lastValue;
   _lastV = static_cast<double>(rawValue );
+  _counter = 0;
   return _lastV;
 }
 
 
-std::deque<std::pair<int, double>> s_Tstore{};
 double getT(int samples) {
+  static std::deque<std::pair<int, double>> s_Tstore{};
   for (const auto& [s, t] : s_Tstore) if (s == samples) return t;
 
   double t = 1.0 - pow(0.05, 1.0 / samples); // 95% settled
   s_Tstore.emplace_back(samples, t);
   return t;
 }
+double SamplesFromT(double t)
+{
+  static std::deque<std::pair<double, int>> s_SamplesStore{};
+  for (const auto& [tStored, s] : s_SamplesStore) if (tStored == t) return s;
+
+  int samples = static_cast<int>(std::ceil(std::log(0.05) / std::log(1.0 - t)));
+  s_SamplesStore.emplace_back(t, samples);
+  return samples;
+}
 
 float CSensor::filter(int numSamples, double t) {
-
-//  if (HW->flags.wipersChanged) { _lastV = -1; HW->flags.wipersChanged = false; }
 
   if (numSamples == 0 && t <= 0) {
     _lastV = -1.0;

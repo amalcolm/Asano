@@ -68,7 +68,7 @@ struct HWforState {
 
     // tests
     void testMidOffset();
-    void testGetNoiseSample();
+    bool testGetNoiseSample();
 
     void _findSignal();
     void _zoomSignal();

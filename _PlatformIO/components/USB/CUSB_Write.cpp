@@ -6,13 +6,18 @@
 
 
 void CUSB::doWrite() {
-  // Write data based on current mode
-  switch (getMode())
-  {
-    case CSerialWrapper::ModeType::RAWDATA:   doWriteData();  break;
-    case CSerialWrapper::ModeType::BLOCKDATA: doWriteBlock(); break;
-    case CSerialWrapper::ModeType::TEXT:      doWriteText();  break;
-    default: break;
+  if (m_suppressNextDataOutput) {
+    discardDataOutput();
+    m_suppressNextDataOutput = false;
+  } else {
+    // Write data based on current mode
+    switch (getMode())
+    {
+      case CSerialWrapper::ModeType::RAWDATA:   doWriteData();  break;
+      case CSerialWrapper::ModeType::BLOCKDATA: doWriteBlock(); break;
+      case CSerialWrapper::ModeType::TEXT:      doWriteText();  break;
+      default: break;
+    }
   }
 
   // Always write (and clear) any buffered telemetry
@@ -20,6 +25,11 @@ void CUSB::doWrite() {
 
   doWriteDebug();
 
+}
+
+void CUSB::discardDataOutput() {
+  m_dataBuffer.clear();
+  m_pBlock = NULL;
 }
 
 // Sends all buffered DataType items over USB

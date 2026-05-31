@@ -31,13 +31,15 @@ export class AnalysisPanel {
   constructor({
     dataset = new AnalysisDataset(),
     root,
+    webView = null,
   } = {}) {
     this.dataset = dataset;
     this.root = root;
+    this.webView = webView;
     this.badge = root?.querySelector("[data-analysis-badge]");
     this.chartRoot = root?.querySelector("[data-analysis-chart]");
     this.copyAnalysisButton = root?.querySelector("[data-analysis-copy-analysis]");
-    this.copyButton = root?.querySelector("[data-analysis-copy-csv]");
+    this.saveButton = root?.querySelector("[data-analysis-save-csv]");
     this.activeBreakdownPanel = null;
     this.gainBreakdown = root?.querySelector("[data-analysis-gain-breakdown]");
     this.test1Breakdown = root?.querySelector("[data-analysis-test1-breakdown]");
@@ -48,7 +50,7 @@ export class AnalysisPanel {
     this.resizeObserver = null;
 
     this.copyAnalysisButton?.addEventListener("click", () => this.copyAnalysis());
-    this.copyButton?.addEventListener("click", () => this.copyCsv());
+    this.saveButton?.addEventListener("click", () => this.saveCsv());
     this.render();
   }
 
@@ -66,15 +68,16 @@ export class AnalysisPanel {
     this.render();
   }
 
-  async copyCsv() {
+  saveCsv() {
     const csv = this.dataset.toCsv();
+    const posted = this.webView?.postSaveCsv?.({
+      content: csv,
+      filename: this.dataset.getCsvFilename(),
+    }) ?? false;
 
-    try {
-      await copyText(csv);
-      this.setBadge(this.dataset.samples.length ? "CSV copied" : "CSV header copied");
-    } catch {
-      this.setBadge("copy failed");
-    }
+    this.setBadge(posted
+      ? (this.dataset.samples.length ? "CSV save requested" : "CSV header requested")
+      : "save unavailable");
   }
 
   async copyAnalysis() {

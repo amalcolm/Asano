@@ -59,10 +59,9 @@ bool Hardware::debugLayerOverride() {
   TC_Update.increment();
 
    if (firstCallInCycle && sampleTimer.passed()) {
-    HW->testGetNoiseSample();
-    Timer.sampleReady = true;
-    USB.doWriteDebug();
-    USB.setSkipFlag(); // avoid sending empty block 
+    if (HW->testGetNoiseSample())
+      Timer.sampleReady = true;
+
     return true;
   }
   firstCallInCycle = false;
@@ -79,19 +78,4 @@ void Hardware::update() {
 
   if (Timer.getStateTime() + A2D_POLL_DURATION < STATE_DURATION)
     HW->update();  // update digital pots based on current state
-}
-
-
-void Hardware::offPeriod() {
-  static C32bitTimer offTimer = C32bitTimer::From_uS(CFG::LED_OFF_PEERIOD_uS).setPeriodic(false);
-
-  offTimer.forceNow();
-  LED.clear();
-
-  A2D.setReadState(CA2D::ReadState::PREPARE); 
-  USB.update();
-  CTelemetry::logAll();             // Log all counter telemetry
-
-  offTimer.wait();
-  A2D.setReadState(CA2D::ReadState::READ);
 }

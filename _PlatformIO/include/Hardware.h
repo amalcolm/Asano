@@ -9,7 +9,6 @@ struct Hardware {
 
     static bool canUpdate();
     static void update();
-    static void offPeriod();
 
 
   private:

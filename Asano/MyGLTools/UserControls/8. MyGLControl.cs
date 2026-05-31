@@ -347,18 +347,17 @@ namespace Asano.MyGLTools.UserControls
         protected void ShowDesignView()
         {
             var title = this.GetType().Name ?? "MyGLControl";
-            var label = new Label
+
+            this.Controls.Add(new Label
             {
                 Text = $"[{title} Design View]",
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = Color.Gray,
                 Font = new Font("Calibri", 16, FontStyle.Italic)
-            };
-            this.Controls.Add(label);
+            });
 
             this.BackColor = Color.Magenta;
-            this.BorderStyle = BorderStyle.FixedSingle;
 
         }
 

@@ -68,7 +68,7 @@
             multiChart.Dock = DockStyle.Fill;
             multiChart.Location = new Point(0, 42);
             multiChart.Name = "multiChart";
-            multiChart.Size = new Size(1395, 1291);
+            multiChart.Size = new Size(1395, 989);
             multiChart.TabIndex = 8;
             // 
             // butDBG
@@ -97,6 +97,7 @@
             // 
             dbg.AutoClear = true;
             dbg.BackColor = Color.FromArgb(243, 223, 197);
+            dbg.BorderStyle = BorderStyle.None;
             dbg.Dock = DockStyle.Fill;
             dbg.Location = new Point(0, 0);
             dbg.Margin = new Padding(0);
@@ -109,6 +110,7 @@
             // 
             TelemetryPane.AutoClear = true;
             TelemetryPane.BackColor = Color.FromArgb(243, 223, 197);
+            TelemetryPane.BorderStyle = BorderStyle.None;
             TelemetryPane.Dock = DockStyle.Right;
             TelemetryPane.Location = new Point(1066, 0);
             TelemetryPane.Name = "TelemetryPane";
@@ -159,8 +161,8 @@
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1395, 1620);
-            Controls.Add(signalViewer1);
             Controls.Add(multiChart);
+            Controls.Add(signalViewer1);
             Controls.Add(pHeader);
             Controls.Add(pDiagnostics);
             Icon = (Icon)resources.GetObject("$this.Icon");

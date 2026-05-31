@@ -73,6 +73,9 @@ class CHead {
     int   m_sequencePosition = -1;
 
     static const uint64_t MAXUINT64;
+
+  private:
+    void applyState();
   
 };
 

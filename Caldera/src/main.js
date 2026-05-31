@@ -38,9 +38,9 @@ document.querySelector("#app").innerHTML = `
             <button
               class="analysis-panel__button"
               type="button"
-              data-analysis-copy-csv
+              data-analysis-save-csv
             >
-              Copy CSV
+              Save CSV
             </button>
             <button
               class="analysis-panel__button"
@@ -222,7 +222,7 @@ let wiperMessageCount = 0;
 let liveWiperRevision = 0;
 let liveWipers = null;
 const hasHostTelemetry = Boolean(window.chrome?.webview);
-const analysisPanel = new AnalysisPanel({ root: analysisRoot });
+const analysisPanel = new AnalysisPanel({ root: analysisRoot, webView });
 const circuitScene = new CircuitScene(sceneRoot, model, {
   onManualWiperInput: handleManualWiperInput,
   onSettingsChange: saveStoredSettings,

@@ -36,6 +36,7 @@ export class AnalysisDataset {
     source = "manual",
     test = null,
   }) {
+    const timestamp = Date.now();
     const wipers = getModelWipers(model);
     const sensor1Actual = getKnownVoltage(sensorVoltages?.sensor1)
       ?? getKnownVoltage(model.sensor1Voltage)
@@ -71,7 +72,8 @@ export class AnalysisDataset {
       midOutputVoltage,
       offsetOutputVoltage,
       source,
-      timestamp: Date.now(),
+      timestamp,
+      elapsedSeconds: getElapsedSeconds(timestamp, this.metadata.startedAt),
       test,
       wipers,
       sensorActual: {
@@ -111,7 +113,6 @@ export class AnalysisDataset {
     }
 
     return [
-      this.getCsvComment(),
       getCsvHeader(SENSOR_COMPARISON_CSV_HEADER),
       ...this.samples.map((sample) => [
         ...formatBaseCsvCells(sample),
@@ -127,21 +128,22 @@ export class AnalysisDataset {
 
   toDeltaTestCsv() {
     return [
-      this.getCsvComment(),
       getCsvHeader(DELTA_TEST_CSV_HEADER),
       ...this.samples.map(formatDeltaTestCsvRow),
     ].join("\n");
   }
 
-  getCsvComment() {
-    const label = getCsvLabel(this.metadata.label, this.samples);
-    const startedAt = getCsvStartedAt(this.metadata.startedAt, this.samples);
+  getCsvName() {
+    return getCsvLabel(this.metadata.label, this.samples);
+  }
 
-    return `// ${label}: ${formatHumanDateTime(startedAt)}`;
+  getCsvFilename() {
+    return `${sanitiseFilename(this.getCsvName())}.csv`;
   }
 }
 
 const BASE_CSV_HEADER = [
+  "Seconds",
   "top",
   "bot",
   "mid",
@@ -169,8 +171,6 @@ const DELTA_TEST_CSV_HEADER = [
   "sensor2RawDelta",
   "sensor2DeltaStep",
   "sensor2DeltaPerStep",
-  "samplesIgnored",
-  "samplesAveraged",
 ];
 
 function getCsvHeader(columns) {
@@ -179,6 +179,7 @@ function getCsvHeader(columns) {
 
 function formatBaseCsvCells(sample) {
   return [
+    formatCsvNumber(sample.elapsedSeconds, 3),
     sample.wipers.top,
     sample.wipers.bot,
     sample.wipers.mid,
@@ -200,8 +201,6 @@ function formatDeltaTestCsvRow(sample) {
     formatCsvNumber(sample.sensor2RawDelta),
     formatCsvNumber(sample.sensor2Step, 0),
     formatCsvNumber(sample.sensor2Delta),
-    formatCsvNumber(sample.samplesIgnored, 0),
-    formatCsvNumber(sample.samplesAveraged, 0),
   ].join(",");
 }
 
@@ -219,16 +218,19 @@ function getCsvLabel(label, samples) {
     ?? "Dataset";
 }
 
+function sanitiseFilename(label) {
+  const filename = normaliseCsvLabel(label)
+    ?.replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
+    .replace(/\.+$/g, "")
+    .trim();
+
+  return filename || "Dataset";
+}
+
 function normaliseCsvLabel(label) {
   const text = String(label ?? "").replace(/\s+/g, " ").trim();
 
   return text || null;
-}
-
-function getCsvStartedAt(startedAt, samples) {
-  return getKnownTimestamp(startedAt)
-    ?? getKnownTimestamp(samples[0]?.timestamp)
-    ?? Date.now();
 }
 
 function getKnownTimestamp(value) {
@@ -237,19 +239,13 @@ function getKnownTimestamp(value) {
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
-function formatHumanDateTime(timestamp) {
-  const date = new Date(timestamp);
+function getElapsedSeconds(timestamp, startedAt) {
+  const sampleTimestamp = getKnownTimestamp(timestamp);
+  const startTimestamp = getKnownTimestamp(startedAt);
 
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  const hour = date.getHours();
-  const displayHour = hour % 12 || 12;
-  const minute = String(date.getMinutes()).padStart(2, "0");
-  const period = hour < 12 ? "am" : "pm";
-
-  return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()} ${displayHour}:${minute}${period}`;
+  return sampleTimestamp !== null && startTimestamp !== null
+    ? Math.max(0, (sampleTimestamp - startTimestamp) / 1000)
+    : null;
 }
 
 function isSamplePlottable(sample) {

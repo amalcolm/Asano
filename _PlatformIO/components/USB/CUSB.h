@@ -43,8 +43,6 @@ class CUSB : public CSerialWrapper {
     CTeleTimer TT_USBRead {TeleGroup::USB, 0x0002};
     
     void update() { 
-      if (m_skipFlag) { m_skipFlag = false; return; }
-
       CSerialWrapper::update();
 
       TT_USBRead.start();
@@ -62,6 +60,7 @@ class CUSB : public CSerialWrapper {
 
       m_readBuffer.fill(0);
       m_numBuffered = 0;
+      m_suppressNextDataOutput = false;
     }
 
     inline void waitForHandshake() {
@@ -74,14 +73,13 @@ class CUSB : public CSerialWrapper {
     void writeDebugState(StateType state);
     void doWriteDebug();
 
-    inline void setSkipFlag() { m_skipFlag = true; }
-    inline bool getSkipFlag() const { return m_skipFlag; }
-    inline void clearSkipFlag() { m_skipFlag = false; } 
+    inline void suppressNextDataOutput() { m_suppressNextDataOutput = true; }
 
   private:
     void doRead();
    
     void doWrite();
+    void discardDataOutput();
     void doWriteData();
     void doWriteBlock();
     void doWriteText();
@@ -93,7 +91,7 @@ class CUSB : public CSerialWrapper {
     DebugType* volatile m_pDebugToFill;
     DebugType* volatile m_pDebugToSend;
 
-    volatile bool m_skipFlag = false; 
+    volatile bool m_suppressNextDataOutput = false;
     
 };
 
