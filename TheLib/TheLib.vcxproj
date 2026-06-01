@@ -78,11 +78,15 @@
   <ItemGroup>
     <ClInclude Include="src\ADictionary.h" />
     <ClInclude Include="src\AString.h" />
+    <ClInclude Include="src\C64bitTimer.h" />
     <ClInclude Include="src\CRunningAverage.h" />
+    <ClInclude Include="src\CTimerBase.h" />
+    <ClInclude Include="src\MyTimer.h" />
     <ClInclude Include="src\EventRaisers.h" />
     <ClInclude Include="src\ManagedCallbacks.h" />
     <ClInclude Include="src\CHandleGuard.h" />
     <ClInclude Include="src\CSerial.h" />
+    <ClInclude Include="src\ScreenHelper.h" />
     <ClInclude Include="src\Math\CDiscontinuityAnalyzer.h" />
     <ClInclude Include="src\Math\CDiscontinuityFixer.h" />
     <ClInclude Include="src\Math\CMatrix3x3.h" />
@@ -106,6 +110,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AssemblyInfo.cpp" />
+    <ClCompile Include="src\C64bitTimer.cpp" />
+    <ClCompile Include="src\CTimerBase.cpp" />
+    <ClCompile Include="src\MyTimer.cpp" />
+    <ClCompile Include="src\ScreenHelper.cpp" />
     <ClCompile Include="src\Sleep.cpp" />
     <ClCompile Include="src\AString.cpp" />
     <ClCompile Include="src\ManagedCallbacks.cpp" />

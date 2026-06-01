@@ -5,6 +5,7 @@ namespace Asano.Caldera
     public partial class CalderaControl : UserControl
     {
         private static readonly TimeSpan WebViewShutdownTimeout = TimeSpan.FromSeconds(2);
+        private const int MessageFlushIntervalMs = 16;
 
         public CoreWebView2 CoreWebView2 => web.CoreWebView2;
 
@@ -16,14 +17,27 @@ namespace Asano.Caldera
         private CoreWebView2Environment? _webViewEnvironment;
         private TaskCompletionSource<bool>? _browserProcessExited;
         private Caldera? _caldera;
+        private readonly System.Windows.Forms.Timer _messageFlushTimer;
 
         public CalderaControl()
         {
             InitializeComponent();
+            components ??= new System.ComponentModel.Container();
+
+            _messageFlushTimer = new System.Windows.Forms.Timer(components)
+            {
+                Interval = MessageFlushIntervalMs,
+            };
+            _messageFlushTimer.Tick += MessageFlushTimer_Tick;
 
             if (Program.serialPort == null) return;
 
             Program.serialPort.ConnectionChanged += SerialPort_ConnectionChanged;
+        }
+
+        private void MessageFlushTimer_Tick(object? sender, EventArgs e)
+        {
+            _caldera?.FlushPendingMessages();
         }
 
        
@@ -59,6 +73,7 @@ namespace Asano.Caldera
                     return;
 
                 _caldera = new Caldera(this);
+                _messageFlushTimer.Start();
                 web.CoreWebView2.Navigate(DevServer.URL);
 
             }
@@ -87,6 +102,7 @@ namespace Asano.Caldera
                 return;
 
             _disposedOrClosing = true;
+            _messageFlushTimer.Stop();
 
             if (Program.serialPort != null)
                 Program.serialPort.ConnectionChanged -= SerialPort_ConnectionChanged;

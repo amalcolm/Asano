@@ -1,6 +1,7 @@
 ﻿using TheLib;
 using TheLib.Math;
 using System.Diagnostics;
+using Asano.MyGLTools.Helpers;
 
 namespace Asano.MyGLTools.UserControls
 {
@@ -10,17 +11,29 @@ namespace Asano.MyGLTools.UserControls
         private readonly Dictionary<HeadState, MyChart> _chartsByState = [];
         private readonly Dictionary<HeadState, int> _initStates = [];
         private readonly Stopwatch _swInit = new();
+        private readonly object _primaryChartTagLock = new();
+        private readonly MethodInvoker _applyPrimaryChartTag;
 
         private FormState _state = FormState.None;
         private int _lastChartCount = -1;
+        private string _pendingPrimaryChartTag = string.Empty;
 
         public event EventHandler<int>? ChartCountChanged;
         public bool SingleStateMode { get; private set; } = false;
 
         private enum FormState {  None, Initialising, Building, Running }
 
-        public MyMultichart() => InitializeComponent();
-        
+        public MyMultichart()
+        {
+            InitializeComponent();
+            _applyPrimaryChartTag = ApplyPrimaryChartTag;
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            Scheduler.TargetFrameRate = this.GetCurrentRefreshRate();
+        }
 
         public bool IsRunning => _state == FormState.Running;
 
@@ -189,7 +202,7 @@ namespace Asano.MyGLTools.UserControls
 
             lock (_lock)
             {
-                resetLayout = _chartsByState.Count != 1 || _chartsByState.Values.FirstOrDefault() != PrimaryChart;
+                resetLayout = _chartsByState.Count != 1 || !ContainsOnlyPrimaryChart();
                 updateTag = (PrimaryChart.Tag as string) != description;
                 bool updateState = resetLayout
                                 || _chartsByState.TryGetValue(state, out var existingChart) == false
@@ -212,9 +225,31 @@ namespace Asano.MyGLTools.UserControls
             }
 
             if (updateTag)
-                RunOnUiThread(() => { PrimaryChart.Tag = description; });
+                SetPrimaryChartTag(description);
 
             return PrimaryChart;
+        }
+
+        private void SetPrimaryChartTag(string description)
+        {
+            lock (_primaryChartTagLock)
+            {
+                _pendingPrimaryChartTag = description;
+                RunOnUiThread(_applyPrimaryChartTag);
+            }
+        }
+
+        private void ApplyPrimaryChartTag()
+        {
+            PrimaryChart.Tag = _pendingPrimaryChartTag;
+        }
+
+        private bool ContainsOnlyPrimaryChart()
+        {
+            foreach (var pair in _chartsByState)
+                return pair.Value == PrimaryChart;
+
+            return false;
         }
 
         private void LayoutStateCharts()

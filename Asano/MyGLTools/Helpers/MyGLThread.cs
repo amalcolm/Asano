@@ -45,6 +45,7 @@ namespace Asano.MyGLTools.Helpers
         private volatile bool _isRunning = false;
 
         public bool IsDisposed => _shutdownRequested;
+        public bool IsRunning => _isRunning && !_shutdownRequested;
 
         public ManualResetEventSlim FrameDone { get => _frameDone; }
         static readonly List<MyGLThread> ActiveGLThreads = [];
@@ -123,6 +124,18 @@ namespace Asano.MyGLTools.Helpers
             _tasksAvailable.Set();
         }
 
+        public bool RequestFrame()
+        {
+            if (!IsRunning) return false;
+
+            _frameDone.Reset();
+            RenderNow.Set();
+            return IsRunning;
+        }
+
+        public void WaitForFrame(CancellationToken token)
+            => _frameDone.Wait(token);
+
 
         private void Run()
         {
@@ -188,6 +201,8 @@ namespace Asano.MyGLTools.Helpers
 //            catch (Exception ex) { Debug.WriteLine($"[MyGLThread] Exception: {ex.Message}"); }
             finally
             {
+                _frameDone.Set();
+
                 while (_shutdownStack.TryPop(out var action))
                     try { action.Invoke(); }
                     catch (Exception ex) { Debug.WriteLine($"[MyGLThread] Shutdown Action Exception: {ex.Message}"); }
@@ -203,6 +218,9 @@ namespace Asano.MyGLTools.Helpers
             _cts.Cancel();
             _isRunning = false;
             _shutdownRequested = true;
+            _frameDone.Set();
+            RenderNow.Set();
+            _tasksAvailable.Set();
 
             try { _thread.Join(); } catch { }
 

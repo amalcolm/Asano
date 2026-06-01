@@ -98,6 +98,18 @@
     <ClInclude Include="src\Packets\UnsafeStrings.h">
       <Filter>Source Files\Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\MyTimer.h">
+      <Filter>Source Files\Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\C64bitTimer.h">
+      <Filter>Source Files\Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CTimerBase.h">
+      <Filter>Source Files\Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ScreenHelper.h">
+      <Filter>Source Files\Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AssemblyInfo.cpp" />
@@ -156,6 +168,18 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\Sleep.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\MyTimer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ScreenHelper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\C64bitTimer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CTimerBase.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

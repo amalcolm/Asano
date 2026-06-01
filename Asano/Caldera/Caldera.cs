@@ -108,12 +108,18 @@ namespace Asano.Caldera
             return _statePoster.Post(new StateChangedMessage((HeadState)state), force);
         }
 
+        internal void FlushPendingMessages()
+        {
+            _statePoster.Flush();
+            _wipersPoster.Flush();
+            _voltagesPoster.Flush();
+        }
+
         private bool CanPostMessages()
             => !_disposed && _ready && !Control.IsDisposed && Control.IsHandleCreated;
 
         private BufferedPoster<WipersChangedMessage> CreateWipersPoster()
             => new(
-                Control,
                 CanPostMessages,
                 () => new WipersChangedMessage(),
                 static (target, source) => target.CopyFrom(source),
@@ -123,7 +129,6 @@ namespace Asano.Caldera
 
         private BufferedPoster<VoltagesChangedMessage> CreateVoltagesPoster()
             => new(
-                Control,
                 CanPostMessages,
                 () => new VoltagesChangedMessage(),
                 static (target, source) => target.CopyFrom(source),
@@ -133,7 +138,6 @@ namespace Asano.Caldera
 
         private BufferedPoster<StateChangedMessage> CreateStatePoster()
             => new(
-                Control,
                 CanPostMessages,
                 () => new StateChangedMessage(HeadState.UNSET),
                 static (target, source) => target.CopyFrom(source),

@@ -138,6 +138,26 @@ namespace Asano
             return maxBounds;
         }
 
+        public static double GetCurrentRefreshRate(this Control control)
+        {
+            if (control == null) return 60.0;
 
+            try
+            {
+                Point controlMidPoint = new(Math.Max(control.Width, 1) / 2, Math.Max(control.Height, 1) / 2);
+                Point screenMidPoint = control.PointToScreen(controlMidPoint);
+                double refreshRate = ScreenHelper.GetCurrentRefreshRateAtPoint(screenMidPoint.X, screenMidPoint.Y);
+
+                return double.IsFinite(refreshRate) && refreshRate > 0.0
+                    ? refreshRate
+                    : 60.0;
+            }
+            catch (Exception)
+            {
+                return 60.0;
+            }
+
+
+        }
     }
 }

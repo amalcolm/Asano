@@ -129,7 +129,6 @@ namespace TheLib
             Sensor1 = other->Sensor1;
             Sensor2 = other->Sensor2;
 
-			Channel = nullptr;
             if (other->Channel == nullptr) return;
 
             if (Channel == nullptr || Channel->Length != other->Channel->Length)

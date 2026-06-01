@@ -5,14 +5,12 @@ namespace Asano.Caldera
     internal sealed class BufferedPoster<TMessage> where TMessage : class, IWebMessage
     {
         private readonly object _lock = new();
-        private readonly CalderaControl _control;
         private readonly Func<bool> _canPost;
         private readonly Func<TMessage> _createMessage;
         private readonly Action<TMessage, TMessage> _copyMessage;
         private readonly Func<TMessage, bool> _isValid;
         private readonly Func<TMessage, string> _createJson;
         private readonly Func<string, bool> _postJson;
-        private readonly MethodInvoker _flushInvoker;
 
         private readonly TMessage _pendingMessage;
         private readonly TMessage _messageToPost;
@@ -21,10 +19,8 @@ namespace Asano.Caldera
         private bool _hasPendingMessage;
         private bool _forcePendingMessage;
         private bool _hasLastMessagePosted;
-        private int _flushScheduled;
 
         public BufferedPoster(
-            CalderaControl control,
             Func<bool> canPost,
             Func<TMessage> createMessage,
             Action<TMessage, TMessage> copyMessage,
@@ -32,14 +28,12 @@ namespace Asano.Caldera
             Func<TMessage, string> createJson,
             Func<string, bool> postJson)
         {
-            _control = control ?? throw new ArgumentNullException(nameof(control));
             _canPost = canPost ?? throw new ArgumentNullException(nameof(canPost));
             _createMessage = createMessage ?? throw new ArgumentNullException(nameof(createMessage));
             _copyMessage = copyMessage ?? throw new ArgumentNullException(nameof(copyMessage));
             _isValid = isValid ?? throw new ArgumentNullException(nameof(isValid));
             _createJson = createJson ?? throw new ArgumentNullException(nameof(createJson));
             _postJson = postJson ?? throw new ArgumentNullException(nameof(postJson));
-            _flushInvoker = FlushPendingMessage;
 
             _pendingMessage = _createMessage();
             _messageToPost = _createMessage();
@@ -67,7 +61,7 @@ namespace Asano.Caldera
                 _forcePendingMessage |= force;
             }
 
-            return ScheduleFlush();
+            return true;
         }
 
         public void Clear()
@@ -79,30 +73,8 @@ namespace Asano.Caldera
             }
         }
 
-        private bool ScheduleFlush()
+        public void Flush()
         {
-            if (!_canPost())
-                return false;
-
-            if (Interlocked.Exchange(ref _flushScheduled, 1) != 0)
-                return true;
-
-            try
-            {
-                _control.BeginInvoke(_flushInvoker);
-                return true;
-            }
-            catch (InvalidOperationException)
-            {
-                Interlocked.Exchange(ref _flushScheduled, 0);
-                return false;
-            }
-        }
-
-        private void FlushPendingMessage()
-        {
-            Interlocked.Exchange(ref _flushScheduled, 0);
-
             if (!_canPost())
                 return;
 
