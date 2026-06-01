@@ -3,7 +3,7 @@
     public interface IPlotInteractionHost
     {
         RectangleF InteractionViewPort { get; }
-        Size InteractionClientSize { get; }
+        Size InteractionDisplayRectangle { get; }
         float MinInteractionXRange { get; }
         float MaxInteractionXRange { get; }
 
@@ -137,7 +137,7 @@
 
         private float ScreenRatio(int mouseX)
         {
-            int width = Math.Max(1, _host.InteractionClientSize.Width);
+            int width = Math.Max(1, _host.InteractionDisplayRectangle.Width);
             return mouseX / (float)width;
         }
 
@@ -156,7 +156,7 @@
         {
             RectangleF viewPort = _host.InteractionViewPort;
 
-            return _host.InteractionClientSize.Width > 0
+            return _host.InteractionDisplayRectangle.Width > 0
                 && float.IsFinite(viewPort.Left)
                 && float.IsFinite(viewPort.Right)
                 && float.IsFinite(viewPort.Width)

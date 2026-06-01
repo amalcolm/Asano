@@ -194,7 +194,7 @@ namespace Asano.DataTools.Controls
         {
             if (_xAxisUnitLabel == null) return;
 
-            _xAxisUnitLabel.X = GLClientSize.Width - XAxisUnitRightMargin;
+            _xAxisUnitLabel.X = DisplayRectangle.Width - XAxisUnitRightMargin;
             _xAxisUnitLabel.Y = XAxisUnitBottomMargin;
             fontRenderer.RenderText(_xAxisUnitLabel);
         }
@@ -209,13 +209,13 @@ namespace Asano.DataTools.Controls
 
             _noiseRangeValueLabel.SetValue(noiseRange, NoiseRangeFormat);
 
-            _noiseRangeLabel.X = GLClientSize.Width - NoiseRangeRightMargin;
-            _noiseRangeLabel.Y = GLClientSize.Height - NoiseRangeTopMargin;
+            _noiseRangeLabel.X = DisplayRectangle.Width - NoiseRangeRightMargin;
+            _noiseRangeLabel.Y = DisplayRectangle.Height - NoiseRangeTopMargin;
             _noiseRangeLabel.GetVertices(fontRenderer.Scaling);
 
             if (!_noiseRangeLabel.Bounds.IsEmpty)
             {
-                float top = GLClientSize.Height - NoiseRangeTopMargin;
+                float top = DisplayRectangle.Height - NoiseRangeTopMargin;
                 _noiseRangeLabel.Y += top - _noiseRangeLabel.Bounds.Top;
                 _noiseRangeLabel.GetVertices(fontRenderer.Scaling);
                 _noiseRangeValueLabel.X = _noiseRangeLabel.Bounds.Left - NoiseRangeLabelGap;

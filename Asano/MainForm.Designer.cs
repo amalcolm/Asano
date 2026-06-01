@@ -100,7 +100,7 @@
             dbg.BorderStyle = BorderStyle.None;
             dbg.Dock = DockStyle.Fill;
             dbg.Location = new Point(0, 0);
-            dbg.Margin = new Padding(0);
+            dbg.Margin = Padding.Empty;
             dbg.Name = "dbg";
             dbg.Size = new Size(1066, 287);
             dbg.TabIndex = 6;
@@ -114,7 +114,7 @@
             TelemetryPane.Dock = DockStyle.Right;
             TelemetryPane.Location = new Point(1066, 0);
             TelemetryPane.Name = "TelemetryPane";
-            TelemetryPane.Padding = new Padding(4);
+            TelemetryPane.Padding = Padding.Empty;
             TelemetryPane.Size = new Size(329, 287);
             TelemetryPane.TabIndex = 8;
             TelemetryPane.TextColour = Color.Black;

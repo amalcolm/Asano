@@ -454,7 +454,7 @@ namespace Asano.MyGLTools.UserControls
                     totalBounds.Width + (padding * 2),
                     totalBounds.Height + (padding * 2)
                 );
-                var projection = Matrix4.CreateOrthographicOffCenter(0, MyGL.ClientSize.Width, 0, MyGL.ClientSize.Height, -1.0f, 1.0f);
+                var projection = Matrix4.CreateOrthographicOffCenter(0, MyGL.DisplayRectangle.Width, 0, MyGL.DisplayRectangle.Height, -1.0f, 1.0f);
 
                 _labelAreaRenderer?.Render(paddedBounds, projection, LabelAreaColour);
 

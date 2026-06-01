@@ -74,7 +74,7 @@ namespace Asano.MyGLTools.UserControls
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public RectangleF ViewPort { get; set; } = new(0, 1, 100, 2);
 
-        protected Size GLClientSize => MyGL.ClientSize;
+        protected Size GLDisplaySize => MyGL.ClientSize;
 
 
         public MyGLControl()

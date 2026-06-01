@@ -73,7 +73,7 @@ namespace Asano.MyGLTools.Backgrounds
         {
             if (bounds == _lastBounds) return;
             _lastBounds = bounds;
-            if (FillBackground) bounds = new RectangleF(0, 0, myGL.ClientSize.Width-8, myGL.ClientSize.Height-8);
+            if (FillBackground) bounds = new RectangleF(0, 0, myGL.DisplayRectangle.Width, myGL.DisplayRectangle.Height);
             vertices[ 0] = bounds.Left;  vertices[ 1] = bounds.Bottom;
             vertices[ 4] = bounds.Left;  vertices[ 5] = bounds.Top;
             vertices[ 8] = bounds.Right; vertices[ 9] = bounds.Bottom;

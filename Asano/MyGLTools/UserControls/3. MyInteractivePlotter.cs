@@ -47,7 +47,7 @@ namespace Asano.MyGLTools.UserControls
         }
 
         RectangleF IPlotInteractionHost.InteractionViewPort => GetPlotViewPort();
-        Size IPlotInteractionHost.InteractionClientSize => GLClientSize;
+        Size IPlotInteractionHost.InteractionDisplayRectangle => GLDisplaySize;
         float IPlotInteractionHost.MinInteractionXRange => MinInteractionXRange;
         float IPlotInteractionHost.MaxInteractionXRange => MaxInteractionXRange;
 
@@ -117,7 +117,7 @@ namespace Asano.MyGLTools.UserControls
         }
 
         RectangleF IPlotInteractionHost.InteractionViewPort => GetPlotViewPort();
-        Size IPlotInteractionHost.InteractionClientSize => GLClientSize;
+        Size IPlotInteractionHost.InteractionDisplayRectangle => GLDisplaySize;
         float IPlotInteractionHost.MinInteractionXRange => MinInteractionXRange;
         float IPlotInteractionHost.MaxInteractionXRange => MaxInteractionXRange;
 

@@ -26,7 +26,7 @@ namespace Asano.MyGLTools.UserControls
 
             RectangleF axesViewPort = GetAxesViewPort();
             ApplyPlotTransform(axesViewPort);
-            _axes.RenderLines(axesViewPort, GLClientSize);
+            _axes.RenderLines(axesViewPort, GLDisplaySize);
         }
 
         protected override void DrawText()
@@ -48,21 +48,21 @@ namespace Asano.MyGLTools.UserControls
         protected virtual RectangleF GetAxesViewPort() => GetMetricsViewPort();
 
         protected override RectangleF GetPlotViewPort()
-            => PlotAxesRenderer.AddLabelPadding(ViewPort, GLClientSize, AxesOptions.LabelPadding);
+            => PlotAxesRenderer.AddLabelPadding(ViewPort, GLDisplaySize, AxesOptions.LabelPadding);
 
         protected RectangleF RemoveLabelPadding(RectangleF viewPort)
-            => PlotAxesRenderer.RemoveLabelPadding(viewPort, GLClientSize, AxesOptions.LabelPadding);
+            => PlotAxesRenderer.RemoveLabelPadding(viewPort, GLDisplaySize, AxesOptions.LabelPadding);
 
         protected override bool BeginPlotClip()
         {
             if (AxesOptions.LabelPadding <= 0.0f) return false;
 
-            int x1 = Math.Clamp((int)MathF.Ceiling(AxesOptions.LabelPadding), 0, GLClientSize.Width);
-            int x2 = Math.Clamp((int)MathF.Ceiling(AxesOptions.XAxisLabelClipRightPadding), 0, GLClientSize.Width);
-            int width = GLClientSize.Width - x1 - x2;
-            if (width <= 0 || GLClientSize.Height <= 0) return false;
+            int x1 = Math.Clamp((int)MathF.Ceiling(AxesOptions.LabelPadding), 0, GLDisplaySize.Width);
+            int x2 = Math.Clamp((int)MathF.Ceiling(AxesOptions.XAxisLabelClipRightPadding), 0, GLDisplaySize.Width);
+            int width = GLDisplaySize.Width - x1 - x2;
+            if (width <= 0 || GLDisplaySize.Height <= 0) return false;
 
-            base.BeginPlotClip(new Rectangle(x1, 0, width, GLClientSize.Height));
+            base.BeginPlotClip(new Rectangle(x1, 0, width, GLDisplaySize.Height));
             return true;
         }
     }

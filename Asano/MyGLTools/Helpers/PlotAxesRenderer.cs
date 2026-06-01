@@ -76,7 +76,7 @@ namespace Asano.MyGLTools.Helpers
         private MyColour _LineColour;
 
         private RectangleF _lastViewPort = RectangleF.Empty;
-        private Size _lastClientSize = Size.Empty;
+        private Size _lastDisplaySize = Size.Empty;
         private int _xLabelCount;
         private int _yLabelCount;
         private readonly int[] _savedScissorBox = new int[4];
@@ -108,19 +108,19 @@ namespace Asano.MyGLTools.Helpers
                 _yLabels[i]?.Dispose();
         }
 
-        public void RenderLines(RectangleF viewPort, Size clientSize)
+        public void RenderLines(RectangleF viewPort, Size displaySize)
         {
             if (!_ready) return;
 
-            if (!IsUsable(viewPort, clientSize))
+            if (!IsUsable(viewPort, displaySize))
             {
                 _xLabelCount = 0;
                 _yLabelCount = 0;
                 return;
             }
 
-            if (NeedsRebuild(viewPort, clientSize))
-                Rebuild(viewPort, clientSize);
+            if (NeedsRebuild(viewPort, displaySize))
+                Rebuild(viewPort, displaySize);
 
             _lineBuffer.DrawLines();
         }
@@ -145,10 +145,10 @@ namespace Asano.MyGLTools.Helpers
                 EndXAxisLabelClip();
         }
 
-        private bool NeedsRebuild(RectangleF viewPort, Size clientSize)
+        private bool NeedsRebuild(RectangleF viewPort, Size displaySize)
         {
             if (Options.Changed) return true;
-            if (!_lastClientSize.Equals(clientSize)) return true;
+            if (!_lastDisplaySize.Equals(displaySize)) return true;
 
             const float epsilon = 0.000001f;
 
@@ -158,10 +158,10 @@ namespace Asano.MyGLTools.Helpers
                 || Math.Abs(_lastViewPort.Height - viewPort.Height) > epsilon;
         }
 
-        private void Rebuild(RectangleF viewPort, Size clientSize)
+        private void Rebuild(RectangleF viewPort, Size displaySize)
         {
             _lastViewPort = viewPort;
-            _lastClientSize = clientSize;
+            _lastDisplaySize = displaySize;
             _xLabelCount = 0;
             _yLabelCount = 0;
 
@@ -176,23 +176,23 @@ namespace Asano.MyGLTools.Helpers
 
             float xRange = xMax - xMin;
             float yRange = yMax - yMin;
-            float xTickWorld = xRange * TickLength / Math.Max(1, clientSize.Width);
-            float yTickWorld = yRange * TickLength / Math.Max(1, clientSize.Height);
+            float xTickWorld = xRange * TickLength / Math.Max(1, displaySize.Width);
+            float yTickWorld = yRange * TickLength / Math.Max(1, displaySize.Height);
 
             bool showXLabels = Options.AxesLabelVisible && DrawGridLabels(GridFlags.XaxisLabels);
             bool showYLabels = Options.AxesLabelVisible && DrawGridLabels(GridFlags.YaxisLabels);
             bool drawXAxis = Options.AxesVisible && showXLabels;
             bool drawYAxis = Options.AxesVisible && showYLabels;
 
-            float xAxisWorldY = drawXAxis ? ScreenToWorldY(GetXAxisLineY(clientSize), yMin, yMax, clientSize.Height) : yMin;
-            float yAxisWorldX = drawYAxis ? ScreenToWorldX(GetYAxisLineX(clientSize), xMin, xMax, clientSize.Width) : xMin;
+            float xAxisWorldY = drawXAxis ? ScreenToWorldY(GetXAxisLineY(displaySize), yMin, yMax, displaySize.Height) : yMin;
+            float yAxisWorldX = drawYAxis ? ScreenToWorldX(GetYAxisLineX(displaySize), xMin, xMax, displaySize.Width) : xMin;
 
             int vertexCount = 0;
 
             if (drawXAxis)
             {
                 float xAxisLeft = drawYAxis ? yAxisWorldX : xMin;
-                float xAxisRight = ScreenToWorldX(GetXAxisLineRight(clientSize), xMin, xMax, clientSize.Width);
+                float xAxisRight = ScreenToWorldX(GetXAxisLineRight(displaySize), xMin, xMax, displaySize.Width);
 
                 if (xAxisRight > xAxisLeft)
                     AddLine(ref vertexCount, xAxisLeft, xAxisWorldY, xAxisRight, xAxisWorldY, _AxisColour);
@@ -203,18 +203,18 @@ namespace Asano.MyGLTools.Helpers
 
             float xOverflow = xRange * TickSearchOverflow;
             float yOverflow = yRange * TickSearchOverflow;
-            int desiredXTicks = GetDesiredTickCount(clientSize.Width , DesiredXTickSpacing, MaxXTicks - 2);
-            int desiredYTicks = GetDesiredTickCount(clientSize.Height, DesiredYTickSpacing, MaxYTicks - 2);
+            int desiredXTicks = GetDesiredTickCount(displaySize.Width , DesiredXTickSpacing, MaxXTicks - 2);
+            int desiredYTicks = GetDesiredTickCount(displaySize.Height, DesiredYTickSpacing, MaxYTicks - 2);
 
-            BuildXTicks(ref vertexCount, xMin - xOverflow, xMax + xOverflow, xMin, xMax, yMin, yMax, yTickWorld, xAxisWorldY, desiredXTicks, showXLabels, clientSize);
-            BuildYTicks(ref vertexCount, yMin - yOverflow, yMax + yOverflow, xMin, xMax, yMin, yMax, xTickWorld, yAxisWorldX, drawYAxis, desiredYTicks, showYLabels, clientSize);
+            BuildXTicks(ref vertexCount, xMin - xOverflow, xMax + xOverflow, xMin, xMax, yMin, yMax, yTickWorld, xAxisWorldY, desiredXTicks, showXLabels, displaySize);
+            BuildYTicks(ref vertexCount, yMin - yOverflow, yMax + yOverflow, xMin, xMax, yMin, yMax, xTickWorld, yAxisWorldX, drawYAxis, desiredYTicks, showYLabels, displaySize);
 
             _lineBuffer.Set(ref _vertices, vertexCount);
 
             Options.ClearChanged();
         }
 
-        private void BuildXTicks(ref int vertexCount, float tickMin, float tickMax, float xMin, float xMax, float yMin, float yMax, float tickWorld, float axisWorldY, int desiredTicks, bool showLabels, Size clientSize)
+        private void BuildXTicks(ref int vertexCount, float tickMin, float tickMax, float xMin, float xMax, float yMin, float yMax, float tickWorld, float axisWorldY, int desiredTicks, bool showLabels, Size displaySize)
         {
 
             float step = NiceStep(xMax - xMin, desiredTicks);
@@ -235,7 +235,7 @@ namespace Asano.MyGLTools.Helpers
                 if (showLabels)
                 {
                     TextBlock label = _xLabels[tickCount];
-                    float tickScreenX = WorldToScreenX(x, xMin, xMax, clientSize.Width) + XLabelOffset;
+                    float tickScreenX = WorldToScreenX(x, xMin, xMax, displaySize.Width) + XLabelOffset;
                     label.X = tickScreenX;
                     label.Y = XLabelBottom;
                     label.SetValue(GetXAxisLabelValue(x), XFormat);
@@ -247,7 +247,7 @@ namespace Asano.MyGLTools.Helpers
             }
         }
 
-        private void BuildYTicks(ref int vertexCount, float tickMin, float tickMax, float xMin, float xMax, float yMin, float yMax, float tickWorld, float axisWorldX, bool drawAxis, int desiredTicks, bool showLabels, Size clientSize)
+        private void BuildYTicks(ref int vertexCount, float tickMin, float tickMax, float xMin, float xMax, float yMin, float yMax, float tickWorld, float axisWorldX, bool drawAxis, int desiredTicks, bool showLabels, Size displaySize)
         {
             float step = NiceStep(yMax - yMin, desiredTicks);
             if (!float.IsFinite(step) || step <= 0.0f) return;
@@ -273,7 +273,7 @@ namespace Asano.MyGLTools.Helpers
                 {
                     TextBlock label = _yLabels[tickCount];
                     label.X = YLabelRight;
-                    float tickScreenY = WorldToScreenY(y, yMin, yMax, clientSize.Height);
+                    float tickScreenY = WorldToScreenY(y, yMin, yMax, displaySize.Height);
                     label.Y = tickScreenY;
                     label.SetValue(NormalizeLabelValue(y), YFormat);
                     _yLabelTicks[tickCount] = tickScreenY;
@@ -324,12 +324,12 @@ namespace Asano.MyGLTools.Helpers
 
         private bool BeginXAxisLabelClip()
         {
-            int width = GetXAxisLineRight(_lastClientSize);
-            if (width >= _lastClientSize.Width || width <= 0 || _lastClientSize.Height <= 0) return false;
+            int width = GetXAxisLineRight(_lastDisplaySize);
+            if (width >= _lastDisplaySize.Width || width <= 0 || _lastDisplaySize.Height <= 0) return false;
 
             _savedScissorEnabled = GL.IsEnabled(EnableCap.ScissorTest);
             GL.GetInteger(GetPName.ScissorBox, _savedScissorBox);
-            GL.Scissor(0, 0, width, _lastClientSize.Height);
+            GL.Scissor(0, 0, width, _lastDisplaySize.Height);
             GL.Enable(EnableCap.ScissorTest);
             return true;
         }
@@ -356,18 +356,18 @@ namespace Asano.MyGLTools.Helpers
             return value;
         }
 
-        private static float GetXAxisLineY(Size clientSize)
-            => Math.Clamp(XAxisLineY, 0.0f, Math.Max(0.0f, clientSize.Height));
+        private static float GetXAxisLineY(Size displaySize)
+            => Math.Clamp(XAxisLineY, 0.0f, Math.Max(0.0f, displaySize.Height));
 
-        private static float GetYAxisLineX(Size clientSize)
-            => Math.Clamp(YLabelRight + TickLength, 0.0f, Math.Max(0.0f, clientSize.Width));
+        private static float GetYAxisLineX(Size displaySize)
+            => Math.Clamp(YLabelRight + TickLength, 0.0f, Math.Max(0.0f, displaySize.Width));
 
-        private int GetXAxisLineRight(Size clientSize)
+        private int GetXAxisLineRight(Size displaySize)
         {
             float padding = Options.XAxisLabelClipRightPadding;
-            if (!float.IsFinite(padding) || padding <= 0.0f) return clientSize.Width;
+            if (!float.IsFinite(padding) || padding <= 0.0f) return displaySize.Width;
 
-            return Math.Clamp((int)MathF.Floor(clientSize.Width - padding), 0, clientSize.Width);
+            return Math.Clamp((int)MathF.Floor(displaySize.Width - padding), 0, displaySize.Width);
         }
 
         private void AddLine(ref int count, float x1, float y1, float x2, float y2, MyColour colour)
@@ -403,9 +403,9 @@ namespace Asano.MyGLTools.Helpers
             return Math.Clamp(ticks, 2, maxTicks);
         }
 
-        private static bool IsUsable(RectangleF viewPort, Size clientSize)
-            => clientSize.Width > 0
-            && clientSize.Height > 0
+        private static bool IsUsable(RectangleF viewPort, Size displaySize)
+            => displaySize.Width > 0
+            && displaySize.Height > 0
             && float.IsFinite(viewPort.Left)
             && float.IsFinite(viewPort.Right)
             && float.IsFinite(viewPort.Top)
@@ -413,31 +413,31 @@ namespace Asano.MyGLTools.Helpers
             && viewPort.Width > 0.0f
             && viewPort.Height > 0.0f;
 
-        public static RectangleF AddLabelPadding(RectangleF viewPort, Size clientSize, float padding)
+        public static RectangleF AddLabelPadding(RectangleF viewPort, Size displaySize, float padding)
         {
-            if (padding <= 0.0f || clientSize.Width <= 1 || viewPort.Width <= 0.0f)
+            if (padding <= 0.0f || displaySize.Width <= 1 || viewPort.Width <= 0.0f)
                 return viewPort;
 
-            float usableWidth = clientSize.Width - padding;
+            float usableWidth = displaySize.Width - padding;
             if (usableWidth <= 1.0f)
                 return viewPort;
 
-            float width = viewPort.Width * clientSize.Width / usableWidth;
+            float width = viewPort.Width * displaySize.Width / usableWidth;
             float left = viewPort.Right - width;
 
             return new RectangleF(left, viewPort.Top, width, viewPort.Height);
         }
 
-        public static RectangleF RemoveLabelPadding(RectangleF viewPort, Size clientSize, float padding)
+        public static RectangleF RemoveLabelPadding(RectangleF viewPort, Size displaySize, float padding)
         {
-            if (padding <= 0.0f || clientSize.Width <= 1 || viewPort.Width <= 0.0f)
+            if (padding <= 0.0f || displaySize.Width <= 1 || viewPort.Width <= 0.0f)
                 return viewPort;
 
-            float usableWidth = clientSize.Width - padding;
+            float usableWidth = displaySize.Width - padding;
             if (usableWidth <= 1.0f)
                 return viewPort;
 
-            float width = viewPort.Width * usableWidth / clientSize.Width;
+            float width = viewPort.Width * usableWidth / displaySize.Width;
             float left = viewPort.Right - width;
 
             return new RectangleF(left, viewPort.Top, width, viewPort.Height);
