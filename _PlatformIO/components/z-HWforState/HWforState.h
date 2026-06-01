@@ -1,8 +1,9 @@
 #pragma once
 #include "Setup.h"
 #include "CDigiPot.h"
-#include "CSensor.h"
+#include "CFilteredSensor.h"
 #include "XCommands.h"
+#include "_HWParams.h"
 #include <memory>
 
 class HWTools;
@@ -16,15 +17,15 @@ struct HWforState {
     HWforState(StateType state);
     ~HWforState();
     
-    CDigiPot  top{CS.Top};
-    CDigiPot  bot{CS.Bot};
-    CDigiPot  mid{CS.Mid};
+    CDigiPot        top{CS.Top};
+    CDigiPot        bot{CS.Bot};
+    CDigiPot        mid{CS.Mid};
 
-    CDigiPot  offset{CS.offset2};
-    CDigiPot  gain{CS.gain};
+    CDigiPot        offset{CS.offset2};
+    CDigiPot        gain{CS.gain};
 
-    CSensor   sensor1{SP.Sensor1};
-    CSensor   sensor2{SP.Sensor2};
+    CFilteredSensor sensor1{SP.Sensor1, HWParams::SENSOR1_FILTER_T};
+    CFilteredSensor sensor2{SP.Sensor2, HWParams::SENSOR2_FILTER_T};
     
     private:
       std::unique_ptr<HWTools> ownedTools; // Pimpl to avoid including HWTools in this header

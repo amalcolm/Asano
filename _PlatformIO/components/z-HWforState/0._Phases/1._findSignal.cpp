@@ -78,8 +78,8 @@ void HWforState::_findSignal() {
 
   tools.centreMid(sensor1); 
   
-  sensor1.resetFilter();
-  sensor2.resetFilter();
+  sensor1.reset();
+  sensor2.reset();
   phase = Phase::ZOOM;
 
   flags.zoomLevel = -1; // reset zoom level for next phase

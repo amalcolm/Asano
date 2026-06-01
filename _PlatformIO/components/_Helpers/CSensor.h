@@ -1,5 +1,4 @@
 #pragma once
-#include "CRunningAverage.h"
 
 class CSensor {
 public:
@@ -16,29 +15,17 @@ public:
   void begin();
   void invert();
 
-  uint16_t   read(int samplesToAverage = 1);
+  int  read();
 
   inline int lastValue() const { return _lastValue; }
   inline int getPin()    const { return _pin;       }
-
-  CRunningAverageMinMax<uint16_t>& getRunningAverage() { return _ra; }
-
-  double resetFilter();
-  float filter(int numSamples, double t = -1.0);
-  float lastV() const { return static_cast<float>(_lastV); }
-  float lastVariance() const { return static_cast<float>(_lastVariance); }
 
 protected:
 
   Zone _updateZone();
 
+
   int _pin; 
   int _lastValue = 0;
-
-  
   bool _inverted = false;
-  CRunningAverageMinMax<uint16_t> _ra{1};
-
-  double _lastV = -1.0; // for filtering
-  double _lastVariance = 0.0;
 };

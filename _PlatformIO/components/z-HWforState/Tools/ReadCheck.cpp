@@ -3,7 +3,7 @@
 
 int16_t HWTools::readCheck() {
 
-  uint16_t s2 = hw.sensor2.read();
+  int s2 = hw.sensor2.read();
   if (hw.sensor2.inZone == false) {
     hw.setPhase(HWforState::Phase::SEARCH);
   }

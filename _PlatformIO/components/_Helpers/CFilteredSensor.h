@@ -1,23 +1,24 @@
 #pragma once
-
-class CFilter {
+#include "CSensor.h"
+class CFilteredSensor : public CSensor {
 public:
-  CFilter(int sensorPin, double t);
+  CFilteredSensor(int pin, double t);
 
   void reset();
+  using CSensor::read;
   double read(int numSamples);
-  inline double readSingle();
 
-  inline void   setT(double t);
-  inline double getT() const;
+         void   setT(double t);
+  inline double getT() const  { return _t; }
 
+  inline double lastV() const { return _lastV; }
   inline int    getVariance() const;
 
   inline double getTfromSamples(int samples);
   inline int    getSamplesFromT(double t);
 
 private:
-  int _sensorPin;
+  inline double _readSingle();
   double _t = -1.0;
   double _tInv = -1.0;
   double _lastV = -1.0;
