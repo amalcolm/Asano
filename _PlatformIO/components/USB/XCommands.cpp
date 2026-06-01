@@ -1,12 +1,13 @@
 #include "XCommands.h"
 #include "HWforState.h"
+#include "_HWTools.h"
 #include "Config.h"
 
 
 void XCommand::processFlags() const {
-   CFG::commandFlags = header.cmdFlags;
- 
-    HW->flags.holdWipers = this->hasFlag(CommandFlags::HoldWipers);
+  CFG::commandFlags = header.cmdFlags;
+
+  HW->tools.flags.holdWipers = this->hasFlag(CommandFlags::HoldWipers);
 }
 
 void XCommand::honour() const {
@@ -16,7 +17,7 @@ void XCommand::honour() const {
     HW->_findSignal();
 
   if (this->hasFlag(CommandFlags::Test_NoiseSample))
-    HW->testGetNoiseSample();
+    HW->tools.testGetNoiseSample();
 }
 
 

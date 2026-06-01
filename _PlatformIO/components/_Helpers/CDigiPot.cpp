@@ -2,7 +2,10 @@
 #include "Arduino.h"
 #include "SPI.h"
 #include "HWforState.h"
+#include "_HWTools.h"
 #include "Setup.h"
+#include <algorithm>
+#include <array>
 
 static std::array<int, 48> _potValueCache = {-2};
 
@@ -30,7 +33,10 @@ void CDigiPot::setLevel(int newLevel) {
   newLevel = std::clamp(newLevel, WIPER_MIN, WIPER_MAX);
   if (newLevel == _currentLevel) return; 
 
-  if (HW) HW->flags.wipersChanged = true;
+  if (HW) {
+    auto& flags = HW->tools.flags;
+    flags.wipersChanged = true;
+  }
   _currentLevel = newLevel;
   _writeToPot(_currentLevel);
 };
@@ -39,7 +45,8 @@ void CDigiPot::offsetLevel(int offset) {
   int newLevel = std::clamp(_currentLevel + offset, WIPER_MIN, WIPER_MAX);
   if (newLevel == _currentLevel) return;
 
-  if (HW) HW->flags.wipersChanged = true;
+  if (HW) HW->tools.flags.wipersChanged = true;
+  
   _currentLevel = newLevel;
   _writeToPot(_currentLevel);
 };

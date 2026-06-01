@@ -1,6 +1,7 @@
 #include "Setup.h"
 #include "Hardware.h"
 #include "HWforState.h"
+#include "_HWTools.h"
 #include "Helpers.h"
 #include "CUSB.h"
 #include "CA2D.h"
@@ -59,7 +60,7 @@ bool Hardware::debugLayerOverride() {
   TC_Update.increment();
 
    if (firstCallInCycle && sampleTimer.passed()) {
-    if (HW->testGetNoiseSample())
+    if (HW->tools.testGetNoiseSample())
       Timer.sampleReady = true;
 
     return true;

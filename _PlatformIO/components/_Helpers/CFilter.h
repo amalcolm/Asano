@@ -11,7 +11,8 @@ public:
   inline void   setT(double t);
   inline double getT() const;
 
-  inline double getVariance() const;
+  inline int    getVariance() const;
+
   inline double getTfromSamples(int samples);
   inline int    getSamplesFromT(double t);
 

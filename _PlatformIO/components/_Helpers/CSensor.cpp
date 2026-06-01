@@ -61,8 +61,7 @@ CSensor::Zone CSensor::_updateZone() {
 double CSensor::resetFilter() {
   read(); // update lastValue and zone
   uint16_t rawValue = _inverted ? 1023 - _lastValue : _lastValue;
-  _lastV = static_cast<double>(rawValue );
-  _counter = 0;
+  _lastV = static_cast<double>(rawValue);
   return _lastV;
 }
 

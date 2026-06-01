@@ -1,5 +1,8 @@
 #include "HWforState.h"
+#include "_HWTools.h"
 #include "Config.h"
+#include <tuple>
+
   static constexpr std::tuple<int, int, int, int, int> knownConfigs[] = {
   //  {71, 47, 175, 181, 12},    {71, 47, 175, 181,164},
       {74, 50, 170, 152, 12},    {74, 50, 170, 152,164},
@@ -18,7 +21,7 @@ int count = 0;
 int offsets[3] = {-1, 0, +1};
 uint8_t _staticBaseValue = 128;
 
-void HWforState::HWflags::dbg() {
+void HWTools::dbg() {
 
   auto& [_, started, startTime, markTime, toggle] = getDBGflags(HW->state);
 
@@ -31,8 +34,9 @@ void HWforState::HWflags::dbg() {
   if (now < 1.0) return; // only start toggling after a second to allow settling
 
   if (!started) { started = true; markTime = now;
-    wipersChanged = true;
-    holdWipers = true;
+    
+    flags.wipersChanged = true;
+    flags.holdWipers = true;
     
     baseValue = HW->mid.getLevel();
   }

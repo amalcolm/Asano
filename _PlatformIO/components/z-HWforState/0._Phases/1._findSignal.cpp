@@ -1,13 +1,15 @@
 #include "HWforState.h"
+#include "_HWTools.h"
 #include "DataTypes.h"
 #include "Hardware.h"
 #include "CUSB.h"
+#include <algorithm>
 
+void HWforState::_findSignal() {
+  auto& flags = tools.flags;
 
-void HWforState::_findSignal()
-{
   static constexpr int MAX_ITERATIONS = 400;
-    int midLevel = CDigiPot::MIDPOINT;
+  int midLevel = CDigiPot::MIDPOINT;
   top.setLevel(CDigiPot::WIPER_MAX);
   bot.setLevel(CDigiPot::WIPER_MIN);
   mid.setLevel(midLevel);
@@ -19,8 +21,8 @@ void HWforState::_findSignal()
   int wiper = mid.getLevel();
   int Wtop = 255, Wbot = 0;
 
-  while (Wtop - Wbot > GAP_TOPBOT*2) {
-    if (sensor1.read() < HWforState::SENSOR1_TARGET) {
+  while (Wtop - Wbot > HWParams::GAP_TOPBOT*2) {
+    if (sensor1.read() < HWParams::SENSOR1_TARGET) {
       Wbot = wiper;
       wiper = (wiper + Wtop) / 2;
     } else {
@@ -35,12 +37,12 @@ void HWforState::_findSignal()
 
   bool signalFound = false;
 
-  int initialHILO = sensor1.read() < HWforState::SENSOR1_TARGET ? -1 : +1;
+  int initialHILO = sensor1.read() < HWParams::SENSOR1_TARGET ? -1 : +1;
   int HILO = 0;
 
-  for (int i = 0; top.getLevel() - bot.getLevel() > GAP_TOPBOT && i < MAX_ITERATIONS; i++) {
+  for (int i = 0; top.getLevel() - bot.getLevel() > HWParams::GAP_TOPBOT && i < MAX_ITERATIONS; i++) {
 
-    HILO = (sensor1.read() < HWforState::SENSOR1_TARGET) ? -1 : +1;
+    HILO = (sensor1.read() < HWParams::SENSOR1_TARGET) ? -1 : +1;
 
     switch (signalFound)
     {
@@ -74,10 +76,11 @@ void HWforState::_findSignal()
     delayMicroseconds(5); // signalFound ? 500 : 50 );
   }
 
-  centreMid(sensor1); 
+  tools.centreMid(sensor1); 
   
   sensor1.resetFilter();
   sensor2.resetFilter();
   phase = Phase::ZOOM;
+
   flags.zoomLevel = -1; // reset zoom level for next phase
 }

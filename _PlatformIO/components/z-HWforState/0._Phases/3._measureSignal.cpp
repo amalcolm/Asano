@@ -1,4 +1,6 @@
 #include "HWforState.h"
+#include "_HWTools.h"
+#include "HWforState.h"
 #include "C32bitTimer.h"
 #include "CA2D.h"
 static constexpr int    primeSamples = 20;
@@ -7,14 +9,15 @@ static const     double primeT = 1.0 - pow(0.05, 1.0 / primeSamples); // 95% set
 static const     double fineT  = 1.0 - pow(0.05, 1.0 / fineSamples); 
 
 void HWforState::_measureSignal() {
-  readCheck(); if (phase != Phase::MEASURE) return; // check if signal is lost before attempting to measure
+//  auto& flags = tools.flags;
+  tools.readCheck(); if (phase != Phase::MEASURE) return; // check if signal is lost before attempting to measure
 /*
-//  if (measureTimer.waiting()) return;
+//  if (tools.measureTimer.waiting()) return;
 
   uint16_t v = sensor2.read();
 //  float vMid = sensor2.filter(SAMEPLE_SIZE, FILTER_T);
 
-  int direction = (v < SENSOR2_TARGET) ? +5 : -5;
+  int direction = (v < HWParams::SENSOR2_TARGET) ? +5 : -5;
 
   mid.offsetLevel(direction);
   delayMicroseconds(50);
