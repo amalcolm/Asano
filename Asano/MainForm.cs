@@ -4,6 +4,7 @@ namespace Asano
 {
     using Asano.Caldera;
     using Asano.MyGLTools.Helpers;
+    using Asano.MyGLTools.UserControls;
     using TheLib;
 
     public partial class MainForm : Form
@@ -106,7 +107,7 @@ namespace Asano
                 SP.ErrorOccurred     -= SP_ErrorOccurred;
             }
 
-            await ShutdownCalderaFormAsync();
+            await ShutdownTallFormAsync();
         }
 
         private void BeginCloseAfterShutdown()
@@ -116,13 +117,13 @@ namespace Asano
             BeginInvoke(new MethodInvoker(Close));
         }
 
-        private async Task ShutdownCalderaFormAsync()
+        private async Task ShutdownTallFormAsync()
         {
-            var form = calderaForm;
+            var form = tallForm;
             if (form == null)
                 return;
 
-            calderaForm = null;
+            tallForm = null;
             form.FormClosed -= CalderaForm_FormClosed;
 
             if (form.IsDisposed)
@@ -155,7 +156,7 @@ namespace Asano
             if (blockPacket.Count == 0) return;
 
             multiChart.AddBlockPacket(blockPacket);
-//            tallForm?.Process(blockPacket);
+            tallForm?.Process(blockPacket);
         }
 
 
@@ -267,7 +268,7 @@ namespace Asano
 
 
         bool firstLoad = true;
-        MyCalderaForm? calderaForm;
+        DataForm? tallForm;
         private async void Form1_Shown(object sender, EventArgs e)
         {
             var ports = SerialHelper.GetUSBSerialPorts();
@@ -303,9 +304,9 @@ namespace Asano
             {
                 if (firstLoad)
                 {
-                    calderaForm = new MyCalderaForm() ;
-                    calderaForm.FormClosed += CalderaForm_FormClosed;
-                    calderaForm.Show();
+                    tallForm = new DataForm();
+                    tallForm.FormClosed += CalderaForm_FormClosed;
+                    tallForm.Show();
                 }
 
                 firstLoad = false;

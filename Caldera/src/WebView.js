@@ -60,6 +60,49 @@ export class WebView {
     });
   }
 
+  postOpenView(view) {
+    return this.postMessage({
+      type: "openView",
+      view,
+    });
+  }
+
+  postStartTest(test) {
+    return this.postMessage({
+      type: "startTest",
+      test,
+    });
+  }
+
+  postStopTest(test = null) {
+    return this.postMessage({
+      type: "stopTest",
+      test,
+    });
+  }
+
+  postAnalysisClear(options = {}) {
+    return this.postMessage({
+      type: "analysisClear",
+      ...options,
+    });
+  }
+
+  postAnalysisSample(sample, options = {}) {
+    return this.postMessage({
+      type: "analysisSample",
+      ...options,
+      sample,
+    });
+  }
+
+  postTestStatus(status) {
+    return this.postMessage({
+      type: "testStatus",
+      ...(status && typeof status === "object" ? status : { status }),
+    });
+  }
+
   postSetWipers(wipers, {
     cmdFlags = this.getCommandFlags(),
   } = {}) {

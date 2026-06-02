@@ -17,6 +17,8 @@ public:
   inline double getTfromSamples(int samples);
   inline int    getSamplesFromT(double t);
 
+  inline void   offset_lastV(double dV)  { _lastV += dV; _lastValue += static_cast<int>(dV + 0.5); }
+
 private:
   inline double _readSingle();
   double _t = -1.0;

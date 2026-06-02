@@ -1,30 +1,55 @@
 import { Sweep } from "../helpers/Sweep.js";
 
-export const TEST1_WIPERS = Object.freeze({ top: 73, bot: 61, mid: 255, offset: 0, gain: 4 });
-export const TEST1_LEDS_TO_TEST = Object.freeze(["RED1", "IR2"]);
+export const TEST1_GAIN_VALUES = Object.freeze([64, 48, 32, 24, 16, 8, 4, 2, 1, 0]);
+export const TEST1_OFFSET_VALUES = Object.freeze([128, 96, 160, 64, 192, 32, 224, 0, 255]);
 
 export class Test1Sweep extends Sweep {
   constructor({
-    ledsToTest = TEST1_LEDS_TO_TEST,
-    setLedState = null,
-    testWipers = TEST1_WIPERS,
+    gainValues = TEST1_GAIN_VALUES,
+    offsetValues = TEST1_OFFSET_VALUES,
     ...options
   }) {
     super(options);
-    this.appliedLedKey = null;
-    this.currentLedCombinationIndex = 0;
-    this.currentTargetLedState = null;
-    this.ledsToTest = Array.from(ledsToTest ?? [], normaliseLedId);
-    this.ledCombinations = getLedCombinations(this.ledsToTest);
-    this.setLedState = setLedState;
-    this.testWipers = testWipers;
+    this.currentConfigurationIndex = 0;
+    this.gainValues = normaliseWiperValues(gainValues);
+    this.offsetValues = normaliseWiperValues(offsetValues);
+    this.configurations = getCalibrationConfigurations(this.gainValues, this.offsetValues);
     this.updateButton();
   }
 
   start() {
-    this.appliedLedKey = null;
-    this.currentLedCombinationIndex = 0;
+    this.currentConfigurationIndex = 0;
+    this.configurations = getCalibrationConfigurations(this.gainValues, this.offsetValues);
     super.start();
+  }
+
+  beginRangeTest() {
+    if (!this.getCurrentConfiguration()) {
+      this.stop("done");
+      return;
+    }
+
+    super.beginRangeTest();
+  }
+
+  recordRangeTestSample() {
+    const result = this.rangeTest?.record({
+      max: this.sampleVoltageBounds?.sensor2?.max,
+      min: this.sampleVoltageBounds?.sensor2?.min,
+      sensor2: this.filteredVoltages?.sensor2,
+    });
+
+    if (!result || result.failed) {
+      this.handleRangeTestFailure(result);
+      return;
+    }
+
+    if (!result.done) {
+      this.beginRangeTestProbe(result.next);
+      return;
+    }
+
+    this.beginSweepFromRange(result);
   }
 
   advanceSweep() {
@@ -33,10 +58,8 @@ export class Test1Sweep extends Sweep {
       return;
     }
 
-    if (this.currentLedCombinationIndex < this.ledCombinations.length - 1) {
-      this.currentLedCombinationIndex += 1;
-      this.resetMidSweep();
-      this.beginCurrentPoint();
+    if (this.advanceConfiguration()) {
+      this.beginRangeTest();
       return;
     }
 
@@ -44,65 +67,40 @@ export class Test1Sweep extends Sweep {
   }
 
   applyCurrentWipers() {
-    this.applyCurrentLedState();
-    this.applyWipers({
-      ...this.testWipers,
-      mid: this.currentMid,
-    });
-  }
+    const configuration = this.getCurrentConfiguration();
 
-  applyCurrentLedState() {
-    const activeLeds = this.getCurrentLedCombination();
-    const ledKey = activeLeds.join("|");
-
-    if (ledKey === this.appliedLedKey) {
+    if (!configuration) {
       return;
     }
 
-    this.currentTargetLedState = getKnownState(this.setLedState?.(activeLeds));
-    this.appliedLedKey = ledKey;
+    this.applyWipers({
+      gain: configuration.gain,
+      mid: this.currentMid,
+      offset: configuration.offset,
+    });
   }
 
-  hasHardwareAppliedTargetWipers() {
-    if (!super.hasHardwareAppliedTargetWipers()) {
-      return false;
-    }
-
-    if (this.currentTargetLedState === null) {
-      return true;
-    }
-
-    return this.getHardwareLedState() === this.currentTargetLedState;
+  getCurrentConfiguration() {
+    return this.configurations[this.currentConfigurationIndex] ?? null;
   }
 
-  getCurrentLedCombination() {
-    return this.ledCombinations[this.currentLedCombinationIndex] ?? [];
+  getCurrentConfigurationLabel() {
+    const configuration = this.getCurrentConfiguration();
+
+    return configuration
+      ? `g${configuration.gain} o${configuration.offset}`
+      : "done";
   }
 
-  getCurrentLedMap() {
-    const activeLeds = new Set(this.getCurrentLedCombination());
+  getRangeTestStatus() {
+    const probe = this.rangeTest?.getCurrentProbe?.();
+    const probeStatus = probe?.status ? probe.status : "";
 
-    return Object.fromEntries(
-      this.ledsToTest.map((id) => [id, activeLeds.has(id)]),
-    );
-  }
-
-  getCurrentLedLabel() {
-    const activeLeds = this.getCurrentLedCombination();
-
-    return activeLeds.length ? activeLeds.join("+") : "off";
-  }
-
-  getCurrentLedProgressLabel() {
-    const activeLeds = this.getCurrentLedCombination();
-
-    return activeLeds.length
-      ? activeLeds.map(formatProgressLedId).join("+")
-      : "off";
+    return `T1 ${this.getCurrentConfigurationLabel()} r${probeStatus} m${this.currentMid}`;
   }
 
   getSweepStatus() {
-    return `T1 ${this.getCurrentLedProgressLabel()} m${this.currentMid}`;
+    return `T1 ${this.getCurrentConfigurationLabel()} m${this.currentMid}`;
   }
 
   getSampleSource() {
@@ -111,11 +109,28 @@ export class Test1Sweep extends Sweep {
 
   getSampleContext() {
     return {
-      ledLabel: this.getCurrentLedLabel(),
-      leds: this.getCurrentLedMap(),
-      ledState: this.getHardwareLedState() ?? this.currentTargetLedState,
+      ledLabel: this.getCurrentConfigurationLabel(),
+      ledState: this.getHardwareLedState(),
       test: "Test1",
     };
+  }
+
+  advanceConfiguration() {
+    if (this.currentConfigurationIndex >= this.configurations.length - 1) {
+      return false;
+    }
+
+    this.currentConfigurationIndex += 1;
+    return true;
+  }
+
+  handleRangeTestFailure(result) {
+    if (this.advanceConfiguration()) {
+      this.beginRangeTest();
+      return;
+    }
+
+    this.stop(result?.status || "fail");
   }
 
   updateButton() {
@@ -123,39 +138,28 @@ export class Test1Sweep extends Sweep {
       return;
     }
 
-    this.button.textContent = this.timer ? "Stop Test1" : "Test1";
+    this.button.textContent = this.timer ? "Stop Test1" : "Test1 calib";
     this.button.dataset.running = String(Boolean(this.timer));
   }
 }
 
-function getLedCombinations(leds) {
-  const ledCount = leds.length;
-  const combinationCount = 2 ** ledCount;
-
-  return Array.from({ length: combinationCount }, (_, mask) => (
-    leds.filter((_, index) => Boolean(mask & (1 << index)))
+function getCalibrationConfigurations(gainValues, offsetValues) {
+  return offsetValues.flatMap((offset) => (
+    gainValues.map((gain) => ({ gain, offset }))
   ));
 }
 
-function normaliseLedId(id) {
-  return String(id ?? "").trim().toUpperCase();
+function normaliseWiperValues(values) {
+  return Array.from(new Set(Array.from(values ?? [], normaliseWiperValue)))
+    .filter(Number.isFinite);
 }
 
-function formatProgressLedId(id) {
-  return String(id ?? "")
-    .toUpperCase()
-    .replace("RED", "R")
-    .replace("IR", "I");
-}
+function normaliseWiperValue(value) {
+  const wiper = Number(value);
 
-function getKnownState(value) {
-  if (value === null || value === undefined || value === "") {
+  if (!Number.isFinite(wiper)) {
     return null;
   }
 
-  const state = Number(value);
-
-  return Number.isFinite(state) && state >= 0
-    ? Math.trunc(state) >>> 0
-    : null;
+  return Math.max(0, Math.min(255, Math.trunc(wiper)));
 }

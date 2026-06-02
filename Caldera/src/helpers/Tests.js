@@ -69,9 +69,10 @@ export default class Tests {
 
   static classifySensorVoltage(reading) {
     const voltage = getReadingVoltage(reading);
+    const invalidBoundsSide = getInvalidReadingBoundsSide(reading);
 
-    if (getReadingSpread(reading) > MAX_BOUNDS_SAMPLE_SPREAD_V) {
-      return getInvalidReadingSide(reading, voltage);
+    if (getReadingSpread(reading) > MAX_BOUNDS_SAMPLE_SPREAD_V && invalidBoundsSide) {
+      return invalidBoundsSide;
     }
 
     if (isValidSensorVoltage(voltage)) {
@@ -142,7 +143,7 @@ function getReadingSpread(reading) {
     : 0;
 }
 
-function getInvalidReadingSide(reading, voltage) {
+function getInvalidReadingBoundsSide(reading) {
   const min = getKnownVoltage(reading?.min ?? reading?.sensor2Min ?? reading?.voltageMin);
   const max = getKnownVoltage(reading?.max ?? reading?.sensor2Max ?? reading?.voltageMax);
 
@@ -154,7 +155,7 @@ function getInvalidReadingSide(reading, voltage) {
     return "high";
   }
 
-  return isKnownVoltage(voltage) ? getInvalidVoltageSide(voltage) : "invalid";
+  return null;
 }
 
 function getInvalidVoltageSide(voltage) {

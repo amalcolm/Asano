@@ -14,20 +14,431 @@ const BUTTON_TICK_FREQUENCY = 4096;
 const LED_BUTTON_OFF_TICK_FREQUENCY = 1024;
 const LED_BUTTON_ON_TICK_FREQUENCY = 2048;
 const SETTINGS_STORAGE_KEY = "caldera:circuit-settings:v1";
+const ANALYSIS_CHANNEL_NAME = "caldera:analysis:v1";
+const VIEW_CIRCUIT = "circuit";
+const VIEW_ANALYSIS = "analysis";
 const buttonTickSound = new TickSound({ frequency: BUTTON_TICK_FREQUENCY });
 const ledButtonOffTickSound = new TickSound({ frequency: LED_BUTTON_OFF_TICK_FREQUENCY });
 const ledButtonOnTickSound = new TickSound({ frequency: LED_BUTTON_ON_TICK_FREQUENCY });
-const model = new Model();
-const webView = new WebView(model);
-const storedSettings = readStoredSettings();
-const initialCommandFlags = getInitialCommandFlags(storedSettings);
-let lastManualWiperCommandKey = null;
 
-webView.setCommandFlags(initialCommandFlags);
+const view = getRequestedView();
 
-document.querySelector("#app").innerHTML = `
-  <div class="app-layout">
-    <section class="analysis-div" data-analysis-div>
+if (view === VIEW_ANALYSIS) {
+  mountAnalysisView();
+} else {
+  mountCircuitView();
+}
+
+function mountAnalysisView() {
+  const model = new Model();
+  const webView = new WebView(model);
+  const analysisChannel = createAnalysisChannel();
+  const seenAnalysisMessageIds = new Set();
+
+  document.querySelector("#app").innerHTML = `
+    <div class="app-layout app-layout--analysis">
+      ${getAnalysisSectionHtml()}
+    </div>
+  `;
+
+  document.addEventListener("click", handleButtonTickSound, true);
+
+  const analysisRoot = document.querySelector("[data-analysis-div]");
+  const analysisPanel = new AnalysisPanel({ root: analysisRoot, webView });
+  const handleAnalysisMessage = (message) => {
+    if (!claimAnalysisMessage(message, seenAnalysisMessageIds)) {
+      return;
+    }
+
+    if (message.type === "analysisClear") {
+      analysisPanel.clear({
+        label: message.label ?? null,
+        panel: message.panel ?? null,
+      });
+      return;
+    }
+
+    if (message.type === "analysisSample") {
+      analysisPanel.addSample(message.sample);
+    }
+  };
+
+  analysisChannel.listen(handleAnalysisMessage);
+  webView.on("analysisClear", handleAnalysisMessage);
+  webView.on("analysisSample", handleAnalysisMessage);
+
+  webView.postReady();
+}
+
+function mountCircuitView() {
+  const model = new Model();
+  const webView = new WebView(model);
+  const storedSettings = readStoredSettings();
+  const initialCommandFlags = getInitialCommandFlags(storedSettings);
+  let lastManualWiperCommandKey = null;
+
+  webView.setCommandFlags(initialCommandFlags);
+
+  document.querySelector("#app").innerHTML = `
+    <div class="app-layout app-layout--circuit">
+      <section class="circuit-div" data-circuit-div>
+        <button class="view-launch-button" type="button" data-open-analysis-view>
+          Analysis
+        </button>
+        <div class="scene-stage" data-scene></div>
+        <div class="state-panel">
+          <div class="state-panel__grid">
+            ${STATE_LED_ROWS.map((row) => `
+              <div class="state-panel__row">
+                ${row.map(({ id, kind, label }) => `
+                  <button
+                    class="state-panel__button"
+                    type="button"
+                    data-state-toggle="${id}"
+                    data-state-kind="${kind}"
+                  >
+                    ${label}
+                  </button>
+                `).join("")}
+              </div>
+            `).join("")}
+          </div>
+          <div class="state-panel__options">
+            <label class="state-panel__option">
+              <input
+                class="state-panel__option-input"
+                type="checkbox"
+                aria-label="Auto set HoldWipers when LED buttons change state"
+                data-state-hold-wipers-on-change
+                ${getStoredHoldWipersOnLedChange(storedSettings) === false ? "" : "checked"}
+              />
+              <span class="state-panel__option-box" aria-hidden="true"></span>
+              <span class="state-panel__option-label">Auto hold</span>
+            </label>
+            <label class="state-panel__option">
+              <input
+                class="state-panel__option-input"
+                type="checkbox"
+                aria-label="Run Find Signal when LED buttons change state"
+                data-state-run-find-signal
+                ${storedSettings?.stateControl?.runFindSignalOnStateChange === true ? "checked" : ""}
+              />
+              <span class="state-panel__option-box" aria-hidden="true"></span>
+              <span class="state-panel__option-label">Search phase</span>
+            </label>
+          </div>
+        </div>
+        <div class="debug-panel" data-debug-panel>
+          <div class="debug-panel__sections">
+            <section class="debug-panel__section debug-panel__section--flags">
+              <div class="debug-panel__header">
+                <span>Command flags</span>
+                <span data-debug-flags-status>0x00000000</span>
+              </div>
+              <label class="debug-panel__option">
+                <input type="checkbox" data-debug-flag="holdWipers" />
+                <span>HoldWipers</span>
+              </label>
+              <label class="debug-panel__option">
+                <input type="checkbox" data-debug-flag="update" />
+                <span>Update</span>
+              </label>
+            </section>
+            <section class="debug-panel__section debug-panel__section--tests">
+              <div class="debug-panel__header">
+                <span>Tests</span>
+                <span data-debug-tests-status>ready</span>
+              </div>
+              <div class="debug-panel__test-actions">
+                <button class="debug-panel__button" type="button" data-debug-test="findSignal">
+                  Find Signal
+                </button>
+                <button class="debug-panel__button" type="button" data-debug-test="getNoiseSample">
+                  Get Noise Sample
+                </button>
+              </div>
+            </section>
+          </div>
+          <div class="debug-panel__footer">
+            <div class="debug-panel__actions">
+              <button class="debug-panel__button" type="button" data-debug-save-settings>
+                Save settings
+              </button>
+              <button class="debug-panel__button" type="button" data-debug-load-settings>
+                Load settings
+              </button>
+            </div>
+            <div class="debug-panel__status">
+              <span>settings</span>
+              <span data-debug-settings-status>empty</span>
+            </div>
+          </div>
+        </div>
+        ${TEST_PANEL_HTML}
+        <div class="wiper-debug" data-wiper-debug hidden>
+          <div class="wiper-debug__header">
+            <span>WebView wipers</span>
+            <span data-wiper-debug-status>idle</span>
+          </div>
+          <div class="wiper-debug__keys" data-wiper-debug-keys>keys: -</div>
+          <div class="wiper-debug__grid">
+            <span></span>
+            <span>web</span>
+            <span>model</span>
+            ${WIPER_IDS.map((id) => `
+              <span>${id}</span>
+              <span data-wiper-debug-incoming="${id}">-</span>
+              <span data-wiper-debug-model="${id}">${formatDebugValue(model[id]?.wiper)}</span>
+            `).join("")}
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+
+  document.addEventListener("click", handleButtonTickSound, true);
+
+  const sceneRoot = document.querySelector("[data-scene]");
+  const stateButtons = document.querySelectorAll("[data-state-toggle]");
+  const stateHoldWipersInput = document.querySelector("[data-state-hold-wipers-on-change]");
+  const stateRunFindSignalInput = document.querySelector("[data-state-run-find-signal]");
+  const debugFlagInputs = document.querySelectorAll("[data-debug-flag]");
+  const debugFlagsStatus = document.querySelector("[data-debug-flags-status]");
+  const debugTestButtons = document.querySelectorAll("[data-debug-test]");
+  const debugTestsStatus = document.querySelector("[data-debug-tests-status]");
+  const debugLoadSettingsButton = document.querySelector("[data-debug-load-settings]");
+  const debugSaveSettingsButton = document.querySelector("[data-debug-save-settings]");
+  const debugSettingsStatus = document.querySelector("[data-debug-settings-status]");
+  const openAnalysisButton = document.querySelector("[data-open-analysis-view]");
+  const testPanelRoot = document.querySelector("[data-test-panel]");
+  const wiperDebugStatus = document.querySelector("[data-wiper-debug-status]");
+  const wiperDebugKeys = document.querySelector("[data-wiper-debug-keys]");
+  const incomingDebugById = new Map(
+    WIPER_IDS.map((id) => [id, document.querySelector(`[data-wiper-debug-incoming="${id}"]`)]),
+  );
+  const modelDebugById = new Map(
+    WIPER_IDS.map((id) => [id, document.querySelector(`[data-wiper-debug-model="${id}"]`)]),
+  );
+  let wiperMessageCount = 0;
+  let liveWiperRevision = 0;
+  let liveWipers = null;
+  const hasHostTelemetry = Boolean(window.chrome?.webview);
+  const analysisChannel = createAnalysisChannel();
+  const headlessAnalysisPanel = new AnalysisPanel({ root: null, webView });
+  const analysisBridge = createAnalysisBridge(headlessAnalysisPanel, webView, analysisChannel);
+  const circuitScene = new CircuitScene(sceneRoot, model, {
+    onManualWiperInput: handleManualWiperInput,
+    onSettingsChange: saveStoredSettings,
+  });
+  const commandFlagsControl = new DebugFlagsControl({
+    initialCommandFlags,
+    inputs: debugFlagInputs,
+    onChange: () => saveStoredSettings(),
+    status: debugFlagsStatus,
+    testButtons: debugTestButtons,
+    testStatus: debugTestsStatus,
+    webView,
+  });
+  const stateControl = new StateControl({
+    buttons: stateButtons,
+    commandFlags: commandFlagsControl,
+    holdWipersOnLedChangeInput: stateHoldWipersInput,
+    initialHoldWipersOnLedChange: getStoredHoldWipersOnLedChange(storedSettings) !== false,
+    initialRunFindSignalOnStateChange: storedSettings?.stateControl?.runFindSignalOnStateChange === true,
+    onSettingsChange: () => saveStoredSettings(),
+    runFindSignalInput: stateRunFindSignalInput,
+    webView,
+  });
+
+  new DebugSettingsControl({
+    applySettings: applyDebugSettings,
+    getSettings: () => ({
+      ledState: getDebugLedState(),
+      wipers: getModelWipers(model),
+    }),
+    loadButton: debugLoadSettingsButton,
+    saveButton: debugSaveSettingsButton,
+    status: debugSettingsStatus,
+  });
+
+  const testPanel = new TestPanel({
+    analysisPanel: analysisBridge,
+    commandFlags: commandFlagsControl,
+    circuitScene,
+    getHardwareWiperRevision: () => liveWiperRevision,
+    getHardwareWipers: () => liveWipers,
+    model,
+    onStatus: (status) => webView.postTestStatus(status),
+    requireWiperAck: hasHostTelemetry,
+    root: testPanelRoot,
+    setLedState: (activeIds) => stateControl.setActiveIds(activeIds),
+    updateWiperDebug,
+    webView,
+  });
+
+  openAnalysisButton?.addEventListener("click", () => openAnalysisView(webView));
+
+  circuitScene.applySettings(storedSettings);
+  circuitScene.start();
+
+  webView.on("setPhotodiodeVoltage", ({ value }) => {
+    circuitScene.setPhotoDiodeVoltage(value, { notify: false });
+  });
+
+  webView.on("wipersChanged", ({ wipers }) => {
+    liveWipers = {
+      ...normaliseWipers(wipers),
+      state: stateControl.getLastHostState(),
+    };
+    liveWiperRevision += 1;
+
+    const applied = model.applyWiperValues(wipers);
+
+    updateWiperDebug(wipers, { applied });
+
+    if (applied) {
+      circuitScene.render();
+    }
+  });
+
+  webView.on("stateChanged", ({ state }) => {
+    stateControl.applyHostState(state);
+
+    if (liveWipers) {
+      liveWipers = {
+        ...liveWipers,
+        state: stateControl.getLastHostState(),
+      };
+    }
+  });
+
+  webView.on("voltagesChanged", ({ voltages }) => {
+    if (circuitScene.applyPhysicalVoltages(voltages)) {
+      circuitScene.render();
+    }
+  });
+
+  webView.on("startTest", ({ test }) => {
+    testPanel.startTest(test);
+  });
+
+  webView.on("stopTest", ({ test = null } = {}) => {
+    testPanel.stopTest(test);
+  });
+
+  webView.postGetWipers();
+  updateWiperDebug(null, { applied: false });
+  webView.postReady();
+
+  function saveStoredSettings(settings = circuitScene.getSettings()) {
+    const sceneSettings = settings && typeof settings === "object"
+      ? settings
+      : circuitScene.getSettings();
+    const storedSettings = {
+      ...sceneSettings,
+      commandFlags: commandFlagsControl.getSettings(),
+      stateControl: stateControl.getSettings(),
+    };
+
+    try {
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(storedSettings));
+    } catch {
+      // Storage is a convenience here; the circuit still works without it.
+    }
+
+    webView.postSettingsChange(sceneSettings);
+  }
+
+  function handleManualWiperInput({ phase, wipers }) {
+    commandFlagsControl.setFlag(COMMAND_FLAGS.HOLD_WIPERS, true, { post: false });
+
+    if (phase === "start") {
+      lastManualWiperCommandKey = null;
+      return;
+    }
+
+    if (phase !== "change") {
+      return;
+    }
+
+    const commandWipers = normaliseWipers(wipers);
+    const commandKey = JSON.stringify(commandWipers);
+
+    if (commandKey === lastManualWiperCommandKey) {
+      return;
+    }
+
+    lastManualWiperCommandKey = commandKey;
+    webView.postSetWipers(commandWipers);
+  }
+
+  function applyDebugSettings(settings) {
+    if (!settings?.wipers || !WIPER_IDS.every((id) => settings.wipers[id] !== undefined)) {
+      return false;
+    }
+
+    const wipers = normaliseWipers(settings.wipers);
+    const ledState = normaliseDebugLedState(settings.ledState ?? settings.state);
+
+    if ((settings.ledState !== undefined || settings.state !== undefined) && ledState === null) {
+      return false;
+    }
+
+    const applied = model.applyWiperValues(wipers);
+
+    commandFlagsControl.setFlag(COMMAND_FLAGS.HOLD_WIPERS, true, { post: false });
+    updateWiperDebug(wipers, { applied });
+    circuitScene.render();
+    webView.postSetWipers(wipers);
+
+    if (ledState !== null) {
+      stateControl.sendHoldState(ledState);
+    }
+
+    saveStoredSettings(circuitScene.getSettings());
+
+    return true;
+  }
+
+  function getDebugLedState() {
+    return stateControl.getLastHostState() ?? stateControl.getState();
+  }
+
+  function updateWiperDebug(wipers, { applied = false } = {}) {
+    if (wipers && typeof wipers === "object") {
+      wiperMessageCount += 1;
+    }
+
+    WIPER_IDS.forEach((id) => {
+      const incomingValue = wipers && typeof wipers === "object" ? wipers[id] : undefined;
+
+      incomingDebugById.get(id).textContent = formatDebugValue(incomingValue);
+      modelDebugById.get(id).textContent = formatDebugValue(model[id]?.wiper);
+    });
+
+    if (!wiperDebugStatus) {
+      return;
+    }
+
+    if (!wipers || typeof wipers !== "object") {
+      wiperDebugStatus.textContent = "idle";
+      wiperDebugKeys.textContent = "keys: -";
+      return;
+    }
+
+    wiperDebugKeys.textContent = `keys: ${Object.keys(wipers).join(", ") || "-"}`;
+    wiperDebugStatus.textContent = applied
+      ? `#${wiperMessageCount} applied`
+      : `#${wiperMessageCount} ignored`;
+  }
+}
+
+function getAnalysisSectionHtml() {
+  return `
+    <section
+      class="analysis-div analysis-div--standalone"
+      data-analysis-div
+    >
       <div class="analysis-panel">
         <div class="analysis-panel__header">
           <div>
@@ -83,237 +494,96 @@ document.querySelector("#app").innerHTML = `
         </div>
       </div>
     </section>
-    <section class="circuit-div" data-circuit-div>
-      <div class="scene-stage" data-scene></div>
-      <div class="state-panel">
-        <div class="state-panel__grid">
-          ${STATE_LED_ROWS.map((row) => `
-            <div class="state-panel__row">
-              ${row.map(({ id, kind, label }) => `
-                <button
-                  class="state-panel__button"
-                  type="button"
-                  data-state-toggle="${id}"
-                  data-state-kind="${kind}"
-                >
-                  ${label}
-                </button>
-              `).join("")}
-            </div>
-          `).join("")}
-        </div>
-        <div class="state-panel__options">
-          <label class="state-panel__option">
-            <input
-              class="state-panel__option-input"
-              type="checkbox"
-              aria-label="Auto set HoldWipers when LED buttons change state"
-              data-state-hold-wipers-on-change
-              ${getStoredHoldWipersOnLedChange(storedSettings) === false ? "" : "checked"}
-            />
-            <span class="state-panel__option-box" aria-hidden="true"></span>
-            <span class="state-panel__option-label">Auto hold</span>
-          </label>
-          <label class="state-panel__option">
-            <input
-              class="state-panel__option-input"
-              type="checkbox"
-              aria-label="Run Find Signal when LED buttons change state"
-              data-state-run-find-signal
-              ${storedSettings?.stateControl?.runFindSignalOnStateChange === true ? "checked" : ""}
-            />
-            <span class="state-panel__option-box" aria-hidden="true"></span>
-            <span class="state-panel__option-label">Search phase</span>
-          </label>
-        </div>
-      </div>
-      <div class="debug-panel" data-debug-panel>
-        <div class="debug-panel__sections">
-          <section class="debug-panel__section debug-panel__section--flags">
-            <div class="debug-panel__header">
-              <span>Command flags</span>
-              <span data-debug-flags-status>0x00000000</span>
-            </div>
-            <label class="debug-panel__option">
-              <input type="checkbox" data-debug-flag="holdWipers" />
-              <span>HoldWipers</span>
-            </label>
-            <label class="debug-panel__option">
-              <input type="checkbox" data-debug-flag="update" />
-              <span>Update</span>
-            </label>
-          </section>
-          <section class="debug-panel__section debug-panel__section--tests">
-            <div class="debug-panel__header">
-              <span>Tests</span>
-              <span data-debug-tests-status>ready</span>
-            </div>
-            <div class="debug-panel__test-actions">
-              <button class="debug-panel__button" type="button" data-debug-test="findSignal">
-                Find Signal
-              </button>
-              <button class="debug-panel__button" type="button" data-debug-test="getNoiseSample">
-                Get Noise Sample
-              </button>
-            </div>
-          </section>
-        </div>
-        <div class="debug-panel__footer">
-          <div class="debug-panel__actions">
-            <button class="debug-panel__button" type="button" data-debug-save-settings>
-              Save settings
-            </button>
-            <button class="debug-panel__button" type="button" data-debug-load-settings>
-              Load settings
-            </button>
-          </div>
-          <div class="debug-panel__status">
-            <span>settings</span>
-            <span data-debug-settings-status>empty</span>
-          </div>
-        </div>
-      </div>
-      ${TEST_PANEL_HTML}
-      <div class="wiper-debug" data-wiper-debug hidden>
-        <div class="wiper-debug__header">
-          <span>WebView wipers</span>
-          <span data-wiper-debug-status>idle</span>
-        </div>
-        <div class="wiper-debug__keys" data-wiper-debug-keys>keys: -</div>
-        <div class="wiper-debug__grid">
-          <span></span>
-          <span>web</span>
-          <span>model</span>
-          ${WIPER_IDS.map((id) => `
-            <span>${id}</span>
-            <span data-wiper-debug-incoming="${id}">-</span>
-            <span data-wiper-debug-model="${id}">${formatDebugValue(model[id]?.wiper)}</span>
-          `).join("")}
-        </div>
-      </div>
-    </section>
-  </div>
-`;
+  `;
+}
 
-document.addEventListener("click", handleButtonTickSound, true);
+function createAnalysisBridge(analysisPanel, webView, analysisChannel) {
+  const sourceId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  let nextMessageId = 0;
 
-const analysisRoot = document.querySelector("[data-analysis-div]");
-const sceneRoot = document.querySelector("[data-scene]");
-const stateButtons = document.querySelectorAll("[data-state-toggle]");
-const stateHoldWipersInput = document.querySelector("[data-state-hold-wipers-on-change]");
-const stateRunFindSignalInput = document.querySelector("[data-state-run-find-signal]");
-const debugFlagInputs = document.querySelectorAll("[data-debug-flag]");
-const debugFlagsStatus = document.querySelector("[data-debug-flags-status]");
-const debugTestButtons = document.querySelectorAll("[data-debug-test]");
-const debugTestsStatus = document.querySelector("[data-debug-tests-status]");
-const debugLoadSettingsButton = document.querySelector("[data-debug-load-settings]");
-const debugSaveSettingsButton = document.querySelector("[data-debug-save-settings]");
-const debugSettingsStatus = document.querySelector("[data-debug-settings-status]");
-const testPanelRoot = document.querySelector("[data-test-panel]");
-const wiperDebugStatus = document.querySelector("[data-wiper-debug-status]");
-const wiperDebugKeys = document.querySelector("[data-wiper-debug-keys]");
-const incomingDebugById = new Map(
-  WIPER_IDS.map((id) => [id, document.querySelector(`[data-wiper-debug-incoming="${id}"]`)]),
-);
-const modelDebugById = new Map(
-  WIPER_IDS.map((id) => [id, document.querySelector(`[data-wiper-debug-model="${id}"]`)]),
-);
-let wiperMessageCount = 0;
-let liveWiperRevision = 0;
-let liveWipers = null;
-const hasHostTelemetry = Boolean(window.chrome?.webview);
-const analysisPanel = new AnalysisPanel({ root: analysisRoot, webView });
-const circuitScene = new CircuitScene(sceneRoot, model, {
-  onManualWiperInput: handleManualWiperInput,
-  onSettingsChange: saveStoredSettings,
-});
-const commandFlagsControl = new DebugFlagsControl({
-  initialCommandFlags,
-  inputs: debugFlagInputs,
-  onChange: () => saveStoredSettings(),
-  status: debugFlagsStatus,
-  testButtons: debugTestButtons,
-  testStatus: debugTestsStatus,
-  webView,
-});
-const stateControl = new StateControl({
-  buttons: stateButtons,
-  commandFlags: commandFlagsControl,
-  holdWipersOnLedChangeInput: stateHoldWipersInput,
-  initialHoldWipersOnLedChange: getStoredHoldWipersOnLedChange(storedSettings) !== false,
-  initialRunFindSignalOnStateChange: storedSettings?.stateControl?.runFindSignalOnStateChange === true,
-  onSettingsChange: () => saveStoredSettings(),
-  runFindSignalInput: stateRunFindSignalInput,
-  webView,
-});
-new DebugSettingsControl({
-  applySettings: applyDebugSettings,
-  getSettings: () => ({
-    ledState: getDebugLedState(),
-    wipers: getModelWipers(model),
-  }),
-  loadButton: debugLoadSettingsButton,
-  saveButton: debugSaveSettingsButton,
-  status: debugSettingsStatus,
-});
-new TestPanel({
-  analysisPanel,
-  commandFlags: commandFlagsControl,
-  circuitScene,
-  getHardwareWiperRevision: () => liveWiperRevision,
-  getHardwareWipers: () => liveWipers,
-  model,
-  requireWiperAck: hasHostTelemetry,
-  root: testPanelRoot,
-  setLedState: (activeIds) => stateControl.setActiveIds(activeIds),
-  updateWiperDebug,
-  webView,
-});
+  const createMessage = (type, payload = {}) => ({
+    type,
+    messageId: `${sourceId}-${nextMessageId += 1}`,
+    ...payload,
+  });
 
-circuitScene.applySettings(storedSettings);
-circuitScene.start();
-
-webView.on("setPhotodiodeVoltage", ({ value }) => {
-  circuitScene.setPhotoDiodeVoltage(value, { notify: false });
-});
-
-webView.on("wipersChanged", ({ wipers }) => {
-  liveWipers = {
-    ...normaliseWipers(wipers),
-    state: stateControl.getLastHostState(),
+  const postMessage = (message) => {
+    webView.postMessage(message);
+    analysisChannel.post(message);
   };
-  liveWiperRevision += 1;
 
-  const applied = model.applyWiperValues(wipers);
+  return {
+    addSampleFromModel(sampleContext) {
+      const sample = analysisPanel.addSampleFromModel(sampleContext);
 
-  updateWiperDebug(wipers, { applied });
+      postMessage(createMessage("analysisSample", { sample }));
+      return sample;
+    },
+    clear(options = {}) {
+      analysisPanel.clear(options);
+      postMessage(createMessage("analysisClear", options));
+    },
+  };
+}
 
-  if (applied) {
-    circuitScene.render();
+function createAnalysisChannel() {
+  const channel = typeof BroadcastChannel === "function"
+    ? new BroadcastChannel(ANALYSIS_CHANNEL_NAME)
+    : null;
+
+  return {
+    listen(handler) {
+      if (!channel) {
+        return;
+      }
+
+      channel.addEventListener("message", (event) => handler(event.data));
+    },
+    post(message) {
+      channel?.postMessage(message);
+    },
+  };
+}
+
+function claimAnalysisMessage(message, seenMessageIds) {
+  if (!message || typeof message !== "object") {
+    return false;
   }
-});
 
-webView.on("stateChanged", ({ state }) => {
-  stateControl.applyHostState(state);
+  const messageId = typeof message.messageId === "string"
+    ? message.messageId
+    : null;
 
-  if (liveWipers) {
-    liveWipers = {
-      ...liveWipers,
-      state: stateControl.getLastHostState(),
-    };
+  if (!messageId) {
+    return true;
   }
-});
 
-webView.on("voltagesChanged", ({ voltages }) => {
-  if (circuitScene.applyPhysicalVoltages(voltages)) {
-    circuitScene.render();
+  if (seenMessageIds.has(messageId)) {
+    return false;
   }
-});
-webView.postGetWipers();
 
-updateWiperDebug(null, { applied: false });
+  seenMessageIds.add(messageId);
 
-webView.postReady();
+  if (seenMessageIds.size > 40000) {
+    seenMessageIds.clear();
+  }
+
+  return true;
+}
+
+function openAnalysisView(webView) {
+  if (webView.postOpenView(VIEW_ANALYSIS)) {
+    return;
+  }
+
+  window.open(`${window.location.pathname}?view=${VIEW_ANALYSIS}`, "_blank", "popup");
+}
+
+function getRequestedView() {
+  const requestedView = new URLSearchParams(window.location.search).get("view");
+
+  return requestedView === VIEW_ANALYSIS ? VIEW_ANALYSIS : VIEW_CIRCUIT;
+}
 
 function readStoredSettings() {
   try {
@@ -361,80 +631,6 @@ function handleButtonTickSound(event) {
   buttonTickSound.play();
 }
 
-function saveStoredSettings(settings = circuitScene.getSettings()) {
-  const sceneSettings = settings && typeof settings === "object"
-    ? settings
-    : circuitScene.getSettings();
-  const storedSettings = {
-    ...sceneSettings,
-    commandFlags: commandFlagsControl.getSettings(),
-    stateControl: stateControl.getSettings(),
-  };
-
-  try {
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(storedSettings));
-  } catch {
-    // Storage is a convenience here; the circuit still works without it.
-  }
-
-  webView.postSettingsChange(sceneSettings);
-}
-
-function handleManualWiperInput({ phase, wipers }) {
-  commandFlagsControl.setFlag(COMMAND_FLAGS.HOLD_WIPERS, true, { post: false });
-
-  if (phase === "start") {
-    lastManualWiperCommandKey = null;
-    return;
-  }
-
-  if (phase !== "change") {
-    return;
-  }
-
-  const commandWipers = normaliseWipers(wipers);
-  const commandKey = JSON.stringify(commandWipers);
-
-  if (commandKey === lastManualWiperCommandKey) {
-    return;
-  }
-
-  lastManualWiperCommandKey = commandKey;
-  webView.postSetWipers(commandWipers);
-}
-
-function applyDebugSettings(settings) {
-  if (!settings?.wipers || !WIPER_IDS.every((id) => settings.wipers[id] !== undefined)) {
-    return false;
-  }
-
-  const wipers = normaliseWipers(settings.wipers);
-  const ledState = normaliseDebugLedState(settings.ledState ?? settings.state);
-
-  if ((settings.ledState !== undefined || settings.state !== undefined) && ledState === null) {
-    return false;
-  }
-
-  const applied = model.applyWiperValues(wipers);
-
-  commandFlagsControl.setFlag(COMMAND_FLAGS.HOLD_WIPERS, true, { post: false });
-  updateWiperDebug(wipers, { applied });
-  circuitScene.render();
-  webView.postSetWipers(wipers);
-
-  if (ledState !== null) {
-    stateControl.sendHoldState(ledState);
-  }
-
-  saveStoredSettings(circuitScene.getSettings());
-
-  return true;
-}
-
-function getDebugLedState() {
-  return stateControl.getLastHostState() ?? stateControl.getState();
-}
-
 function normaliseDebugLedState(value) {
   if (value === undefined || value === null) {
     return null;
@@ -445,34 +641,6 @@ function normaliseDebugLedState(value) {
   return Number.isFinite(state) && state >= 0
     ? Math.trunc(state) >>> 0
     : null;
-}
-
-function updateWiperDebug(wipers, { applied = false } = {}) {
-  if (wipers && typeof wipers === "object") {
-    wiperMessageCount += 1;
-  }
-
-  WIPER_IDS.forEach((id) => {
-    const incomingValue = wipers && typeof wipers === "object" ? wipers[id] : undefined;
-
-    incomingDebugById.get(id).textContent = formatDebugValue(incomingValue);
-    modelDebugById.get(id).textContent = formatDebugValue(model[id]?.wiper);
-  });
-
-  if (!wiperDebugStatus) {
-    return;
-  }
-
-  if (!wipers || typeof wipers !== "object") {
-    wiperDebugStatus.textContent = "idle";
-    wiperDebugKeys.textContent = "keys: -";
-    return;
-  }
-
-  wiperDebugKeys.textContent = `keys: ${Object.keys(wipers).join(", ") || "-"}`;
-  wiperDebugStatus.textContent = applied
-    ? `#${wiperMessageCount} applied`
-    : `#${wiperMessageCount} ignored`;
 }
 
 function formatDebugValue(value) {

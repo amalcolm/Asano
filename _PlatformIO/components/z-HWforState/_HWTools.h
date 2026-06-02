@@ -6,6 +6,7 @@ struct HWTools
 {
 public:
   HWTools(HWforState& hw);
+ ~HWTools();
   HWforState& hw;
 
   struct HWflags {
@@ -19,6 +20,8 @@ public:
 
   void dbg();
 
+  class CDiffAmp* _ptr_DiffAmp; // Pimpl to avoid including CDiffAmp in the header
+  class CDiffAmp& diffAmp;
 
   // tests
   void testMidOffset();
@@ -33,6 +36,6 @@ public:
   inline void centreMid   (CSensor& sensor) { centre(sensor, hw.mid); }
   inline void centreOffset(CSensor& sensor) { centre(sensor, hw.offset); }
 
-
+private:
 
 };

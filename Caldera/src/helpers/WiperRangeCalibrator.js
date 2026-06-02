@@ -40,8 +40,8 @@ export class WiperRangeCalibrator {
     this.startReading = null;
     this.upperBound = null;
     this.search = {
-      phase: "lower-start",
-      value: this.start,
+      phase: "upper-end",
+      value: this.end,
     };
 
     return this.getCurrentProbe();
@@ -72,6 +72,12 @@ export class WiperRangeCalibrator {
           this.anchorValue = this.start;
           this.lowerBound = this.start;
           this.startUpperSearch();
+        } else if (this.endValid === true) {
+          this.anchorValue = this.end;
+          this.upperBound = this.end;
+          this.startLowerSearch(this.end);
+        } else if (this.endValid === false) {
+          this.startAnchorSearch();
         } else {
           this.search = {
             phase: "lower-end",
@@ -106,17 +112,33 @@ export class WiperRangeCalibrator {
         break;
 
       case "upper-end":
+        this.endReading = result;
         this.endValid = Boolean(isValid);
 
         if (isValid) {
+          this.anchorValue = this.end;
           this.upperBound = this.end;
-          this.finish();
+          if (this.lowerBound !== null) {
+            this.finish();
+          } else {
+            this.search = {
+              phase: "lower-start",
+              value: this.start,
+            };
+          }
         } else {
-          this.search = createBinarySearch({
-            high: this.end,
-            low: this.lowerBound,
-            mode: "last-valid",
-          });
+          if (this.lowerBound !== null) {
+            this.search = createBinarySearch({
+              high: this.end,
+              low: this.lowerBound,
+              mode: "last-valid",
+            });
+          } else {
+            this.search = {
+              phase: "lower-start",
+              value: this.start,
+            };
+          }
         }
         break;
 

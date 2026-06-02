@@ -62,6 +62,16 @@ export class AnalysisPanel {
     return sample;
   }
 
+  addSample(sample) {
+    const addedSample = this.dataset.addSample(sample);
+
+    if (addedSample) {
+      this.render();
+    }
+
+    return addedSample;
+  }
+
   clear({ label = null, panel = null } = {}) {
     this.dataset.clear({ label });
     this.activeBreakdownPanel = panel;
@@ -225,12 +235,12 @@ export class AnalysisPanel {
 
     const title = document.createElement("span");
     title.className = "analysis-breakdown__title";
-    title.textContent = "Test1";
+    title.textContent = "Test1 calibration";
 
     const grid = document.createElement("div");
     grid.className = "analysis-test1-table";
 
-    ["LEDs", "slope", "RMS", "err", "n"].forEach((label) => {
+    ["config", "slope", "RMS", "err", "n"].forEach((label) => {
       const cell = document.createElement("span");
       cell.className = "analysis-test1-table__head";
       cell.textContent = label;

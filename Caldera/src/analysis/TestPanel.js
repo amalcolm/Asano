@@ -62,13 +62,16 @@ export class TestPanel {
     requireWiperAck = false,
     root,
     setLedState = null,
+    onStatus = null,
     updateWiperDebug,
     webView,
   }) {
     this.analysisPanel = analysisPanel;
+    this.onStatus = onStatus;
     this.root = root;
     this.status = root?.querySelector("[data-test-status]");
     this.sweeps = [];
+    this.sweepsById = new Map();
 
     const commonOptions = {
       commandFlags,
@@ -77,6 +80,7 @@ export class TestPanel {
       getHardwareWipers,
       model,
       onSample: (sampleContext) => this.analysisPanel.addSampleFromModel(sampleContext),
+      onStatus: (status, sweep) => this.handleStatus(status, sweep),
       requireWiperAck,
       status: this.status,
       updateWiperDebug,
@@ -149,6 +153,41 @@ export class TestPanel {
       this.test3Sweep,
       this.test4Sweep,
     ];
+    this.sweepsById = new Map([
+      ["mid", this.midSweep],
+      ["offset", this.offsetSweep],
+      ["gain", this.gainSweep],
+      ["test1", this.test1Sweep],
+      ["test2", this.test2Sweep],
+      ["test3", this.test3Sweep],
+      ["test4", this.test4Sweep],
+    ]);
+  }
+
+  startTest(testId) {
+    const sweep = this.getSweep(testId);
+
+    if (!sweep) {
+      return false;
+    }
+
+    if (!sweep.timer) {
+      sweep.start();
+    }
+
+    return true;
+  }
+
+  stopTest(testId = null) {
+    const sweep = testId ? this.getSweep(testId) : null;
+
+    if (sweep) {
+      sweep.stop("stopped");
+      return true;
+    }
+
+    this.sweeps.forEach((item) => item?.stop("stopped"));
+    return true;
   }
 
   stopOtherSweeps(activeSweep) {
@@ -157,6 +196,28 @@ export class TestPanel {
         sweep.stop("idle");
       }
     });
+  }
+
+  getSweep(testId) {
+    return this.sweepsById.get(String(testId ?? "").toLowerCase()) ?? null;
+  }
+
+  handleStatus(status, sweep) {
+    this.onStatus?.({
+      running: Boolean(sweep?.timer),
+      status,
+      test: this.getSweepId(sweep),
+    });
+  }
+
+  getSweepId(sweep) {
+    for (const [id, item] of this.sweepsById) {
+      if (item === sweep) {
+        return id;
+      }
+    }
+
+    return null;
   }
 }
 

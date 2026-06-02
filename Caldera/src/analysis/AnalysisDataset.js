@@ -54,6 +54,16 @@ export class AnalysisDataset {
       wipers.gain,
       wipers.offset,
     ));
+    const sensor1Estimated = getKnownVoltage(this.sensorModel.circuitSensor1FromSensor2(
+      sensor2Actual,
+      wipers.gain,
+      wipers.offset,
+    ));
+    const sensor2Estimated = getKnownVoltage(this.sensorModel.circuitSensor2FromSensor1(
+      sensor1Actual,
+      wipers.gain,
+      wipers.offset,
+    ));
     const diffAmpEffectiveMultiplier = getKnownNumber(
       this.sensorModel.circuitGainRatioFromWiper(wipers.gain),
     );
@@ -84,6 +94,10 @@ export class AnalysisDataset {
         sensor1: sensor1Predicted,
         sensor2: sensor2Predicted,
       },
+      sensorEstimated: {
+        sensor1: sensor1Estimated,
+        sensor2: sensor2Estimated,
+      },
       residuals: {
         sensor1: subtractKnown(sensor1Actual, sensor1Predicted),
         sensor2: subtractKnown(sensor2Actual, sensor2Predicted),
@@ -97,6 +111,15 @@ export class AnalysisDataset {
 
     this.samples.push(sample);
 
+    return sample;
+  }
+
+  addSample(sample) {
+    if (!sample || typeof sample !== "object") {
+      return null;
+    }
+
+    this.samples.push(sample);
     return sample;
   }
 
@@ -152,8 +175,11 @@ const BASE_CSV_HEADER = [
   "offset",
   "offsetVoltage",
   "diffAmpMultiplier",
+  "",
   "sensor1",
   "sensor2",
+  "sensor1_est",
+  "sensor2_est",
   "",
 ];
 
@@ -188,8 +214,11 @@ function formatBaseCsvCells(sample) {
     sample.wipers.offset,
     formatCsvNumber(sample.offsetOutputVoltage),
     formatCsvNumber(sample.diffAmpEffectiveMultiplier),
+    "",
     formatCsvNumber(sample.sensorActual.sensor1),
     formatCsvNumber(sample.sensorActual.sensor2),
+    formatCsvNumber(sample.sensorEstimated?.sensor1),
+    formatCsvNumber(sample.sensorEstimated?.sensor2),
     "",
   ];
 }

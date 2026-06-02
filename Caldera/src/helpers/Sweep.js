@@ -10,7 +10,9 @@ const MID_SWEEP_POINT_COUNT = Math.floor((MID_SWEEP_END - MID_SWEEP_START) / MID
 const STACKED_SWEEP_POINT_COUNT = Math.floor((MID_SWEEP_END - MID_SWEEP_START) / STACKED_SWEEP_STEP) + 1;
 const SWEEP_SETTLE_MS = 100;
 const SWEEP_SAMPLE_INTERVAL_MS = 50;
-const SWEEP_FILTER_SAMPLE_COUNT = 10;
+const SWEEP_DISCARD_SAMPLE_COUNT = 2;
+const SWEEP_AVERAGE_SAMPLE_COUNT = 8;
+const SWEEP_FILTER_SAMPLE_COUNT = SWEEP_DISCARD_SAMPLE_COUNT + SWEEP_AVERAGE_SAMPLE_COUNT;
 const RANGE_TEST_SAMPLE_COUNT = 3;
 const GAIN_SWEEP_WIPERS = Object.freeze([0, 1, 2, 4, 8, 16, 32]);
 
@@ -24,6 +26,7 @@ export class Sweep {
     model,
     onClear = null,
     onStart = null,
+    onStatus = null,
     onSample = null,
     requireWiperAck = false,
     status,
@@ -40,6 +43,7 @@ export class Sweep {
     this.model = model;
     this.onClear = onClear;
     this.onStart = onStart;
+    this.onStatus = onStatus;
     this.onSample = onSample;
     this.requireWiperAck = requireWiperAck;
     this.status = status;
@@ -202,6 +206,10 @@ export class Sweep {
 
     const voltages = this.readVoltages();
 
+    if (this.mode !== "range-test") {
+      return this.captureSweepSample(voltages);
+    }
+
     if (!this.discardedFirstSample) {
       this.discardedFirstSample = true;
       this.updateStatus(`${this.getPointStatus()} skip`);
@@ -212,15 +220,35 @@ export class Sweep {
     this.sampleVoltageBounds = trackVoltageBounds(this.sampleVoltageBounds, voltages);
     this.filteredVoltages = filterVoltages(this.filteredVoltages, voltages, this.sampleCount);
 
-    if (this.mode !== "range-test") {
-      this.addSample(voltages);
-    }
-
     const requiredSampleCount = this.getRequiredSampleCount();
 
     this.updateStatus(
       `${this.getPointStatus()} s${this.sampleCount}/${requiredSampleCount}`,
     );
+    return true;
+  }
+
+  captureSweepSample(voltages) {
+    this.sampleCount += 1;
+
+    if (this.sampleCount <= SWEEP_DISCARD_SAMPLE_COUNT) {
+      this.updateStatus(
+        `${this.getPointStatus()} d${this.sampleCount}/${SWEEP_DISCARD_SAMPLE_COUNT}`,
+      );
+      return false;
+    }
+
+    const averageSampleIndex = this.sampleCount - SWEEP_DISCARD_SAMPLE_COUNT;
+    this.filteredVoltages = filterVoltages(this.filteredVoltages, voltages, averageSampleIndex);
+
+    this.updateStatus(
+      `${this.getPointStatus()} s${averageSampleIndex}/${SWEEP_AVERAGE_SAMPLE_COUNT}`,
+    );
+
+    if (averageSampleIndex >= SWEEP_AVERAGE_SAMPLE_COUNT) {
+      this.addSample(this.filteredVoltages);
+    }
+
     return true;
   }
 
@@ -236,8 +264,10 @@ export class Sweep {
     this.onSample?.({
       circuitScene: this.circuitScene,
       model: this.model,
-      sampleCount: this.getRequiredSampleCount(),
-      sampleIndex: this.sampleCount,
+      sampleCount: this.getOutputSampleCount(),
+      sampleIndex: this.getOutputSampleIndex(),
+      samplesAveraged: this.getSamplesAveraged(),
+      samplesIgnored: this.getSamplesIgnored(),
       sensorVoltages: sensorVoltages ? { ...sensorVoltages } : null,
       source: this.getSampleSource(),
       ...this.getSampleContext(),
@@ -338,6 +368,30 @@ export class Sweep {
       : SWEEP_FILTER_SAMPLE_COUNT;
   }
 
+  getOutputSampleCount() {
+    return this.mode === "range-test"
+      ? this.getRequiredSampleCount()
+      : SWEEP_AVERAGE_SAMPLE_COUNT;
+  }
+
+  getOutputSampleIndex() {
+    return this.mode === "range-test"
+      ? this.sampleCount
+      : SWEEP_AVERAGE_SAMPLE_COUNT;
+  }
+
+  getSamplesAveraged() {
+    return this.mode === "range-test"
+      ? null
+      : SWEEP_AVERAGE_SAMPLE_COUNT;
+  }
+
+  getSamplesIgnored() {
+    return this.mode === "range-test"
+      ? null
+      : SWEEP_DISCARD_SAMPLE_COUNT;
+  }
+
   getSettleDelay() {
     return this.mode === "range-test"
       ? SWEEP_SAMPLE_INTERVAL_MS
@@ -349,7 +403,11 @@ export class Sweep {
   }
 
   updateStatus(status) {
-    this.status.textContent = status;
+    if (this.status) {
+      this.status.textContent = status;
+    }
+
+    this.onStatus?.(status, this);
   }
 
   updateButton() {

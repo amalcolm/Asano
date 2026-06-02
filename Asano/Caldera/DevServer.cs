@@ -10,6 +10,10 @@ namespace Asano.Caldera
         public const string Host = "127.0.0.1";
 
         public static string URL { get; private set; } = $"http://{Host}:{Port}";
+
+        public static string GetUrl(CalderaView view)
+            => $"{URL}?view={CalderaViewNames.ToQueryValue(view)}";
+
         private void ViteOutputDataReceived(object sender, DataReceivedEventArgs e)
         {
             if (e.Data != null) Debug.WriteLine("[vite] " + e.Data);

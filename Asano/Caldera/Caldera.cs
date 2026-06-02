@@ -11,10 +11,17 @@ namespace Asano.Caldera
     {
         protected static TeensySerial SP => Program.serialPort ?? throw new InvalidOperationException("Serial port is not initialized.");
         private static readonly Encoding CsvEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        private static readonly object ViewsLock = new();
+        private static readonly List<Caldera> Views = [];
+        private static readonly object AnalysisReplayLock = new();
+        private static readonly List<string> AnalysisReplayMessages = [];
+        private const int MaxAnalysisReplayMessages = 20000;
 
         public CalderaControl Control { get; }
         public CoreWebView2 WebView { get; }
+        public CalderaView View { get; }
         public bool IsRunning => !_disposed && _ready;
+        private bool IsPrimaryBridge => View == CalderaView.Circuit;
 
         public static event EventHandler? OnInit;
 
@@ -25,17 +32,43 @@ namespace Asano.Caldera
         {
             Control = control ?? throw new ArgumentNullException(nameof(control));
             WebView = control.CoreWebView2 ?? throw new InvalidOperationException("WebView2 is not initialized.");
+            View = control.View;
 
             WebView.WebMessageReceived += WebView_WebMessageReceived;
             WebView.NavigationCompleted += WebView_NavigationCompleted;
 
-            Program.Caldera = this;
+            RegisterView(this);
+
+            if (IsPrimaryBridge)
+                Program.Caldera = this;
+
             _wipersPoster = CreateWipersPoster();
             _voltagesPoster = CreateVoltagesPoster();
             _statePoster = CreateStatePoster();
 
-            SP.DataReceived += SP_DataReceived;
-            SP.ConnectionChanged += SP_ConnectionChanged;
+            if (IsPrimaryBridge)
+            {
+                SP.DataReceived += SP_DataReceived;
+                SP.ConnectionChanged += SP_ConnectionChanged;
+            }
+        }
+
+        private static void RegisterView(Caldera caldera)
+        {
+            lock (ViewsLock)
+                Views.Add(caldera);
+        }
+
+        private static void UnregisterView(Caldera caldera)
+        {
+            lock (ViewsLock)
+                Views.Remove(caldera);
+        }
+
+        private static Caldera[] GetViews()
+        {
+            lock (ViewsLock)
+                return [.. Views];
         }
 
         private bool _needsRefresh = true;
@@ -97,15 +130,43 @@ namespace Asano.Caldera
         private readonly BufferedPoster<StateChangedMessage> _statePoster;
 
         public bool PostWipersChange(WipersChangedMessage wipers, bool force = false)
-            => _wipersPoster.Post(wipers, force);
+            => PostToViews(caldera => caldera._wipersPoster.Post(wipers, force));
 
         public bool PostVoltagesChange(VoltagesChangedMessage voltages)
-            => _voltagesPoster.Post(voltages);
+            => PostToViews(caldera => caldera._voltagesPoster.Post(voltages));
 
         public bool PostStateChange(int state, bool force = false)
         {
             _lastState = state;
-            return _statePoster.Post(new StateChangedMessage((HeadState)state), force);
+            var message = new StateChangedMessage((HeadState)state);
+
+            return PostToViews(caldera =>
+            {
+                caldera._lastState = state;
+                return caldera._statePoster.Post(message, force);
+            });
+        }
+
+        private static bool PostToViews(Func<Caldera, bool> post)
+        {
+            bool hasPrimaryBridge = false;
+            bool postedToPrimaryBridge = false;
+            bool postedToAnyView = false;
+
+            foreach (var caldera in GetViews())
+            {
+                bool posted = post(caldera);
+
+                postedToAnyView |= posted;
+
+                if (caldera.IsPrimaryBridge)
+                {
+                    hasPrimaryBridge = true;
+                    postedToPrimaryBridge |= posted;
+                }
+            }
+
+            return hasPrimaryBridge ? postedToPrimaryBridge : postedToAnyView;
         }
 
         internal void FlushPendingMessages()
@@ -207,6 +268,10 @@ namespace Asano.Caldera
                         PostStateChange(_lastState, force: true);
                         _needsRefresh = false;
                     }
+
+                    if (View == CalderaView.Analysis)
+                        ReplayAnalysisMessagesTo(this);
+
                     break;
                 case "getWipers":
                     HandleGetWipersMessage();
@@ -226,6 +291,21 @@ namespace Asano.Caldera
                 case "saveCsv":
                     HandleSaveCsvMessage(root);
                     break;
+                case "openView":
+                    HandleOpenViewMessage(root);
+                    break;
+                case "startTest":
+                case "stopTest":
+                    ForwardWebMessage(CalderaView.Circuit, root.GetRawText());
+                    break;
+                case "analysisClear":
+                case "analysisSample":
+                    RecordAnalysisReplayMessage(typeElement.GetString(), root.GetRawText());
+                    ForwardWebMessage(CalderaView.Analysis, root.GetRawText());
+                    break;
+                case "testStatus":
+                    ForwardWebMessage(CalderaView.Analysis, root.GetRawText());
+                    break;
             }
         }
 
@@ -235,6 +315,56 @@ namespace Asano.Caldera
             {
                 // Reserved for a future frontend readiness handshake.
             }
+        }
+
+        private void HandleOpenViewMessage(JsonElement root)
+        {
+            var viewName = GetStringProperty(root, "view");
+
+            if (!CalderaViewNames.TryParse(viewName, out var view))
+                view = CalderaView.Analysis;
+
+            Control.OpenView(view);
+        }
+
+        private static bool ForwardWebMessage(CalderaView view, string json)
+        {
+            bool posted = false;
+
+            foreach (var caldera in GetViews())
+            {
+                if (caldera.View != view)
+                    continue;
+
+                posted |= caldera.TryPostJson(json);
+            }
+
+            return posted;
+        }
+
+        private static void RecordAnalysisReplayMessage(string? type, string json)
+        {
+            lock (AnalysisReplayLock)
+            {
+                if (type == "analysisClear")
+                    AnalysisReplayMessages.Clear();
+
+                AnalysisReplayMessages.Add(json);
+
+                while (AnalysisReplayMessages.Count > MaxAnalysisReplayMessages)
+                    AnalysisReplayMessages.RemoveAt(0);
+            }
+        }
+
+        private static void ReplayAnalysisMessagesTo(Caldera caldera)
+        {
+            string[] messages;
+
+            lock (AnalysisReplayLock)
+                messages = [.. AnalysisReplayMessages];
+
+            foreach (var message in messages)
+                caldera.TryPostJson(message);
         }
 
         private static void HandleSetWipersMessage(JsonElement root)
@@ -460,7 +590,7 @@ namespace Asano.Caldera
             _disposed = true;
             _ready = false;
 
-            if (Program.serialPort != null)
+            if (IsPrimaryBridge && Program.serialPort != null)
             {
                 Program.serialPort.DataReceived -= SP_DataReceived;
                 Program.serialPort.ConnectionChanged -= SP_ConnectionChanged;
@@ -479,9 +609,10 @@ namespace Asano.Caldera
             _wipersPoster.Clear();
             _voltagesPoster.Clear();
             _statePoster.Clear();
+            UnregisterView(this);
 
             if (ReferenceEquals(Program.Caldera, this))
-                Program.Caldera = null;
+                Program.Caldera = GetViews().FirstOrDefault(caldera => caldera.IsPrimaryBridge);
 
             GC.SuppressFinalize(this);
         }

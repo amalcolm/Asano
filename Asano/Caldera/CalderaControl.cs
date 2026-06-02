@@ -8,6 +8,7 @@ namespace Asano.Caldera
         private const int MessageFlushIntervalMs = 16;
 
         public CoreWebView2 CoreWebView2 => web.CoreWebView2;
+        public CalderaView View { get; set; } = CalderaView.Circuit;
 
         public Caldera? Caldera { get => _caldera; }
         private bool _webInitStarted = false;
@@ -18,6 +19,7 @@ namespace Asano.Caldera
         private TaskCompletionSource<bool>? _browserProcessExited;
         private Caldera? _caldera;
         private readonly System.Windows.Forms.Timer _messageFlushTimer;
+        private readonly List<MyCalderaForm> _spawnedForms = [];
 
         public CalderaControl()
         {
@@ -74,7 +76,7 @@ namespace Asano.Caldera
 
                 _caldera = new Caldera(this);
                 _messageFlushTimer.Start();
-                web.CoreWebView2.Navigate(DevServer.URL);
+                web.CoreWebView2.Navigate(DevServer.GetUrl(View));
 
             }
             catch (Exception ex)
@@ -94,7 +96,7 @@ namespace Asano.Caldera
         }
 
         public Task ShutdownAsync()
-            => ShutdownAsync(waitForBrowserProcessExit: true);
+            => ShutdownAsync(waitForBrowserProcessExit: false);  // changed to true when finised development
 
         private async Task ShutdownAsync(bool waitForBrowserProcessExit)
         {
@@ -103,6 +105,8 @@ namespace Asano.Caldera
 
             _disposedOrClosing = true;
             _messageFlushTimer.Stop();
+
+            await ShutdownSpawnedFormsAsync();
 
             if (Program.serialPort != null)
                 Program.serialPort.ConnectionChanged -= SerialPort_ConnectionChanged;
@@ -193,6 +197,60 @@ namespace Asano.Caldera
             _webViewEnvironment.BrowserProcessExited += WebViewEnvironment_BrowserProcessExited;
 
             await web.EnsureCoreWebView2Async(_webViewEnvironment);
+        }
+
+        internal void OpenView(CalderaView view)
+        {
+            if (_disposedOrClosing || IsDisposed)
+                return;
+
+            if (InvokeRequired)
+            {
+                BeginInvoke(new MethodInvoker(() => OpenView(view)));
+                return;
+            }
+
+            var form = new MyCalderaForm(view);
+            form.FormClosed += SpawnedForm_FormClosed;
+            _spawnedForms.Add(form);
+            form.Show(FindForm());
+        }
+
+        private void SpawnedForm_FormClosed(object? sender, FormClosedEventArgs e)
+        {
+            if (sender is not MyCalderaForm form)
+                return;
+
+            form.FormClosed -= SpawnedForm_FormClosed;
+            _spawnedForms.Remove(form);
+        }
+
+        private async Task ShutdownSpawnedFormsAsync()
+        {
+            if (_spawnedForms.Count == 0)
+                return;
+
+            var forms = _spawnedForms.ToArray();
+            _spawnedForms.Clear();
+
+            foreach (var form in forms)
+            {
+                form.FormClosed -= SpawnedForm_FormClosed;
+
+                if (form.IsDisposed)
+                    continue;
+
+                try
+                {
+                    await form.ShutdownCalderaAsync();
+                    form.Close();
+                    form.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine("Error closing spawned Caldera view: " + ex);
+                }
+            }
         }
     }
 }

@@ -9,7 +9,7 @@ import {
   getVoltageAverage,
 } from "./DeltaSweepHelpers.js";
 
-export const TEST4_GAIN_VALUES = Object.freeze([64, 48, 32, 24, 16, 8, 4, 2, 1]);
+export const TEST4_GAIN_VALUES = Object.freeze([255, 192, 128, 96, 64, 48, 32, 24, 16, 8, 4, 2, 1]);
 
 export class Test4Sweep extends Sweep {
   constructor(options) {
@@ -39,10 +39,7 @@ export class Test4Sweep extends Sweep {
       return;
     }
 
-    if (this.currentGainIndex < TEST4_GAIN_VALUES.length - 1) {
-      this.currentGainIndex += 1;
-      this.previousMid = null;
-      this.previousSensor2Average = null;
+    if (this.advanceGain()) {
       this.beginRangeTest();
       return;
     }
@@ -55,6 +52,26 @@ export class Test4Sweep extends Sweep {
       gain: this.getCurrentGain(),
       mid: this.currentMid,
     });
+  }
+
+  recordRangeTestSample() {
+    const result = this.rangeTest?.record({
+      max: this.sampleVoltageBounds?.sensor2?.max,
+      min: this.sampleVoltageBounds?.sensor2?.min,
+      sensor2: this.filteredVoltages?.sensor2,
+    });
+
+    if (!result || result.failed) {
+      this.handleRangeTestFailure(result);
+      return;
+    }
+
+    if (!result.done) {
+      this.beginRangeTestProbe(result.next);
+      return;
+    }
+
+    this.beginSweepFromRange(result);
   }
 
   captureFilterSample() {
@@ -173,6 +190,26 @@ export class Test4Sweep extends Sweep {
       ledState: this.getHardwareLedState(),
       test: "Test4",
     };
+  }
+
+  advanceGain() {
+    if (this.currentGainIndex >= TEST4_GAIN_VALUES.length - 1) {
+      return false;
+    }
+
+    this.currentGainIndex += 1;
+    this.previousMid = null;
+    this.previousSensor2Average = null;
+    return true;
+  }
+
+  handleRangeTestFailure(result) {
+    if (this.advanceGain()) {
+      this.beginRangeTest();
+      return;
+    }
+
+    this.stop(result?.status || "fail");
   }
 
   updateButton() {

@@ -55,6 +55,9 @@ namespace Asano.MyGLTools.UserControls
             extractor.Process(packet);
         }
 
+        public Task ShutdownCalderaAsync()
+            => calderaControl.ShutdownAsync();
+
         bool isMouseDown = false;
         int original_Y = 0;
 

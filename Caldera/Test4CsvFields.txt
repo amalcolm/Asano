@@ -3,7 +3,7 @@ Test4 CSV field notes
 Test4 is a gain-stacked mid-wiper sweep for the fNIRS prototype. For each gain setting, Caldera first runs a live range test to find the mid-wiper region where Sensor2 is inside the valid sensor window. It then sweeps mid wiper positions inside that range and records Sensor2 change per mid-wiper count.
 
 Gain settings used by Test4:
-0, 2, 4, 8, 16, 24, 32, 48, 64
+255, 192, 128, 96, 64, 48, 32, 24, 16, 8, 4, 2, 1
 
 Sampling timing:
 After applying a new wiper target, Caldera waits until the WebView receives a matching hardware wiper acknowledgement from the physical device. After that acknowledgement, it waits 100 ms before taking the first voltage reading. It then reads at 50 ms intervals. For Test4, the first 2 readings after settling are discarded, and the next 8 readings are averaged. The final averaged Sensor2 value therefore comes from roughly 200 ms to 550 ms after hardware acknowledgement, plus any time spent waiting for the acknowledgement itself. The browser samples the latest Sensor1/Sensor2 values delivered by the host telemetry stream; it does not synchronously request a new ADC conversion for each CSV row.
@@ -32,6 +32,12 @@ Averaged Sensor1 voltage for this point, in volts. The physical host scales raw 
 sensor2:
 Averaged Sensor2 voltage for this point, in volts. For Test4 this is the average of the 8 accepted readings after the 2 discarded readings.
 
+sensor1_est:
+Physics model estimate of Sensor1 from Sensor2, gain, and offset, using DifferentialAmpSensorModel's circuit variant.
+
+sensor2_est:
+Physics model estimate of Sensor2 from Sensor1, gain, and offset, using DifferentialAmpSensorModel's circuit variant.
+
 sensor2Previous:
 The previous averaged Sensor2 voltage for the previous valid mid point at the same gain. This is blank for the first recorded point in each gain group.
 
@@ -45,4 +51,4 @@ sensor2DeltaPerStep:
 sensor2RawDelta divided by sensor2DeltaStep, in volts per mid-wiper count. This is the value plotted on the Test4 analysis graph. Because it is a per-count delta rather than an absolute voltage, small voltage noise can look visually large when the graph auto-scales around these small values.
 
 Empty separator column:
-The CSV currently includes one intentionally blank separator column between the absolute voltage fields and the delta fields.
+The CSV currently includes one intentionally blank separator column before the sensor fields and another between the sensor fields and the delta fields.

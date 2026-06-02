@@ -7,11 +7,12 @@ namespace Asano.Caldera
         private bool _closeAfterShutdown;
         private Task? _shutdownTask;
 
-        public MyCalderaForm()
+        public MyCalderaForm(CalderaView view = CalderaView.Analysis)
         {
             InitializeComponent();
 
-
+            calderaControl.View = view;
+            Text = CalderaViewNames.ToTitle(view);
 
             switch (Environment.MachineName)
             {
