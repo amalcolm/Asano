@@ -104,6 +104,7 @@
   background: rgb(184 194 214 / 9%);
   text-overflow: ellipsis;
   white-space: nowrap;
+  margin-top: auto;
 }
 
 .analysis-panel__test-status[data-running="true"] {
@@ -165,28 +166,19 @@
 }
 
 .analysis-panel__sidebar {
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   min-width: 0;
-}
-
-.analysis-panel__sidebar--stages {
-  align-content: stretch;
 }
 
 .analysis-metric {
   display: grid;
   gap: 5px;
-  border: 1px solid rgb(255 255 255 / 10%);
-  border-radius: 7px;
   padding: 12px;
-  background: rgb(255 255 255 / 6%);
 }
 
 .analysis-metric--primary {
-  border-color: rgb(93 214 170 / 34%);
-  background: rgb(93 214 170 / 10%);
 }
 
 .analysis-metric__label {
@@ -228,6 +220,11 @@
   background: rgb(93 214 170 / 13%);
 }
 
+.analysis-stage-button[data-processing="true"] {
+  border-color: rgb(255 207 90 / 46%);
+  background: rgb(255 207 90 / 13%);
+}
+
 .analysis-stage-button__label,
 .analysis-stage-button span[data-analysis-stage-detail] {
   color: #aeb9c9;
@@ -249,6 +246,44 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.analysis-stage-button[hidden] {
+  display: none !important;
+}
+
+.analysis-stage-description {
+  margin-top: auto;
+  padding: 12px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 7px;
+  background: rgb(255 255 255 / 4%);
+  color: #aeb9c9;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-y: auto;
+}
+
+.analysis-stage-description[hidden] {
+  display: none !important;
+}
+
+.analysis-stage-description p {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.analysis-stage-description p:last-child {
+  margin-bottom: 0;
+}
+
+.analysis-stage-description ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.analysis-stage-description strong {
+  color: #ffffff;
 }
 
 .analysis-chart {

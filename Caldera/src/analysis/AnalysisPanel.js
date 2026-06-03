@@ -49,6 +49,7 @@ export class AnalysisPanel {
     this.badge = root?.querySelector("[data-analysis-badge]");
     this.chartRoot = root?.querySelector("[data-analysis-chart]");
     this.stageChartRoot = root?.querySelector("[data-analysis-stage-chart]");
+    this.stageDescription = root?.querySelector("[data-analysis-stage-description]");
     this.copyAnalysisButton = root?.querySelector("[data-analysis-copy-analysis]");
     this.loadButton = root?.querySelector("[data-analysis-load-csv]");
     this.loadInput = root?.querySelector("[data-analysis-load-csv-input]");
@@ -64,7 +65,11 @@ export class AnalysisPanel {
     this.slopeRatioMetric = root?.querySelector("[data-analysis-slope-ratio]");
     this.resizeObserver = null;
     this.observedChartRoots = new Set();
-    this.activeAnalysisStage = ANALYSIS_STAGE_FITS;
+    this.activeAnalysisStage = null;
+    this.unlockedStages = new Set();
+    this.cachedFitLines = null;
+    this.cachedFitRows = null;
+    this.isProcessing = false;
 
     this.copyAnalysisButton?.addEventListener("click", () => this.copyAnalysis());
     this.loadButton?.addEventListener("click", () => this.loadInput?.click());
@@ -96,6 +101,8 @@ export class AnalysisPanel {
     const addedSample = this.dataset.addSample(sample);
 
     if (addedSample) {
+      this.cachedFitLines = null;
+      this.cachedFitRows = null;
       this.render();
     }
 
@@ -104,16 +111,51 @@ export class AnalysisPanel {
 
   clear({ label = null } = {}) {
     this.dataset.clear({ label });
+    this.cachedFitLines = null;
+    this.cachedFitRows = null;
     this.render();
   }
 
   selectAnalysisStage(stageId) {
-    if (!ANALYSIS_STAGE_IDS.includes(stageId) || stageId === this.activeAnalysisStage) {
+    if (this.isProcessing) return;
+    if (!ANALYSIS_STAGE_IDS.includes(stageId) || stageId === this.activeAnalysisStage || !this.unlockedStages.has(stageId)) {
       return;
     }
 
+    this.isProcessing = true;
     this.activeAnalysisStage = stageId;
-    this.render();
+    
+    // Fast render to update the button and info text immediately
+    const quickAnalysis = getDifferentialAmpModelAnalysis({
+      dataset: this.dataset,
+      fitRows: [],
+      plottableSamples: [],
+    });
+    this.updateStageButtons(quickAnalysis);
+    
+    // Add processing state to the active button
+    const button = this.stageButtons.get(stageId);
+    if (button) {
+      button.dataset.processing = "true";
+    }
+
+    const stageIndex = ANALYSIS_STAGE_IDS.indexOf(stageId);
+    const nextStageId = stageIndex >= 0 && stageIndex < ANALYSIS_STAGE_IDS.length - 1 
+      ? ANALYSIS_STAGE_IDS[stageIndex + 1] 
+      : null;
+
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (nextStageId && !this.unlockedStages.has(nextStageId)) {
+          this.unlockedStages.add(nextStageId);
+        }
+        this.render();
+        if (button) {
+          button.dataset.processing = "false";
+        }
+        this.isProcessing = false;
+      }, 10);
+    });
   }
 
   setTestStatus({
@@ -196,14 +238,33 @@ export class AnalysisPanel {
 
   render() {
     const samples = this.dataset.getAnalysisSamples();
+    
+    if (samples.length > 0 && this.unlockedStages.size === 0) {
+      this.unlockedStages.add(ANALYSIS_STAGE_SAMPLES);
+    } else if (samples.length === 0) {
+      this.unlockedStages.clear();
+      this.activeAnalysisStage = null;
+    }
+
     const plottableSamples = samples.filter((sample) => sample.isPlottable);
     const predictedSamples = plottableSamples.filter((sample) => (
       sample.plot?.kind === "sensor-comparison"
         && Number.isFinite(sample.sensorPredicted.sensor2)
     ));
+    
+    let fitLines = [];
+    let fitRows = [];
+
+    if (this.unlockedStages.has(ANALYSIS_STAGE_FITS)) {
+      if (!this.cachedFitLines || !this.cachedFitRows) {
+        this.cachedFitLines = getSweepFitLines(plottableSamples);
+        this.cachedFitRows = getAnalysisFitRows(plottableSamples);
+      }
+      fitLines = this.cachedFitLines;
+      fitRows = this.cachedFitRows;
+    }
+
     const fit = getLinearFit(plottableSamples);
-    const fitLines = getSweepFitLines(plottableSamples);
-    const fitRows = getAnalysisFitRows(plottableSamples);
     const modelAnalysis = getDifferentialAmpModelAnalysis({
       dataset: this.dataset,
       fitRows,
@@ -249,9 +310,11 @@ export class AnalysisPanel {
       const button = this.stageButtons.get(stageId);
       const value = this.stageValues.get(stageId);
       const detail = this.stageDetails.get(stageId);
+      const isUnlocked = this.unlockedStages.has(stageId);
       const active = stageId === this.activeAnalysisStage;
 
       if (button) {
+        button.hidden = !isUnlocked;
         button.dataset.active = String(active);
         button.setAttribute("aria-pressed", String(active));
       }
@@ -264,6 +327,12 @@ export class AnalysisPanel {
         detail.textContent = stage?.detail ?? "";
       }
     });
+
+    const activeStage = this.activeAnalysisStage ? modelAnalysis.stages.get(this.activeAnalysisStage) : null;
+    if (this.stageDescription) {
+      this.stageDescription.hidden = !activeStage;
+      this.stageDescription.innerHTML = activeStage?.description ?? "";
+    }
   }
 
   setBadge(text) {
@@ -335,12 +404,16 @@ export class AnalysisPanel {
       return;
     }
 
-    const stage = modelAnalysis.stages.get(this.activeAnalysisStage)
-      ?? modelAnalysis.stages.get(ANALYSIS_STAGE_FITS);
+    const stage = this.activeAnalysisStage ? modelAnalysis.stages.get(this.activeAnalysisStage) : null;
+
+    if (!stage) {
+      Plotly.purge(this.stageChartRoot);
+      return;
+    }
 
     Plotly.react(
       this.stageChartRoot,
-      stage?.traces ?? [],
+      stage.traces ?? [],
       getStageChartLayout(stage),
       {
         displaylogo: false,
@@ -380,7 +453,7 @@ function getDifferentialAmpModelAnalysis({
 }) {
   return {
     stages: new Map([
-      [ANALYSIS_STAGE_SAMPLES, getInputSamplesStage(plottableSamples)],
+      [ANALYSIS_STAGE_SAMPLES, getInputSamplesStage(plottableSamples, fitRows)],
       [ANALYSIS_STAGE_FITS, getLineFitsStage(fitRows)],
       [ANALYSIS_STAGE_GAIN, getGainTermStage(fitRows)],
       [ANALYSIS_STAGE_OFFSET, getOffsetTermStage(fitRows)],
@@ -388,196 +461,112 @@ function getDifferentialAmpModelAnalysis({
   };
 }
 
-function getInputSamplesStage(samples) {
-  const points = samples
-    .map((sample) => ({
-      gain: getKnownFiniteNumber(sample.wipers?.gain),
-      ledLabel: sample.ledLabel ?? "",
-      offset: getKnownFiniteNumber(sample.wipers?.offset),
-      sensor1: getKnownFiniteNumber(sample.sensorActual?.sensor1),
-      x: getKnownFiniteNumber(sample.wipers?.mid),
-      y: getKnownFiniteNumber(sample.sensorActual?.sensor2),
-    }))
-    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
-  const gains = points.map((point) => point.gain);
+function getInputSamplesStage(samples, fitRows) {
+  if (!fitRows || fitRows.length === 0) {
+    return {
+      detail: "No fits available",
+      traces: [],
+      value: "0",
+      xTitle: "Effective Multiplier",
+      yTitle: "Centre (V)",
+    };
+  }
+
+  const validRows = fitRows.filter((row) => 
+    Number.isFinite(row.computedMultiplier) && Number.isFinite(row.computedCentre)
+  );
+
+  const traces = [
+    {
+      customdata: validRows.map((row) => [
+        row.name,
+        formatWiper(row.gain),
+        formatWiper(row.offset),
+        formatMillivolts(row.rms),
+        row.samples,
+      ]),
+      hovertemplate: [
+        "Multiplier %{x:.4f}",
+        "Centre %{y:.4f} V",
+        "RMS %{customdata[3]}",
+        "samples %{customdata[4]}",
+        "gain %{customdata[1]}",
+        "offset %{customdata[2]}",
+        "%{customdata[0]}",
+        "<extra></extra>",
+      ].join("<br>"),
+      marker: getStageMarker(validRows.map((row) => row.rms), "RMS", 7, [
+        [0, "#7ee787"],
+        [0.5, "#ffcf5a"],
+        [1, "#ff7b72"],
+      ]),
+      mode: "markers",
+      name: "reduced blocks",
+      type: "scatter",
+      x: validRows.map((row) => row.computedMultiplier),
+      y: validRows.map((row) => row.computedCentre),
+    },
+  ];
+
+  const avgMultiplier = validRows.length ? (validRows.reduce((a, b) => a + b.computedMultiplier, 0) / validRows.length) : null;
 
   return {
-    detail: `${getUniqueConfigCount(samples)} configs`,
-    traces: [
-      {
-        customdata: points.map((point) => [
-          point.ledLabel,
-          formatWiper(point.gain),
-          formatWiper(point.offset),
-          formatHoverVoltage(point.sensor1),
-        ]),
-        hovertemplate: [
-          "mid %{x:.0f}",
-          "Sensor2 %{y:.4f} V",
-          "Sensor1 %{customdata[3]}",
-          "gain %{customdata[1]}",
-          "offset %{customdata[2]}",
-          "%{customdata[0]}",
-          "<extra></extra>",
-        ].join("<br>"),
-        marker: getStageMarker(gains, "gain", 5),
-        mode: "markers",
-        name: "input samples",
-        type: "scatter",
-        x: points.map((point) => point.x),
-        y: points.map((point) => point.y),
-      },
-    ],
-    value: String(samples.length),
-    xTitle: "Mid wiper",
-    yTitle: "Sensor2 actual (V)",
+    description: `
+      <p><strong>1: Linear Reduction</strong></p>
+      <p>Reduces thousands of raw sensor samples into a single multiplier and centre voltage for each fixed Gain & Offset block.</p>
+      <ul>
+        <li><strong>Multiplier:</strong> derived from the negative slope (-m) of Sensor2 vs Sensor1.</li>
+        <li><strong>Centre:</strong> derived from the intercept where Sensor1 equals Sensor2.</li>
+      </ul>
+      <p>Visualizing these blocks immediately flags bad hardware configurations with noisy or inactive linear fits (such as gains 0 and 1).</p>
+    `,
+    detail: `${validRows.length} reduced blocks`,
+    traces,
+    value: avgMultiplier !== null ? formatMultiplier(avgMultiplier) : "0",
+    xTitle: "Effective Multiplier",
+    yTitle: "Centre (V)",
   };
 }
 
 function getLineFitsStage(fitRows) {
-  const xAxis = getFitRowsXAxis(fitRows);
-  const points = fitRows
-    .map((row, index) => ({
-      row,
-      x: xAxis.getValue(row, index),
-      y: row.slope,
-    }))
-    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
-  const rmsValues = points.map(({ row }) => row.rms);
-
   return {
-    detail: `best RMS ${formatMillivolts(getMinimum(fitRows.map((row) => row.rms)))}`,
-    traces: [
-      {
-        customdata: points.map(({ row }) => [
-          row.name,
-          formatMillivolts(row.rms),
-          row.samples,
-          row.source,
-          formatRatio(row.intercept),
-        ]),
-        hovertemplate: [
-          `${xAxis.label} %{x:.4f}`,
-          "slope %{y:.6f}",
-          "intercept %{customdata[4]}",
-          "RMS %{customdata[1]}",
-          "samples %{customdata[2]}",
-          "%{customdata[0]}",
-          "<extra></extra>",
-        ].join("<br>"),
-        marker: getStageMarker(rmsValues, "RMS", 7, [
-          [0, "#7ee787"],
-          [0.5, "#ffcf5a"],
-          [1, "#ff7b72"],
-        ]),
-        mode: "markers",
-        name: "fit rows",
-        type: "scatter",
-        x: points.map((point) => point.x),
-        y: points.map((point) => point.y),
-      },
-    ],
-    value: String(fitRows.length),
-    xTitle: xAxis.label,
-    yTitle: "Fit slope",
+    description: `
+      <p><strong>2: Fit Multiplier from Gain</strong></p>
+      <p>Pending implementation...</p>
+    `,
+    detail: "awaiting implementation",
+    traces: [],
+    value: "-",
+    xTitle: "Gain Wiper",
+    yTitle: "Effective Multiplier",
   };
 }
 
 function getGainTermStage(fitRows) {
-  const hasMultiplier = fitRows.some((row) => Number.isFinite(row.diffAmpEffectiveMultiplier));
-  const points = fitRows
-    .map((row) => {
-      const multiplier = getKnownFiniteNumber(row.diffAmpEffectiveMultiplier);
-      const x = hasMultiplier ? multiplier : getKnownFiniteNumber(row.gain);
-      const y = hasMultiplier && Number.isFinite(multiplier) && multiplier !== 0
-        ? row.slope / multiplier
-        : row.slope;
-
-      return {
-        offset: getKnownFiniteNumber(row.offset),
-        row,
-        x,
-        y,
-      };
-    })
-    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
-
   return {
-    detail: `${points.length} fitted configs`,
-    traces: [
-      {
-        customdata: points.map(({ row }) => [
-          row.name,
-          formatRatio(row.slope),
-          formatMultiplier(row.diffAmpEffectiveMultiplier),
-          formatWiper(row.gain),
-          formatWiper(row.offset),
-        ]),
-        hovertemplate: [
-          `${hasMultiplier ? "model multiplier" : "gain wiper"} %{x:.4f}`,
-          `${hasMultiplier ? "slope / multiplier" : "slope"} %{y:.6f}`,
-          "slope %{customdata[1]}",
-          "model %{customdata[2]}",
-          "gain %{customdata[3]}",
-          "offset %{customdata[4]}",
-          "%{customdata[0]}",
-          "<extra></extra>",
-        ].join("<br>"),
-        marker: getStageMarker(points.map((point) => point.offset), "offset", 7),
-        mode: "markers",
-        name: "gain term",
-        type: "scatter",
-        x: points.map((point) => point.x),
-        y: points.map((point) => point.y),
-      },
-    ],
-    value: formatRatio(getMean(points.map((point) => point.y))),
-    xTitle: hasMultiplier ? "Diff amp multiplier" : "Gain wiper",
-    yTitle: hasMultiplier ? "Slope / multiplier" : "Fit slope",
+    description: `
+      <p><strong>3: Fit Centre from Offset</strong></p>
+      <p>Pending implementation...</p>
+    `,
+    detail: "awaiting implementation",
+    traces: [],
+    value: "-",
+    xTitle: "Offset Wiper",
+    yTitle: "Centre (V)",
   };
 }
 
 function getOffsetTermStage(fitRows) {
-  const points = fitRows
-    .map((row) => ({
-      gain: getKnownFiniteNumber(row.gain),
-      row,
-      x: getKnownFiniteNumber(row.offset),
-      y: getKnownFiniteNumber(row.intercept),
-    }))
-    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
-  const intercepts = points.map((point) => point.y);
-
   return {
-    detail: `${new Set(points.map((point) => point.x)).size} offsets`,
-    traces: [
-      {
-        customdata: points.map(({ row }) => [
-          row.name,
-          formatRatio(row.slope),
-          formatMillivolts(row.rms),
-          formatWiper(row.gain),
-        ]),
-        hovertemplate: [
-          "offset %{x:.0f}",
-          "intercept %{y:.6f} V",
-          "slope %{customdata[1]}",
-          "RMS %{customdata[2]}",
-          "gain %{customdata[3]}",
-          "%{customdata[0]}",
-          "<extra></extra>",
-        ].join("<br>"),
-        marker: getStageMarker(points.map((point) => point.gain), "gain", 7),
-        mode: "markers",
-        name: "offset term",
-        type: "scatter",
-        x: points.map((point) => point.x),
-        y: intercepts,
-      },
-    ],
-    value: formatVolts(getSpan(intercepts)),
-    xTitle: "Offset wiper",
-    yTitle: "Fit intercept (V)",
+    description: `
+      <p><strong>4: Final Validation</strong></p>
+      <p>Pending implementation...</p>
+    `,
+    detail: "awaiting implementation",
+    traces: [],
+    value: "-",
+    xTitle: "-",
+    yTitle: "-",
   };
 }
 
@@ -759,9 +748,15 @@ function getAnalysisFitRows(samples) {
       const mids = group.samples
         .map((sample) => Number(sample.wipers.mid))
         .filter(Number.isFinite);
+      const m = fit.slope;
+      const b = fit.intercept;
+      const effectiveMultiplier = Number.isFinite(m) ? -m : null;
+      const centre = (Number.isFinite(m) && m !== 1) ? b / (1 - m) : null;
 
       return {
         bot: firstSample?.wipers.bot,
+        computedCentre: centre,
+        computedMultiplier: effectiveMultiplier,
         diffAmpEffectiveMultiplier: firstSample?.diffAmpEffectiveMultiplier,
         gain: firstSample?.wipers.gain,
         intercept: fit.intercept,

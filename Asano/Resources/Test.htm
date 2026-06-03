@@ -1,0 +1,238 @@
+<html>
+
+<head>
+<meta http-equiv=Content-Type content="text/html; charset=windows-1252">
+<meta name=Generator content="Microsoft Word 15 (filtered)">
+<style>
+<!--
+ /* Font Definitions */
+ @font-face
+	{font-family:"Cambria Math";
+	panose-1:2 4 5 3 5 4 6 3 2 4;}
+@font-face
+	{font-family:Aptos;}
+ /* Style Definitions */
+ p.MsoNormal, li.MsoNormal, div.MsoNormal
+	{margin-top:0cm;
+	margin-right:0cm;
+	margin-bottom:8.0pt;
+	margin-left:0cm;
+	line-height:107%;
+	font-size:11.0pt;
+	font-family:"Aptos",sans-serif;}
+.MsoChpDefault
+	{font-family:"Aptos",sans-serif;}
+.MsoPapDefault
+	{margin-bottom:8.0pt;
+	line-height:107%;}
+@page WordSection1
+	{size:595.3pt 841.9pt;
+	margin:72.0pt 72.0pt 72.0pt 72.0pt;}
+div.WordSection1
+	{page:WordSection1;}
+ /* List Definitions */
+ ol
+	{margin-bottom:0cm;}
+ul
+	{margin-bottom:0cm;}
+-->
+</style>
+
+</head>
+
+<body lang=EN-NZ style='word-wrap:break-word'>
+
+<div class=WordSection1>
+
+<p class=MsoNormal>let's go back to the empirical model using gain and offset
+rather than offset voltage. I imagine this will give a similar model, just
+different constants. Rather than going through the whole process and just
+showing me the final constants, can you explain the first step in the process,
+so I can get an understanding of how these are derived? At the end, please list
+the remaining stages in order, as we will be going through them one at a time.</p>
+
+<p class=MsoNormal>Thought for 10s</p>
+
+<p class=MsoNormal>The first step is <b>not</b> to fit the final formula yet.</p>
+
+<p class=MsoNormal>The first step is to reduce each (gain, offset) block into
+one simple line.</p>
+
+<p class=MsoNormal>For a fixed gain and fixed offset, the only thing changing
+is midVoltage, which moves sensor1 through a range of values. So within that
+group, we treat the measured data as:</p>
+
+<p class=MsoNormal>sensor2 = m * sensor1 + b</p>
+
+<p class=MsoNormal>where:</p>
+
+<p class=MsoNormal>m = slope<br>
+b = intercept</p>
+
+<p class=MsoNormal>So for each block of rows with the same raw gain and same
+raw offset, we do a plain linear fit of:</p>
+
+<p class=MsoNormal>x = sensor1<br>
+y = sensor2</p>
+
+<p class=MsoNormal>The result is one line per (gain, offset) pair.</p>
+
+<p class=MsoNormal>Why this helps: the differential-amp-like behaviour can be
+rewritten as:</p>
+
+<p class=MsoNormal>sensor2 = centre - multiplier * (sensor1 - centre)</p>
+
+<p class=MsoNormal>Expanding that:</p>
+
+<p class=MsoNormal>sensor2 = -multiplier * sensor1 + centre * (1 + multiplier)</p>
+
+<p class=MsoNormal>So compared with the fitted line:</p>
+
+<p class=MsoNormal>sensor2 = m * sensor1 + b</p>
+
+<p class=MsoNormal>we get:</p>
+
+<p class=MsoNormal>multiplier = -m</p>
+
+<p class=MsoNormal>and the centre point is the place where sensor1 == sensor2.</p>
+
+<p class=MsoNormal>Set:</p>
+
+<p class=MsoNormal>sensor1 = sensor2 = centre</p>
+
+<p class=MsoNormal>Using the line:</p>
+
+<p class=MsoNormal>centre = m * centre + b</p>
+
+<p class=MsoNormal>so:</p>
+
+<p class=MsoNormal>centre * (1 - m) = b</p>
+
+<p class=MsoNormal>therefore:</p>
+
+<p class=MsoNormal>centre = b / (1 - m)</p>
+
+<p class=MsoNormal>That’s the key first reduction.</p>
+
+<p class=MsoNormal>So each (gain, offset) group gives us:</p>
+
+<p class=MsoNormal>slope m<br>
+intercept b<br>
+effective multiplier = -m<br>
+centre = b / (1 - m)</p>
+
+<p class=MsoNormal>At this stage we are not yet trying to say how gain or
+offset affect those values. We’re just measuring what each fixed setting
+actually did.</p>
+
+<p class=MsoNormal>A C#-ish sketch of this first step:</p>
+
+<p class=MsoNormal>foreach (var group in rows.GroupBy(r =&gt; new { r.Gain,
+r.Offset }))<br>
+{<br>
+    // Fit sensor2 = m * sensor1 + b<br>
+    var fit = LinearFit(<br>
+        x: group.Select(r =&gt; r.Sensor1),<br>
+        y: group.Select(r =&gt; r.Sensor2));<br>
+<br>
+    double m = fit.Slope;<br>
+    double b = fit.Intercept;<br>
+<br>
+    double effectiveMultiplier = -m;<br>
+    double centre = b / (1.0 - m);<br>
+<br>
+    SaveGroupResult(<br>
+        gain: group.Key.Gain,<br>
+        offset: group.Key.Offset,<br>
+        slope: m,<br>
+        intercept: b,<br>
+        effectiveMultiplier: effectiveMultiplier,<br>
+        centre: centre);<br>
+}</p>
+
+<p class=MsoNormal>A very simple linear-fit implementation is:</p>
+
+<p class=MsoNormal>static (double Slope, double Intercept)
+LinearFit(IEnumerable&lt;double&gt; xs, IEnumerable&lt;double&gt; ys)<br>
+{<br>
+    var x = xs.ToArray();<br>
+    var y = ys.ToArray();<br>
+<br>
+    double xMean = x.Average();<br>
+    double yMean = y.Average();<br>
+<br>
+    double numerator = 0;<br>
+    double denominator = 0;<br>
+<br>
+    for (int i = 0; i &lt; x.Length; i++)<br>
+    {<br>
+        double dx = x[i] - xMean;<br>
+        double dy = y[i] - yMean;<br>
+<br>
+        numerator += dx * dy;<br>
+        denominator += dx * dx;<br>
+    }<br>
+<br>
+    double slope = numerator / denominator;<br>
+    double intercept = yMean - slope * xMean;<br>
+<br>
+    return (slope, intercept);<br>
+}</p>
+
+<p class=MsoNormal>The important mental model is:</p>
+
+<p class=MsoNormal>raw rows<br>
+  &#8595;<br>
+group by gain + offset<br>
+  &#8595;<br>
+fit one sensor1&#8594;sensor2 line per group<br>
+  &#8595;<br>
+extract centre and multiplier from each line</p>
+
+<p class=MsoNormal>After that, the remaining stages are:</p>
+
+<ol style='margin-top:0cm' start=1 type=1>
+ <li class=MsoNormal><b>Fit effective multiplier from raw gain</b><br>
+     Use the per-group effectiveMultiplier values and fit them against raw
+     gain. </li>
+ <li class=MsoNormal><b>Fit centre from raw offset</b><br>
+     Use the per-group centre values and fit them against raw offset. </li>
+ <li class=MsoNormal><b>Combine those two fitted relationships</b><br>
+     Produce:</li>
+</ol>
+
+<p class=MsoNormal>multiplier = f(gain)<br>
+centre = g(offset)</p>
+
+<ol style='margin-top:0cm' start=4 type=1>
+ <li class=MsoNormal><b>Invert the amplifier model</b><br>
+     Starting from:</li>
+</ol>
+
+<p class=MsoNormal>sensor2 = centre - multiplier * (sensor1 - centre)</p>
+
+<p class=MsoNormal>rearrange to:</p>
+
+<p class=MsoNormal>sensor1 = centre + (centre - sensor2) / multiplier</p>
+
+<ol style='margin-top:0cm' start=5 type=1>
+ <li class=MsoNormal><b>Test the final estimate against measured sensor1</b><br>
+     Compare error, RMSE, worst cases, and look for systematic drift. </li>
+ <li class=MsoNormal><b>Decide whether simple linear fits are enough</b><br>
+     If needed, add small quadratic terms, but only if they clearly improve the
+     result rather than just fitting noise. </li>
+</ol>
+
+<p class=MsoNormal><span style='display:none'>Top of Form</span></p>
+
+<p class=MsoNormal>e</p>
+
+<p class=MsoNormal><span style='display:none'>Bottom of Form</span></p>
+
+<p class=MsoNormal>&nbsp;</p>
+
+</div>
+
+</body>
+
+</html>

@@ -471,7 +471,6 @@ function getAnalysisSectionHtml() {
             >
               range check
             </span>
-            <span class="analysis-panel__test-status" data-analysis-test-status>idle</span>
             <input
               type="file"
               accept=".csv,text/csv"
@@ -521,17 +520,18 @@ function getAnalysisSectionHtml() {
                 <span class="analysis-metric__label">Samples</span>
                 <strong data-analysis-samples>0</strong>
               </div>
+              <div class="analysis-panel__test-status" data-analysis-test-status>idle</div>
             </aside>
             <div class="analysis-chart" data-analysis-chart></div>
           </section>
           <section class="analysis-panel__plot-row">
-            <aside class="analysis-panel__sidebar analysis-panel__sidebar--stages">
+            <aside class="analysis-panel__sidebar">
               <button
                 class="analysis-stage-button analysis-stage-button--primary"
                 type="button"
                 data-analysis-stage-button="samples"
               >
-                <span class="analysis-stage-button__label">Input samples</span>
+                <span class="analysis-stage-button__label">1: Linear reduction</span>
                 <strong data-analysis-stage-value="samples">0</strong>
                 <span data-analysis-stage-detail="samples">raw rows</span>
               </button>
@@ -540,7 +540,7 @@ function getAnalysisSectionHtml() {
                 type="button"
                 data-analysis-stage-button="fits"
               >
-                <span class="analysis-stage-button__label">Line fits</span>
+                <span class="analysis-stage-button__label">2: Fit Multiplier</span>
                 <strong data-analysis-stage-value="fits">0</strong>
                 <span data-analysis-stage-detail="fits">config rows</span>
               </button>
@@ -549,7 +549,7 @@ function getAnalysisSectionHtml() {
                 type="button"
                 data-analysis-stage-button="gain"
               >
-                <span class="analysis-stage-button__label">Gain term</span>
+                <span class="analysis-stage-button__label">3: Fit Centre</span>
                 <strong data-analysis-stage-value="gain">-</strong>
                 <span data-analysis-stage-detail="gain">awaiting fits</span>
               </button>
@@ -558,10 +558,11 @@ function getAnalysisSectionHtml() {
                 type="button"
                 data-analysis-stage-button="offset"
               >
-                <span class="analysis-stage-button__label">Offset term</span>
+                <span class="analysis-stage-button__label">4: Final Validation</span>
                 <strong data-analysis-stage-value="offset">-</strong>
                 <span data-analysis-stage-detail="offset">awaiting fits</span>
               </button>
+              <div class="analysis-stage-description" data-analysis-stage-description></div>
             </aside>
             <div class="analysis-chart" data-analysis-stage-chart></div>
           </section>
