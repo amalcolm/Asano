@@ -19,7 +19,7 @@ namespace Asano.Caldera
         private TaskCompletionSource<bool>? _browserProcessExited;
         private Caldera? _caldera;
         private readonly System.Windows.Forms.Timer _messageFlushTimer;
-        private readonly List<MyCalderaForm> _spawnedForms = [];
+        private readonly Dictionary<CalderaView, MyCalderaForm> _spawnedForms = [];
 
         public CalderaControl()
         {
@@ -210,10 +210,59 @@ namespace Asano.Caldera
                 return;
             }
 
+            if (_spawnedForms.TryGetValue(view, out var existingForm))
+            {
+                if (!existingForm.IsDisposed)
+                {
+                    ShowExistingForm(existingForm);
+                    NotifySpawnedViewsChanged();
+                    return;
+                }
+
+                _spawnedForms.Remove(view);
+            }
+
             var form = new MyCalderaForm(view);
             form.FormClosed += SpawnedForm_FormClosed;
-            _spawnedForms.Add(form);
+            _spawnedForms[view] = form;
+            NotifySpawnedViewsChanged();
             form.Show(FindForm());
+        }
+
+        internal void CloseView(CalderaView view)
+        {
+            if (_disposedOrClosing || IsDisposed)
+                return;
+
+            if (InvokeRequired)
+            {
+                BeginInvoke(new MethodInvoker(() => CloseView(view)));
+                return;
+            }
+
+            if (!_spawnedForms.Remove(view, out var form))
+            {
+                NotifySpawnedViewsChanged();
+                return;
+            }
+
+            form.FormClosed -= SpawnedForm_FormClosed;
+            NotifySpawnedViewsChanged();
+            _ = CloseSpawnedFormAsync(form);
+        }
+
+        internal void PostActiveViewsChanged()
+        {
+            if (_disposedOrClosing || IsDisposed)
+                return;
+
+            if (InvokeRequired)
+            {
+                BeginInvoke(new MethodInvoker(PostActiveViewsChanged));
+                return;
+            }
+
+            NotifySpawnedViewsChanged();
         }
 
         private void SpawnedForm_FormClosed(object? sender, FormClosedEventArgs e)
@@ -222,7 +271,52 @@ namespace Asano.Caldera
                 return;
 
             form.FormClosed -= SpawnedForm_FormClosed;
-            _spawnedForms.Remove(form);
+
+            if (_spawnedForms.TryGetValue(form.View, out var existingForm)
+                && ReferenceEquals(existingForm, form))
+            {
+                _spawnedForms.Remove(form.View);
+            }
+
+            NotifySpawnedViewsChanged();
+        }
+
+        private void ShowExistingForm(MyCalderaForm form)
+        {
+            if (!form.Visible)
+                form.Show(FindForm());
+
+            if (form.WindowState == FormWindowState.Minimized)
+                form.WindowState = FormWindowState.Normal;
+
+            form.BringToFront();
+            form.Activate();
+        }
+
+        private void NotifySpawnedViewsChanged()
+        {
+            _caldera?.PostActiveViewsChanged(_spawnedForms.Keys);
+        }
+
+        private async Task CloseSpawnedFormAsync(MyCalderaForm form)
+        {
+            if (form.IsDisposed)
+                return;
+
+            try
+            {
+                await form.ShutdownCalderaAsync();
+
+                if (!form.IsDisposed)
+                    form.Close();
+
+                if (!form.IsDisposed)
+                    form.Dispose();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Error closing spawned Caldera view: " + ex);
+            }
         }
 
         private async Task ShutdownSpawnedFormsAsync()
@@ -230,8 +324,9 @@ namespace Asano.Caldera
             if (_spawnedForms.Count == 0)
                 return;
 
-            var forms = _spawnedForms.ToArray();
+            var forms = _spawnedForms.Values.ToArray();
             _spawnedForms.Clear();
+            NotifySpawnedViewsChanged();
 
             foreach (var form in forms)
             {

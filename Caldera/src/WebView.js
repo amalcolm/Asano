@@ -67,6 +67,19 @@ export class WebView {
     });
   }
 
+  postCloseView(view) {
+    return this.postMessage({
+      type: "closeView",
+      view,
+    });
+  }
+
+  postGetActiveViews() {
+    return this.postMessage({
+      type: "getActiveViews",
+    });
+  }
+
   postStartTest(test) {
     return this.postMessage({
       type: "startTest",

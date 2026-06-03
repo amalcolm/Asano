@@ -15,6 +15,7 @@ namespace Asano.Caldera
         private static readonly List<Caldera> Views = [];
         private static readonly object AnalysisReplayLock = new();
         private static readonly List<string> AnalysisReplayMessages = [];
+        private static string? LatestTestStatusMessage;
         private const int MaxAnalysisReplayMessages = 20000;
 
         public CalderaControl Control { get; }
@@ -271,6 +272,8 @@ namespace Asano.Caldera
 
                     if (View == CalderaView.Analysis)
                         ReplayAnalysisMessagesTo(this);
+                    else if (View == CalderaView.Circuit)
+                        Control.PostActiveViewsChanged();
 
                     break;
                 case "getWipers":
@@ -294,6 +297,12 @@ namespace Asano.Caldera
                 case "openView":
                     HandleOpenViewMessage(root);
                     break;
+                case "closeView":
+                    HandleCloseViewMessage(root);
+                    break;
+                case "getActiveViews":
+                    Control.PostActiveViewsChanged();
+                    break;
                 case "startTest":
                 case "stopTest":
                     ForwardWebMessage(CalderaView.Circuit, root.GetRawText());
@@ -304,6 +313,7 @@ namespace Asano.Caldera
                     ForwardWebMessage(CalderaView.Analysis, root.GetRawText());
                     break;
                 case "testStatus":
+                    RecordLatestTestStatusMessage(root.GetRawText());
                     ForwardWebMessage(CalderaView.Analysis, root.GetRawText());
                     break;
             }
@@ -325,6 +335,30 @@ namespace Asano.Caldera
                 view = CalderaView.Analysis;
 
             Control.OpenView(view);
+        }
+
+        private void HandleCloseViewMessage(JsonElement root)
+        {
+            var viewName = GetStringProperty(root, "view");
+
+            if (!CalderaViewNames.TryParse(viewName, out var view))
+                view = CalderaView.Analysis;
+
+            Control.CloseView(view);
+        }
+
+        internal bool PostActiveViewsChanged(IEnumerable<CalderaView> activeViews)
+        {
+            var viewNames = activeViews
+                .Select(CalderaViewNames.ToQueryValue)
+                .ToArray();
+            var json = JsonSerializer.Serialize(new
+            {
+                type = "activeViews",
+                views = viewNames,
+            });
+
+            return TryPostJson(json);
         }
 
         private static bool ForwardWebMessage(CalderaView view, string json)
@@ -356,15 +390,28 @@ namespace Asano.Caldera
             }
         }
 
+        private static void RecordLatestTestStatusMessage(string json)
+        {
+            lock (AnalysisReplayLock)
+                LatestTestStatusMessage = json;
+        }
+
         private static void ReplayAnalysisMessagesTo(Caldera caldera)
         {
             string[] messages;
+            string? latestTestStatusMessage;
 
             lock (AnalysisReplayLock)
+            {
                 messages = [.. AnalysisReplayMessages];
+                latestTestStatusMessage = LatestTestStatusMessage;
+            }
 
             foreach (var message in messages)
                 caldera.TryPostJson(message);
+
+            if (latestTestStatusMessage != null)
+                caldera.TryPostJson(latestTestStatusMessage);
         }
 
         private static void HandleSetWipersMessage(JsonElement root)

@@ -60,12 +60,18 @@ function mountAnalysisView() {
 
     if (message.type === "analysisSample") {
       analysisPanel.addSample(message.sample);
+      return;
+    }
+
+    if (message.type === "testStatus") {
+      analysisPanel.setTestStatus(message);
     }
   };
 
   analysisChannel.listen(handleAnalysisMessage);
   webView.on("analysisClear", handleAnalysisMessage);
   webView.on("analysisSample", handleAnalysisMessage);
+  webView.on("testStatus", handleAnalysisMessage);
 
   webView.postReady();
 }
@@ -210,6 +216,7 @@ function mountCircuitView() {
   const debugSaveSettingsButton = document.querySelector("[data-debug-save-settings]");
   const debugSettingsStatus = document.querySelector("[data-debug-settings-status]");
   const openAnalysisButton = document.querySelector("[data-open-analysis-view]");
+  const activeViews = new Map();
   const testPanelRoot = document.querySelector("[data-test-panel]");
   const wiperDebugStatus = document.querySelector("[data-wiper-debug-status]");
   const wiperDebugKeys = document.querySelector("[data-wiper-debug-keys]");
@@ -268,7 +275,8 @@ function mountCircuitView() {
     getHardwareWiperRevision: () => liveWiperRevision,
     getHardwareWipers: () => liveWipers,
     model,
-    onStatus: (status) => webView.postTestStatus(status),
+    onStatus: (status) => analysisBridge.postTestStatus(status),
+    onTestStart: () => openAnalysisViewIfNeeded(webView, activeViews, openAnalysisButton),
     requireWiperAck: hasHostTelemetry,
     root: testPanelRoot,
     setLedState: (activeIds) => stateControl.setActiveIds(activeIds),
@@ -276,7 +284,11 @@ function mountCircuitView() {
     webView,
   });
 
-  openAnalysisButton?.addEventListener("click", () => openAnalysisView(webView));
+  updateAnalysisButton(openAnalysisButton, activeViews);
+
+  openAnalysisButton?.addEventListener("click", () => {
+    toggleAnalysisView(webView, activeViews, openAnalysisButton);
+  });
 
   circuitScene.applySettings(storedSettings);
   circuitScene.start();
@@ -326,7 +338,13 @@ function mountCircuitView() {
     testPanel.stopTest(test);
   });
 
+  webView.on("activeViews", ({ views }) => {
+    syncActiveViews(activeViews, views);
+    updateAnalysisButton(openAnalysisButton, activeViews);
+  });
+
   webView.postGetWipers();
+  webView.postGetActiveViews();
   updateWiperDebug(null, { applied: false });
   webView.postReady();
 
@@ -446,6 +464,27 @@ function getAnalysisSectionHtml() {
             <h1>Data analysis</h1>
           </div>
           <div class="analysis-panel__header-actions">
+            <span
+              class="analysis-panel__range-check"
+              data-analysis-range-check
+              hidden
+            >
+              range check
+            </span>
+            <span class="analysis-panel__test-status" data-analysis-test-status>idle</span>
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              data-analysis-load-csv-input
+              hidden
+            />
+            <button
+              class="analysis-panel__button"
+              type="button"
+              data-analysis-load-csv
+            >
+              Load CSV
+            </button>
             <button
               class="analysis-panel__button"
               type="button"
@@ -464,33 +503,68 @@ function getAnalysisSectionHtml() {
           </div>
         </div>
         <div class="analysis-panel__body">
-          <aside class="analysis-panel__sidebar">
-            <div class="analysis-metric analysis-metric--primary">
-              <span class="analysis-metric__label">Linear slope</span>
-              <strong data-analysis-slope>-</strong>
-            </div>
-            <div class="analysis-metric">
-              <span class="analysis-metric__label">Fit RMS</span>
-              <strong data-analysis-rms>-</strong>
-            </div>
-            <div class="analysis-metric">
-              <span class="analysis-metric__label">Slope / gain</span>
-              <strong data-analysis-slope-ratio>-</strong>
-            </div>
-            <div class="analysis-metric">
-              <span class="analysis-metric__label">Samples</span>
-              <strong data-analysis-samples>0</strong>
-            </div>
-            <div class="analysis-breakdown analysis-gain-breakdown" data-analysis-gain-breakdown hidden></div>
-            <div class="analysis-breakdown analysis-test1-breakdown" data-analysis-test1-breakdown hidden></div>
-            <div class="analysis-todo analysis-panel__disabled">
-              <span class="analysis-todo__title">Next calibration passes</span>
-              <span>Fit offset endpoint voltages</span>
-              <span>Fit gain intercept and slope</span>
-              <span>Reject clipped output samples</span>
-            </div>
-          </aside>
-          <div class="analysis-chart" data-analysis-chart></div>
+          <section class="analysis-panel__plot-row">
+            <aside class="analysis-panel__sidebar">
+              <div class="analysis-metric analysis-metric--primary">
+                <span class="analysis-metric__label">Linear slope</span>
+                <strong data-analysis-slope>-</strong>
+              </div>
+              <div class="analysis-metric">
+                <span class="analysis-metric__label">Fit RMS</span>
+                <strong data-analysis-rms>-</strong>
+              </div>
+              <div class="analysis-metric">
+                <span class="analysis-metric__label">Slope / gain</span>
+                <strong data-analysis-slope-ratio>-</strong>
+              </div>
+              <div class="analysis-metric">
+                <span class="analysis-metric__label">Samples</span>
+                <strong data-analysis-samples>0</strong>
+              </div>
+            </aside>
+            <div class="analysis-chart" data-analysis-chart></div>
+          </section>
+          <section class="analysis-panel__plot-row">
+            <aside class="analysis-panel__sidebar analysis-panel__sidebar--stages">
+              <button
+                class="analysis-stage-button analysis-stage-button--primary"
+                type="button"
+                data-analysis-stage-button="samples"
+              >
+                <span class="analysis-stage-button__label">Input samples</span>
+                <strong data-analysis-stage-value="samples">0</strong>
+                <span data-analysis-stage-detail="samples">raw rows</span>
+              </button>
+              <button
+                class="analysis-stage-button"
+                type="button"
+                data-analysis-stage-button="fits"
+              >
+                <span class="analysis-stage-button__label">Line fits</span>
+                <strong data-analysis-stage-value="fits">0</strong>
+                <span data-analysis-stage-detail="fits">config rows</span>
+              </button>
+              <button
+                class="analysis-stage-button"
+                type="button"
+                data-analysis-stage-button="gain"
+              >
+                <span class="analysis-stage-button__label">Gain term</span>
+                <strong data-analysis-stage-value="gain">-</strong>
+                <span data-analysis-stage-detail="gain">awaiting fits</span>
+              </button>
+              <button
+                class="analysis-stage-button"
+                type="button"
+                data-analysis-stage-button="offset"
+              >
+                <span class="analysis-stage-button__label">Offset term</span>
+                <strong data-analysis-stage-value="offset">-</strong>
+                <span data-analysis-stage-detail="offset">awaiting fits</span>
+              </button>
+            </aside>
+            <div class="analysis-chart" data-analysis-stage-chart></div>
+          </section>
         </div>
       </div>
     </section>
@@ -522,6 +596,12 @@ function createAnalysisBridge(analysisPanel, webView, analysisChannel) {
     clear(options = {}) {
       analysisPanel.clear(options);
       postMessage(createMessage("analysisClear", options));
+    },
+    postTestStatus(status = {}) {
+      postMessage(createMessage(
+        "testStatus",
+        status && typeof status === "object" ? status : { status },
+      ));
     },
   };
 }
@@ -571,12 +651,115 @@ function claimAnalysisMessage(message, seenMessageIds) {
   return true;
 }
 
-function openAnalysisView(webView) {
-  if (webView.postOpenView(VIEW_ANALYSIS)) {
+function toggleAnalysisView(webView, activeViews, button) {
+  if (isViewActive(activeViews, VIEW_ANALYSIS)) {
+    closeAnalysisView(webView, activeViews, button);
     return;
   }
 
-  window.open(`${window.location.pathname}?view=${VIEW_ANALYSIS}`, "_blank", "popup");
+  openAnalysisView(webView, activeViews, button);
+}
+
+function openAnalysisViewIfNeeded(webView, activeViews, button) {
+  if (isViewActive(activeViews, VIEW_ANALYSIS)) {
+    return false;
+  }
+
+  return openAnalysisView(webView, activeViews, button);
+}
+
+function openAnalysisView(webView, activeViews = null, button = null) {
+  if (webView.postOpenView(VIEW_ANALYSIS)) {
+    setActiveView(activeViews, VIEW_ANALYSIS, true);
+    updateAnalysisButton(button, activeViews);
+    return true;
+  }
+
+  const openedWindow = window.open(`${window.location.pathname}?view=${VIEW_ANALYSIS}`, "_blank", "popup");
+
+  if (!openedWindow) {
+    return false;
+  }
+
+  setActiveView(activeViews, VIEW_ANALYSIS, openedWindow);
+  updateAnalysisButton(button, activeViews);
+
+  const closeTimer = window.setInterval(() => {
+    if (!openedWindow.closed) {
+      return;
+    }
+
+    window.clearInterval(closeTimer);
+    setActiveView(activeViews, VIEW_ANALYSIS, false);
+    updateAnalysisButton(button, activeViews);
+  }, 500);
+
+  return true;
+}
+
+function closeAnalysisView(webView, activeViews = null, button = null) {
+  const activeView = activeViews?.get(VIEW_ANALYSIS);
+
+  if (webView.postCloseView(VIEW_ANALYSIS)) {
+    setActiveView(activeViews, VIEW_ANALYSIS, false);
+    updateAnalysisButton(button, activeViews);
+    return true;
+  }
+
+  if (activeView && typeof activeView === "object" && "close" in activeView) {
+    activeView.close();
+  }
+
+  setActiveView(activeViews, VIEW_ANALYSIS, false);
+  updateAnalysisButton(button, activeViews);
+  return true;
+}
+
+function syncActiveViews(activeViews, views) {
+  if (!activeViews) {
+    return;
+  }
+
+  activeViews.clear();
+
+  if (!Array.isArray(views)) {
+    return;
+  }
+
+  views.forEach((activeView) => {
+    if (typeof activeView === "string" && activeView) {
+      activeViews.set(activeView, true);
+    }
+  });
+}
+
+function setActiveView(activeViews, viewName, value) {
+  if (!activeViews) {
+    return;
+  }
+
+  if (value) {
+    activeViews.set(viewName, value);
+    return;
+  }
+
+  activeViews.delete(viewName);
+}
+
+function isViewActive(activeViews, viewName) {
+  return Boolean(activeViews?.has(viewName));
+}
+
+function updateAnalysisButton(button, activeViews) {
+  if (!button) {
+    return;
+  }
+
+  const active = isViewActive(activeViews, VIEW_ANALYSIS);
+
+  button.dataset.active = String(active);
+  button.setAttribute("aria-pressed", String(active));
+  button.textContent = active ? "Close analysis" : "Analysis";
 }
 
 function getRequestedView() {

@@ -7,19 +7,23 @@ namespace Asano.Caldera
         private bool _closeAfterShutdown;
         private Task? _shutdownTask;
 
+        public CalderaView View { get; }
+
         public MyCalderaForm(CalderaView view = CalderaView.Analysis)
         {
             InitializeComponent();
 
+            View = view;
             calderaControl.View = view;
             Text = CalderaViewNames.ToTitle(view);
 
             switch (Environment.MachineName)
             {
                 case "BOX":
+                    this.WindowState = FormWindowState.Normal;
                     this.StartPosition = FormStartPosition.Manual;
-                    this.Location = new Point(3840, -200);
-                    this.WindowState = FormWindowState.Maximized;
+                    this.Location = new Point(2560, 0);
+                    this.Size = new Size(1280, 2160 - 32);
                     calderaControl.Height = 1280;
                     break;
 

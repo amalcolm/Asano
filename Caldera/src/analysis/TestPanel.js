@@ -8,7 +8,6 @@ export const TEST_PANEL_HTML = `
   <div class="test-panel" data-test-panel>
     <div class="test-panel__header">
       <span>Analsies</span>
-      <span data-test-status>idle</span>
     </div>
     <div class="test-panel__groups">
       <section class="test-panel__group">
@@ -48,6 +47,9 @@ export const TEST_PANEL_HTML = `
         </div>
       </section>
     </div>
+    <div class="test-panel__footer">
+      <span data-test-status>idle</span>
+    </div>
   </div>
 `;
 
@@ -63,11 +65,13 @@ export class TestPanel {
     root,
     setLedState = null,
     onStatus = null,
+    onTestStart = null,
     updateWiperDebug,
     webView,
   }) {
     this.analysisPanel = analysisPanel;
     this.onStatus = onStatus;
+    this.onTestStart = onTestStart;
     this.root = root;
     this.status = root?.querySelector("[data-test-status]");
     this.sweeps = [];
@@ -99,13 +103,13 @@ export class TestPanel {
       ...commonOptions,
       button: midSweepButton,
       onClear: () => this.analysisPanel.clear({ label: getButtonLabel(midSweepButton) }),
-      onStart: () => this.stopOtherSweeps(this.midSweep),
+      onStart: () => this.handleStart(this.midSweep),
     });
     this.offsetSweep = new OffsetSweep({
       ...commonOptions,
       button: offsetSweepButton,
       onClear: () => this.analysisPanel.clear({ label: getButtonLabel(offsetSweepButton) }),
-      onStart: () => this.stopOtherSweeps(this.offsetSweep),
+      onStart: () => this.handleStart(this.offsetSweep),
     });
     this.gainSweep = new GainSweep({
       ...commonOptions,
@@ -114,7 +118,7 @@ export class TestPanel {
         label: getButtonLabel(gainSweepButton),
         panel: "gain",
       }),
-      onStart: () => this.stopOtherSweeps(this.gainSweep),
+      onStart: () => this.handleStart(this.gainSweep),
     });
     this.test1Sweep = new Test1Sweep({
       ...commonOptions,
@@ -123,26 +127,26 @@ export class TestPanel {
         label: getButtonLabel(test1Button),
         panel: "test1",
       }),
-      onStart: () => this.stopOtherSweeps(this.test1Sweep),
+      onStart: () => this.handleStart(this.test1Sweep),
       setLedState,
     });
     this.test2Sweep = new Test2Sweep({
       ...commonOptions,
       button: test2Button,
       onClear: () => this.analysisPanel.clear({ label: getButtonLabel(test2Button) }),
-      onStart: () => this.stopOtherSweeps(this.test2Sweep),
+      onStart: () => this.handleStart(this.test2Sweep),
     });
     this.test3Sweep = new Test3Sweep({
       ...commonOptions,
       button: test3Button,
       onClear: () => this.analysisPanel.clear({ label: getButtonLabel(test3Button) }),
-      onStart: () => this.stopOtherSweeps(this.test3Sweep),
+      onStart: () => this.handleStart(this.test3Sweep),
     });
     this.test4Sweep = new Test4Sweep({
       ...commonOptions,
       button: test4Button,
       onClear: () => this.analysisPanel.clear({ label: getButtonLabel(test4Button) }),
-      onStart: () => this.stopOtherSweeps(this.test4Sweep),
+      onStart: () => this.handleStart(this.test4Sweep),
     });
     this.sweeps = [
       this.midSweep,
@@ -190,6 +194,13 @@ export class TestPanel {
     return true;
   }
 
+  handleStart(activeSweep) {
+    this.onTestStart?.({
+      test: this.getSweepId(activeSweep),
+    });
+    this.stopOtherSweeps(activeSweep);
+  }
+
   stopOtherSweeps(activeSweep) {
     this.sweeps.forEach((sweep) => {
       if (sweep && sweep !== activeSweep) {
@@ -204,6 +215,8 @@ export class TestPanel {
 
   handleStatus(status, sweep) {
     this.onStatus?.({
+      mode: sweep?.mode ?? "idle",
+      rangeCheck: sweep?.mode === "range-test",
       running: Boolean(sweep?.timer),
       status,
       test: this.getSweepId(sweep),

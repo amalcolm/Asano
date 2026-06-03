@@ -1,4 +1,6 @@
-﻿using TheLib;
+﻿global using MyFlag = int;
+
+using TheLib;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,8 +10,10 @@ using System.Text;
 using System.Threading.Tasks;
 using Asano.MyGLTools.Fonts;
 
+
 namespace Asano
 {
+
     internal static class Extensions
     {
         public static void Invoker(this Control control, MethodInvoker action)
@@ -159,5 +163,14 @@ namespace Asano
 
 
         }
+
+
+        public static void Set(this ref MyFlag location) => Interlocked.Exchange(ref location, 1);
+        public static void Clear(this ref MyFlag location) => Interlocked.Exchange(ref location, 0);
+
+        public static bool TestAndClear(this ref MyFlag location) => Interlocked.Exchange(ref location, 0) != 0;
+
+        public static MyFlag Exchange(this ref MyFlag location, MyFlag value) => Interlocked.Exchange(ref location, value);
+        
     }
 }

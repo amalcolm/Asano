@@ -25,12 +25,12 @@ namespace Asano.MyGLTools.Helpers
                 if (_targetFrameRate != value)
                 {
                     _targetFrameRate = value;
-                    _targetFrameRateIsDirty = true;
+                    _targetFrameRateIsDirty.Set();
                 }
             }
         }
         private static double _targetFrameRate = 60.0;
-        private static bool _targetFrameRateIsDirty = false;
+        private static MyFlag _targetFrameRateIsDirty = 0;
         private static readonly MyTimer frameTimer = MyTimer.From_S(1.0 / TargetFrameRate);
 
         public static bool IsPaused { get; set; } = false;
@@ -109,12 +109,10 @@ namespace Asano.MyGLTools.Helpers
                     PostToCaldera();
                 }
 
-//              nextFrameTime = WaitUntilNextFrame(nextFrameTime, ref resetVersion);
 
-                if (_targetFrameRateIsDirty)
+                if (_targetFrameRateIsDirty.TestAndClear())
                 { 
                     frameTimer.Period = 0.93721 / TargetFrameRate;
-                    _targetFrameRateIsDirty = false;
                 }
 
                 frameTimer.Wait(token);
@@ -139,34 +137,6 @@ namespace Asano.MyGLTools.Helpers
 
         private static readonly double PostIntervalMs = 50.0;
         private static readonly Stopwatch swPost = Stopwatch.StartNew();
-
-        private static double WaitUntilNextFrame(double nextFrameTime, ref int resetVersion)
-        {
-            double targetFrameRate = TargetFrameRate;
-            if (!double.IsFinite(targetFrameRate) || targetFrameRate <= 0.0)
-                targetFrameRate = 60.0;
-
-            double frameSeconds = 1.0 / Math.Clamp(targetFrameRate, 1.0, 240.0);
-            double now = SW.Elapsed.TotalSeconds;
-            int currentResetVersion = _resetVersion;
-
-            if (currentResetVersion != resetVersion)
-            {
-                resetVersion = currentResetVersion;
-                nextFrameTime = now;
-            }
-
-            nextFrameTime += frameSeconds;
-
-            if (nextFrameTime < now)
-                nextFrameTime = now;
-
-            // Timed sleeps reintroduce visible scheduler wake jitter into the chart viewport.
-            while (SW.Elapsed.TotalSeconds < nextFrameTime)
-                Thread.SpinWait(64);
-
-            return nextFrameTime;
-        }
 
         public static void RequestWipersRefresh()
         {

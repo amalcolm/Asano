@@ -9,6 +9,16 @@ const FIT_LINE_COLORS = Object.freeze([
   "rgba(255, 207, 90, 0.10)",
   "rgba(255, 123, 114, 0.10)",
 ]);
+const ANALYSIS_STAGE_SAMPLES = "samples";
+const ANALYSIS_STAGE_FITS = "fits";
+const ANALYSIS_STAGE_GAIN = "gain";
+const ANALYSIS_STAGE_OFFSET = "offset";
+const ANALYSIS_STAGE_IDS = Object.freeze([
+  ANALYSIS_STAGE_SAMPLES,
+  ANALYSIS_STAGE_FITS,
+  ANALYSIS_STAGE_GAIN,
+  ANALYSIS_STAGE_OFFSET,
+]);
 const ANALYSIS_CSV_HEADER = [
   "source",
   "name",
@@ -38,19 +48,39 @@ export class AnalysisPanel {
     this.webView = webView;
     this.badge = root?.querySelector("[data-analysis-badge]");
     this.chartRoot = root?.querySelector("[data-analysis-chart]");
+    this.stageChartRoot = root?.querySelector("[data-analysis-stage-chart]");
     this.copyAnalysisButton = root?.querySelector("[data-analysis-copy-analysis]");
+    this.loadButton = root?.querySelector("[data-analysis-load-csv]");
+    this.loadInput = root?.querySelector("[data-analysis-load-csv-input]");
     this.saveButton = root?.querySelector("[data-analysis-save-csv]");
-    this.activeBreakdownPanel = null;
-    this.gainBreakdown = root?.querySelector("[data-analysis-gain-breakdown]");
-    this.test1Breakdown = root?.querySelector("[data-analysis-test1-breakdown]");
+    this.rangeCheckBadge = root?.querySelector("[data-analysis-range-check]");
+    this.testStatus = root?.querySelector("[data-analysis-test-status]");
+    this.stageButtons = getElementsByDataValue(root, "analysisStageButton");
+    this.stageDetails = getElementsByDataValue(root, "analysisStageDetail");
+    this.stageValues = getElementsByDataValue(root, "analysisStageValue");
     this.rmsMetric = root?.querySelector("[data-analysis-rms]");
     this.samplesMetric = root?.querySelector("[data-analysis-samples]");
     this.slopeMetric = root?.querySelector("[data-analysis-slope]");
     this.slopeRatioMetric = root?.querySelector("[data-analysis-slope-ratio]");
     this.resizeObserver = null;
+    this.observedChartRoots = new Set();
+    this.activeAnalysisStage = ANALYSIS_STAGE_FITS;
 
     this.copyAnalysisButton?.addEventListener("click", () => this.copyAnalysis());
+    this.loadButton?.addEventListener("click", () => this.loadInput?.click());
+    this.loadInput?.addEventListener("change", () => this.loadCsvFile());
     this.saveButton?.addEventListener("click", () => this.saveCsv());
+    this.stageButtons.forEach((button, stageId) => {
+      button.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        this.selectAnalysisStage(stageId);
+      });
+      button.addEventListener("click", (event) => {
+        if (event.detail === 0) {
+          this.selectAnalysisStage(stageId);
+        }
+      });
+    });
     this.render();
   }
 
@@ -72,10 +102,37 @@ export class AnalysisPanel {
     return addedSample;
   }
 
-  clear({ label = null, panel = null } = {}) {
+  clear({ label = null } = {}) {
     this.dataset.clear({ label });
-    this.activeBreakdownPanel = panel;
     this.render();
+  }
+
+  selectAnalysisStage(stageId) {
+    if (!ANALYSIS_STAGE_IDS.includes(stageId) || stageId === this.activeAnalysisStage) {
+      return;
+    }
+
+    this.activeAnalysisStage = stageId;
+    this.render();
+  }
+
+  setTestStatus({
+    rangeCheck = false,
+    running = false,
+    status = "idle",
+    test = null,
+  } = {}) {
+    const statusText = String(status ?? "idle");
+    const testText = test ? `${test}: ${statusText}` : statusText;
+
+    if (this.testStatus) {
+      this.testStatus.textContent = testText;
+      this.testStatus.dataset.running = String(Boolean(running));
+    }
+
+    if (this.rangeCheckBadge) {
+      this.rangeCheckBadge.hidden = !rangeCheck;
+    }
   }
 
   saveCsv() {
@@ -88,6 +145,30 @@ export class AnalysisPanel {
     this.setBadge(posted
       ? (this.dataset.samples.length ? "CSV save requested" : "CSV header requested")
       : "save unavailable");
+  }
+
+  async loadCsvFile() {
+    const file = this.loadInput?.files?.[0] ?? null;
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const result = this.dataset.loadCsv({
+        content: await file.text(),
+        filename: file.name,
+      });
+
+      this.render();
+      this.setBadge(`${result.imported} loaded${result.skipped ? `, ${result.skipped} skipped` : ""}`);
+    } catch (error) {
+      this.setBadge(error?.message || "load failed");
+    } finally {
+      if (this.loadInput) {
+        this.loadInput.value = "";
+      }
+    }
   }
 
   async copyAnalysis() {
@@ -122,20 +203,18 @@ export class AnalysisPanel {
     ));
     const fit = getLinearFit(plottableSamples);
     const fitLines = getSweepFitLines(plottableSamples);
+    const fitRows = getAnalysisFitRows(plottableSamples);
+    const modelAnalysis = getDifferentialAmpModelAnalysis({
+      dataset: this.dataset,
+      fitRows,
+      plottableSamples,
+    });
     const axisRanges = getAxisRanges({ fitLines, plottableSamples, predictedSamples });
 
     this.updateMetrics({ fit, plottableSamples, samples });
-    this.renderGainBreakdown(
-      this.activeBreakdownPanel === "gain"
-        ? getGainBreakdownRows(this.dataset, plottableSamples)
-        : null,
-    );
-    this.renderTest1Breakdown(
-      this.activeBreakdownPanel === "test1"
-        ? getTest1BreakdownRows(plottableSamples)
-        : null,
-    );
+    this.updateStageButtons(modelAnalysis);
     this.renderChart({ axisRanges, fitLines, plottableSamples, predictedSamples });
+    this.renderStageChart(modelAnalysis);
   }
 
   updateMetrics({ fit, plottableSamples, samples }) {
@@ -164,111 +243,33 @@ export class AnalysisPanel {
       : "empty dataset");
   }
 
+  updateStageButtons(modelAnalysis) {
+    ANALYSIS_STAGE_IDS.forEach((stageId) => {
+      const stage = modelAnalysis.stages.get(stageId);
+      const button = this.stageButtons.get(stageId);
+      const value = this.stageValues.get(stageId);
+      const detail = this.stageDetails.get(stageId);
+      const active = stageId === this.activeAnalysisStage;
+
+      if (button) {
+        button.dataset.active = String(active);
+        button.setAttribute("aria-pressed", String(active));
+      }
+
+      if (value) {
+        value.textContent = stage?.value ?? "-";
+      }
+
+      if (detail) {
+        detail.textContent = stage?.detail ?? "";
+      }
+    });
+  }
+
   setBadge(text) {
     if (this.badge) {
       this.badge.textContent = text;
     }
-  }
-
-  renderGainBreakdown(rows) {
-    if (!this.gainBreakdown) {
-      return;
-    }
-
-    if (!rows) {
-      this.gainBreakdown.hidden = true;
-      this.gainBreakdown.replaceChildren();
-      return;
-    }
-
-    this.gainBreakdown.hidden = false;
-
-    const title = document.createElement("span");
-    title.className = "analysis-breakdown__title";
-    title.textContent = "By gain";
-
-    const grid = document.createElement("div");
-    grid.className = "analysis-gain-table";
-
-    ["wiper", "model x", "slope/gain", "n"].forEach((label) => {
-      const cell = document.createElement("span");
-      cell.className = "analysis-gain-table__head";
-      cell.textContent = label;
-      grid.append(cell);
-    });
-
-    if (rows.length) {
-      rows.forEach((row) => {
-        [
-          formatGainWiper(row.gain),
-          formatMultiplier(row.multiplier),
-          formatRatio(row.slopeMultiplierRatio),
-          String(row.samples),
-        ].forEach((value) => {
-          const cell = document.createElement("span");
-          cell.textContent = value;
-          grid.append(cell);
-        });
-      });
-    } else {
-      const empty = document.createElement("span");
-      empty.className = "analysis-gain-table__empty";
-      empty.textContent = "-";
-      grid.append(empty);
-    }
-
-    this.gainBreakdown.replaceChildren(title, grid);
-  }
-
-  renderTest1Breakdown(rows) {
-    if (!this.test1Breakdown) {
-      return;
-    }
-
-    if (!rows) {
-      this.test1Breakdown.hidden = true;
-      this.test1Breakdown.replaceChildren();
-      return;
-    }
-
-    this.test1Breakdown.hidden = false;
-
-    const title = document.createElement("span");
-    title.className = "analysis-breakdown__title";
-    title.textContent = "Test1 calibration";
-
-    const grid = document.createElement("div");
-    grid.className = "analysis-test1-table";
-
-    ["config", "slope", "RMS", "err", "n"].forEach((label) => {
-      const cell = document.createElement("span");
-      cell.className = "analysis-test1-table__head";
-      cell.textContent = label;
-      grid.append(cell);
-    });
-
-    if (rows.length) {
-      rows.forEach((row) => {
-        [
-          row.ledLabel,
-          formatRatio(row.slope),
-          formatMillivolts(row.rms),
-          formatMillivolts(row.meanResidual),
-          String(row.samples),
-        ].forEach((value) => {
-          const cell = document.createElement("span");
-          cell.textContent = value;
-          grid.append(cell);
-        });
-      });
-    } else {
-      const empty = document.createElement("span");
-      empty.className = "analysis-test1-table__empty";
-      empty.textContent = "-";
-      grid.append(empty);
-    }
-
-    this.test1Breakdown.replaceChildren(title, grid);
   }
 
   renderChart({ axisRanges, fitLines, plottableSamples, predictedSamples }) {
@@ -326,11 +327,287 @@ export class AnalysisPanel {
       responsive: true,
     });
 
-    if (!this.resizeObserver) {
-      this.resizeObserver = new ResizeObserver(() => Plotly.Plots.resize(this.chartRoot));
-      this.resizeObserver.observe(this.chartRoot);
-    }
+    this.observeChartRoot(this.chartRoot);
   }
+
+  renderStageChart(modelAnalysis) {
+    if (!this.stageChartRoot) {
+      return;
+    }
+
+    const stage = modelAnalysis.stages.get(this.activeAnalysisStage)
+      ?? modelAnalysis.stages.get(ANALYSIS_STAGE_FITS);
+
+    Plotly.react(
+      this.stageChartRoot,
+      stage?.traces ?? [],
+      getStageChartLayout(stage),
+      {
+        displaylogo: false,
+        responsive: true,
+      },
+    );
+
+    this.observeChartRoot(this.stageChartRoot);
+  }
+
+  observeChartRoot(root) {
+    if (!root || this.observedChartRoots.has(root)) {
+      return;
+    }
+
+    this.resizeObserver ??= new ResizeObserver((entries) => {
+      entries.forEach((entry) => Plotly.Plots.resize(entry.target));
+    });
+    this.resizeObserver.observe(root);
+    this.observedChartRoots.add(root);
+  }
+}
+
+function getElementsByDataValue(root, datasetKey) {
+  const selector = `[data-${datasetKey.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`)}]`;
+
+  return new Map(
+    Array.from(root?.querySelectorAll(selector) ?? [])
+      .map((element) => [element.dataset[datasetKey], element])
+      .filter(([value]) => value),
+  );
+}
+
+function getDifferentialAmpModelAnalysis({
+  fitRows,
+  plottableSamples,
+}) {
+  return {
+    stages: new Map([
+      [ANALYSIS_STAGE_SAMPLES, getInputSamplesStage(plottableSamples)],
+      [ANALYSIS_STAGE_FITS, getLineFitsStage(fitRows)],
+      [ANALYSIS_STAGE_GAIN, getGainTermStage(fitRows)],
+      [ANALYSIS_STAGE_OFFSET, getOffsetTermStage(fitRows)],
+    ]),
+  };
+}
+
+function getInputSamplesStage(samples) {
+  const points = samples
+    .map((sample) => ({
+      gain: getKnownFiniteNumber(sample.wipers?.gain),
+      ledLabel: sample.ledLabel ?? "",
+      offset: getKnownFiniteNumber(sample.wipers?.offset),
+      sensor1: getKnownFiniteNumber(sample.sensorActual?.sensor1),
+      x: getKnownFiniteNumber(sample.wipers?.mid),
+      y: getKnownFiniteNumber(sample.sensorActual?.sensor2),
+    }))
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+  const gains = points.map((point) => point.gain);
+
+  return {
+    detail: `${getUniqueConfigCount(samples)} configs`,
+    traces: [
+      {
+        customdata: points.map((point) => [
+          point.ledLabel,
+          formatWiper(point.gain),
+          formatWiper(point.offset),
+          formatHoverVoltage(point.sensor1),
+        ]),
+        hovertemplate: [
+          "mid %{x:.0f}",
+          "Sensor2 %{y:.4f} V",
+          "Sensor1 %{customdata[3]}",
+          "gain %{customdata[1]}",
+          "offset %{customdata[2]}",
+          "%{customdata[0]}",
+          "<extra></extra>",
+        ].join("<br>"),
+        marker: getStageMarker(gains, "gain", 5),
+        mode: "markers",
+        name: "input samples",
+        type: "scatter",
+        x: points.map((point) => point.x),
+        y: points.map((point) => point.y),
+      },
+    ],
+    value: String(samples.length),
+    xTitle: "Mid wiper",
+    yTitle: "Sensor2 actual (V)",
+  };
+}
+
+function getLineFitsStage(fitRows) {
+  const xAxis = getFitRowsXAxis(fitRows);
+  const points = fitRows
+    .map((row, index) => ({
+      row,
+      x: xAxis.getValue(row, index),
+      y: row.slope,
+    }))
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+  const rmsValues = points.map(({ row }) => row.rms);
+
+  return {
+    detail: `best RMS ${formatMillivolts(getMinimum(fitRows.map((row) => row.rms)))}`,
+    traces: [
+      {
+        customdata: points.map(({ row }) => [
+          row.name,
+          formatMillivolts(row.rms),
+          row.samples,
+          row.source,
+          formatRatio(row.intercept),
+        ]),
+        hovertemplate: [
+          `${xAxis.label} %{x:.4f}`,
+          "slope %{y:.6f}",
+          "intercept %{customdata[4]}",
+          "RMS %{customdata[1]}",
+          "samples %{customdata[2]}",
+          "%{customdata[0]}",
+          "<extra></extra>",
+        ].join("<br>"),
+        marker: getStageMarker(rmsValues, "RMS", 7, [
+          [0, "#7ee787"],
+          [0.5, "#ffcf5a"],
+          [1, "#ff7b72"],
+        ]),
+        mode: "markers",
+        name: "fit rows",
+        type: "scatter",
+        x: points.map((point) => point.x),
+        y: points.map((point) => point.y),
+      },
+    ],
+    value: String(fitRows.length),
+    xTitle: xAxis.label,
+    yTitle: "Fit slope",
+  };
+}
+
+function getGainTermStage(fitRows) {
+  const hasMultiplier = fitRows.some((row) => Number.isFinite(row.diffAmpEffectiveMultiplier));
+  const points = fitRows
+    .map((row) => {
+      const multiplier = getKnownFiniteNumber(row.diffAmpEffectiveMultiplier);
+      const x = hasMultiplier ? multiplier : getKnownFiniteNumber(row.gain);
+      const y = hasMultiplier && Number.isFinite(multiplier) && multiplier !== 0
+        ? row.slope / multiplier
+        : row.slope;
+
+      return {
+        offset: getKnownFiniteNumber(row.offset),
+        row,
+        x,
+        y,
+      };
+    })
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+
+  return {
+    detail: `${points.length} fitted configs`,
+    traces: [
+      {
+        customdata: points.map(({ row }) => [
+          row.name,
+          formatRatio(row.slope),
+          formatMultiplier(row.diffAmpEffectiveMultiplier),
+          formatWiper(row.gain),
+          formatWiper(row.offset),
+        ]),
+        hovertemplate: [
+          `${hasMultiplier ? "model multiplier" : "gain wiper"} %{x:.4f}`,
+          `${hasMultiplier ? "slope / multiplier" : "slope"} %{y:.6f}`,
+          "slope %{customdata[1]}",
+          "model %{customdata[2]}",
+          "gain %{customdata[3]}",
+          "offset %{customdata[4]}",
+          "%{customdata[0]}",
+          "<extra></extra>",
+        ].join("<br>"),
+        marker: getStageMarker(points.map((point) => point.offset), "offset", 7),
+        mode: "markers",
+        name: "gain term",
+        type: "scatter",
+        x: points.map((point) => point.x),
+        y: points.map((point) => point.y),
+      },
+    ],
+    value: formatRatio(getMean(points.map((point) => point.y))),
+    xTitle: hasMultiplier ? "Diff amp multiplier" : "Gain wiper",
+    yTitle: hasMultiplier ? "Slope / multiplier" : "Fit slope",
+  };
+}
+
+function getOffsetTermStage(fitRows) {
+  const points = fitRows
+    .map((row) => ({
+      gain: getKnownFiniteNumber(row.gain),
+      row,
+      x: getKnownFiniteNumber(row.offset),
+      y: getKnownFiniteNumber(row.intercept),
+    }))
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+  const intercepts = points.map((point) => point.y);
+
+  return {
+    detail: `${new Set(points.map((point) => point.x)).size} offsets`,
+    traces: [
+      {
+        customdata: points.map(({ row }) => [
+          row.name,
+          formatRatio(row.slope),
+          formatMillivolts(row.rms),
+          formatWiper(row.gain),
+        ]),
+        hovertemplate: [
+          "offset %{x:.0f}",
+          "intercept %{y:.6f} V",
+          "slope %{customdata[1]}",
+          "RMS %{customdata[2]}",
+          "gain %{customdata[3]}",
+          "%{customdata[0]}",
+          "<extra></extra>",
+        ].join("<br>"),
+        marker: getStageMarker(points.map((point) => point.gain), "gain", 7),
+        mode: "markers",
+        name: "offset term",
+        type: "scatter",
+        x: points.map((point) => point.x),
+        y: intercepts,
+      },
+    ],
+    value: formatVolts(getSpan(intercepts)),
+    xTitle: "Offset wiper",
+    yTitle: "Fit intercept (V)",
+  };
+}
+
+function getStageMarker(values, colorbarTitle, size, colorscale = [
+  [0, "#35c2ff"],
+  [0.5, "#7ee787"],
+  [1, "#ffcf5a"],
+]) {
+  const hasColorValues = values.some(Number.isFinite);
+
+  return {
+    color: values.map((value) => (Number.isFinite(value) ? value : 0)),
+    colorbar: { outlinewidth: 0, thickness: 10, title: { side: "right", text: colorbarTitle } },
+    colorscale,
+    line: { color: "rgba(255, 255, 255, 0.72)", width: 0.8 },
+    opacity: 0.88,
+    showscale: hasColorValues,
+    size,
+  };
+}
+
+function getUniqueConfigCount(samples) {
+  return new Set(samples.map((sample) => [
+    sample.source,
+    sample.ledLabel,
+    sample.wipers?.gain,
+    sample.wipers?.offset,
+    sample.wipers?.top,
+    sample.wipers?.bot,
+  ].map((value) => String(value ?? "")).join("|"))).size;
 }
 
 function getAxisRanges({ fitLines, plottableSamples, predictedSamples }) {
@@ -717,15 +994,10 @@ function getChartLayout(axisRanges, annotations = [], plotLabels = getPlotLabels
   return {
     annotations,
     autosize: true,
-    legend: {
-      font: { color: "#d7dde8", size: 12 },
-      orientation: "h",
-      x: 0,
-      y: 1.08,
-    },
-    margin: { b: 54, l: 64, r: 28, t: 42 },
+    margin: { b: 54, l: 64, r: 28, t: 26 },
     paper_bgcolor: "rgba(0, 0, 0, 0)",
     plot_bgcolor: "rgba(8, 20, 28, 0.72)",
+    showlegend: false,
     xaxis: {
       color: "#b8c2d6",
       gridcolor: "rgba(184, 194, 214, 0.14)",
@@ -741,6 +1013,75 @@ function getChartLayout(axisRanges, annotations = [], plotLabels = getPlotLabels
       zeroline: false,
     },
   };
+}
+
+function getStageChartLayout(stage) {
+  const traces = stage?.traces ?? [];
+
+  return {
+    autosize: true,
+    margin: { b: 54, l: 64, r: 28, t: 26 },
+    paper_bgcolor: "rgba(0, 0, 0, 0)",
+    plot_bgcolor: "rgba(8, 20, 28, 0.72)",
+    showlegend: false,
+    xaxis: {
+      color: "#b8c2d6",
+      gridcolor: "rgba(184, 194, 214, 0.14)",
+      range: getPaddedRangeOrDefault(getTraceNumbers(traces, "x"), [0, 1]),
+      title: { font: { color: "#d7dde8" }, text: stage?.xTitle ?? "" },
+      zeroline: false,
+    },
+    yaxis: {
+      color: "#b8c2d6",
+      gridcolor: "rgba(184, 194, 214, 0.14)",
+      range: getPaddedRangeOrDefault(getTraceNumbers(traces, "y"), [0, 1]),
+      title: { font: { color: "#d7dde8" }, text: stage?.yTitle ?? "" },
+      zeroline: false,
+    },
+  };
+}
+
+function getFitRowsXAxis(rows) {
+  if (rows.some((row) => Number.isFinite(row.diffAmpEffectiveMultiplier))) {
+    return {
+      getValue: (row) => row.diffAmpEffectiveMultiplier,
+      label: "Diff amp multiplier",
+    };
+  }
+
+  if (rows.some((row) => Number.isFinite(row.gain))) {
+    return {
+      getValue: (row) => row.gain,
+      label: "Gain wiper",
+    };
+  }
+
+  if (rows.some((row) => Number.isFinite(row.offset))) {
+    return {
+      getValue: (row) => row.offset,
+      label: "Offset wiper",
+    };
+  }
+
+  return {
+    getValue: (_row, index) => index + 1,
+    label: "Fit row",
+  };
+}
+
+function getTraceNumbers(traces, key) {
+  return traces.flatMap((trace) => Array.isArray(trace?.[key]) ? trace[key] : [])
+    .filter(Number.isFinite);
+}
+
+function getPaddedRangeOrDefault(values, fallback) {
+  const knownValues = values.filter(Number.isFinite);
+
+  if (!knownValues.length) {
+    return fallback;
+  }
+
+  return getPaddedRange(knownValues);
 }
 
 function getSlopeMultiplierRatio(dataset, fit, samples) {
@@ -764,72 +1105,6 @@ function getSlopeMultiplierRatio(dataset, fit, samples) {
     : null;
 }
 
-function getGainBreakdownRows(dataset, samples) {
-  const samplesByGain = new Map();
-
-  samples.forEach((sample) => {
-    if (sample.source !== "gain-mid-sweep") {
-      return;
-    }
-
-    const gain = Number(sample.wipers.gain);
-
-    if (!Number.isFinite(gain)) {
-      return;
-    }
-
-    if (!samplesByGain.has(gain)) {
-      samplesByGain.set(gain, []);
-    }
-
-    samplesByGain.get(gain).push(sample);
-  });
-
-  return Array.from(samplesByGain, ([gain, gainSamples]) => {
-    const fit = getLinearFit(gainSamples);
-    const multipliers = gainSamples
-      .map((sample) => dataset.sensorModel.gainRatioFromWiper(sample.wipers.gain))
-      .filter(Number.isFinite);
-
-    return {
-      gain,
-      multiplier: getMean(multipliers),
-      samples: gainSamples.length,
-      slopeMultiplierRatio: getSlopeMultiplierRatio(dataset, fit, gainSamples),
-    };
-  }).sort((a, b) => a.gain - b.gain);
-}
-
-function getTest1BreakdownRows(samples) {
-  const samplesByLedLabel = new Map();
-
-  samples.forEach((sample) => {
-    if (sample.source !== "test1") {
-      return;
-    }
-
-    const ledLabel = sample.ledLabel || "off";
-
-    if (!samplesByLedLabel.has(ledLabel)) {
-      samplesByLedLabel.set(ledLabel, []);
-    }
-
-    samplesByLedLabel.get(ledLabel).push(sample);
-  });
-
-  return Array.from(samplesByLedLabel, ([ledLabel, ledSamples]) => {
-    const fit = getLinearFit(ledSamples);
-
-    return {
-      ledLabel,
-      meanResidual: getMean(ledSamples.map((sample) => sample.residuals.sensor2)),
-      rms: fit.rms,
-      samples: ledSamples.length,
-      slope: fit.slope,
-    };
-  });
-}
-
 function getMean(values) {
   const knownValues = values.filter(Number.isFinite);
 
@@ -838,6 +1113,26 @@ function getMean(values) {
   }
 
   return knownValues.reduce((sum, value) => sum + value, 0) / knownValues.length;
+}
+
+function getKnownFiniteNumber(value) {
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : null;
+}
+
+function getMinimum(values) {
+  const knownValues = values.filter(Number.isFinite);
+
+  return knownValues.length ? Math.min(...knownValues) : null;
+}
+
+function getSpan(values) {
+  const knownValues = values.filter(Number.isFinite);
+
+  return knownValues.length
+    ? Math.max(...knownValues) - Math.min(...knownValues)
+    : null;
 }
 
 function getRms(values) {
@@ -858,12 +1153,14 @@ function formatMillivolts(value) {
     : "-";
 }
 
-function formatRatio(value) {
-  return Number.isFinite(value) ? value.toFixed(3) : "-";
+function formatVolts(value) {
+  return Number.isFinite(value)
+    ? `${value.toFixed(4)} V`
+    : "-";
 }
 
-function formatGainWiper(value) {
-  return Number.isFinite(value) ? String(value) : "-";
+function formatRatio(value) {
+  return Number.isFinite(value) ? value.toFixed(3) : "-";
 }
 
 function formatHoverVoltage(value) {

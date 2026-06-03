@@ -5,7 +5,7 @@
   left: 50%;
   box-sizing: border-box;
   width: 30%;
-  height: 25%;
+  height: 20%;
   transform: translateX(-50%);
   border: 1px solid var(--panel-border);
   border-radius: 6px;
@@ -26,6 +26,15 @@
   font-weight: 700;
 }
 
+.test-panel__footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  font-weight: 700;
+}
+
 .test-panel__header [data-test-status] {
   color: var(--panel-muted);
   font-weight: 600;
@@ -35,7 +44,7 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  min-height: calc(100% - 28px);
+  min-height: calc(100% - 48px);
 }
 
 .test-panel__group {
