@@ -86,7 +86,6 @@
   line-height: 1;
 }
 
-.analysis-panel__test-status,
 .analysis-panel__range-check {
   flex: 0 0 auto;
   border: 1px solid rgb(255 255 255 / 14%);
@@ -100,16 +99,17 @@
 .analysis-panel__test-status {
   max-width: 220px;
   overflow: hidden;
-  color: #b8c2d6;
-  background: rgb(184 194 214 / 9%);
+  color: #aeb9c9;
+  font-size: 12px;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
   margin-top: auto;
+  padding: 0 12px;
 }
 
 .analysis-panel__test-status[data-running="true"] {
   color: #edf4ff;
-  background: rgb(143 199 255 / 12%);
 }
 
 .analysis-panel__range-check {

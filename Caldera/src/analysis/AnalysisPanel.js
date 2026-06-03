@@ -1,41 +1,9 @@
 import Plotly from "plotly.js-dist-min";
 import { AnalysisDataset } from "./AnalysisDataset.js";
+import { formatMillivolts, getLinearFit } from "./AnalysisMath.js";
+import { DifferentialAmp } from "./modelling/DifferentialAmp.js";
 
 const EMPTY_AXIS_RANGE = [0, 3.3];
-const FIT_LINE_COLORS = Object.freeze([
-  "rgba(255, 255, 255, 0.10)",
-  "rgba(53, 194, 255, 0.10)",
-  "rgba(126, 231, 135, 0.10)",
-  "rgba(255, 207, 90, 0.10)",
-  "rgba(255, 123, 114, 0.10)",
-]);
-const ANALYSIS_STAGE_SAMPLES = "samples";
-const ANALYSIS_STAGE_FITS = "fits";
-const ANALYSIS_STAGE_GAIN = "gain";
-const ANALYSIS_STAGE_OFFSET = "offset";
-const ANALYSIS_STAGE_IDS = Object.freeze([
-  ANALYSIS_STAGE_SAMPLES,
-  ANALYSIS_STAGE_FITS,
-  ANALYSIS_STAGE_GAIN,
-  ANALYSIS_STAGE_OFFSET,
-]);
-const ANALYSIS_CSV_HEADER = [
-  "source",
-  "name",
-  "slope",
-  "y-intercept",
-  "rmsV",
-  "samples",
-  "topWiper",
-  "botWiper",
-  "offsetWiper",
-  "gainWiper",
-  "diffAmpEffectiveMultiplier",
-  "ledState",
-  "leds",
-  "minMidWiper",
-  "maxMidWiper",
-].join(",");
 
 export class AnalysisPanel {
   constructor({
@@ -53,45 +21,45 @@ export class AnalysisPanel {
     this.copyAnalysisButton = root?.querySelector("[data-analysis-copy-analysis]");
     this.loadButton = root?.querySelector("[data-analysis-load-csv]");
     this.loadInput = root?.querySelector("[data-analysis-load-csv-input]");
+
     this.saveButton = root?.querySelector("[data-analysis-save-csv]");
     this.rangeCheckBadge = root?.querySelector("[data-analysis-range-check]");
     this.testStatus = root?.querySelector("[data-analysis-test-status]");
-    this.stageButtons = getElementsByDataValue(root, "analysisStageButton");
-    this.stageDetails = getElementsByDataValue(root, "analysisStageDetail");
-    this.stageValues = getElementsByDataValue(root, "analysisStageValue");
+    this.stagesContainer = root?.querySelector("[data-analysis-stages-container]");
+    this.stageButtons = new Map();
+    this.stageDetails = new Map();
+    this.stageValues = new Map();
     this.rmsMetric = root?.querySelector("[data-analysis-rms]");
     this.samplesMetric = root?.querySelector("[data-analysis-samples]");
     this.slopeMetric = root?.querySelector("[data-analysis-slope]");
     this.slopeRatioMetric = root?.querySelector("[data-analysis-slope-ratio]");
+
+    this.model = new DifferentialAmp();
     this.resizeObserver = null;
     this.observedChartRoots = new Set();
     this.activeAnalysisStage = null;
+    this.completedAnalysisStages = new Set();
     this.unlockedStages = new Set();
-    this.cachedFitLines = null;
-    this.cachedFitRows = null;
     this.isProcessing = false;
 
-    this.copyAnalysisButton?.addEventListener("click", () => this.copyAnalysis());
-    this.loadButton?.addEventListener("click", () => this.loadInput?.click());
+    this.loadButton?.addEventListener("click", () => {
+      if (this.webView?.postRequestLoadCsv?.("")) {
+        return;
+      }
+
+      this.loadInput?.click();
+    });
     this.loadInput?.addEventListener("change", () => this.loadCsvFile());
     this.saveButton?.addEventListener("click", () => this.saveCsv());
-    this.stageButtons.forEach((button, stageId) => {
-      button.addEventListener("mousedown", (event) => {
-        event.preventDefault();
-        this.selectAnalysisStage(stageId);
-      });
-      button.addEventListener("click", (event) => {
-        if (event.detail === 0) {
-          this.selectAnalysisStage(stageId);
-        }
-      });
-    });
+    this.copyAnalysisButton?.addEventListener("click", () => this.copyAnalysis());
+    this.renderStageButtons();
     this.render();
   }
 
   addSampleFromModel(sampleContext) {
     const sample = this.dataset.addSampleFromModel(sampleContext);
 
+    this.model.clearCache();
     this.render();
 
     return sample;
@@ -101,8 +69,7 @@ export class AnalysisPanel {
     const addedSample = this.dataset.addSample(sample);
 
     if (addedSample) {
-      this.cachedFitLines = null;
-      this.cachedFitRows = null;
+      this.model.clearCache();
       this.render();
     }
 
@@ -111,51 +78,126 @@ export class AnalysisPanel {
 
   clear({ label = null } = {}) {
     this.dataset.clear({ label });
-    this.cachedFitLines = null;
-    this.cachedFitRows = null;
+    this.resetAnalysisState();
     this.render();
+  }
+
+  loadCsv({
+    content,
+    filename = "Dataset.csv",
+  } = {}) {
+    const result = this.dataset.loadCsv({ content, filename });
+
+    this.resetAnalysisState();
+    this.render();
+
+    return result;
+  }
+
+  resetAnalysisState() {
+    this.model.clearCache();
+    this.activeAnalysisStage = null;
+    this.completedAnalysisStages.clear();
+    this.unlockedStages.clear();
+    this.isProcessing = false;
+    this.resetStageButtonSummaries();
+  }
+
+  resetStageButtonSummaries() {
+    this.model.getStages().forEach((stage) => {
+      const button = this.stageButtons.get(stage.id);
+      const value = this.stageValues.get(stage.id);
+      const detail = this.stageDetails.get(stage.id);
+
+      if (button) {
+        button.hidden = true;
+        button.dataset.active = "false";
+        button.dataset.processing = "false";
+        button.setAttribute("aria-pressed", "false");
+      }
+
+      if (value) {
+        value.textContent = "-";
+      }
+
+      if (detail) {
+        detail.textContent = stage.defaultDetail;
+      }
+    });
+
+    if (this.stageDescription) {
+      this.stageDescription.hidden = true;
+      this.stageDescription.innerHTML = "";
+    }
   }
 
   selectAnalysisStage(stageId) {
     if (this.isProcessing) return;
-    if (!ANALYSIS_STAGE_IDS.includes(stageId) || stageId === this.activeAnalysisStage || !this.unlockedStages.has(stageId)) {
+
+    const stages = this.model.getStages();
+    const stageIds = stages.map((stage) => stage.id);
+    if (!stageIds.includes(stageId) || stageId === this.activeAnalysisStage || !this.unlockedStages.has(stageId)) {
       return;
     }
 
     this.isProcessing = true;
     this.activeAnalysisStage = stageId;
-    
-    // Fast render to update the button and info text immediately
-    const quickAnalysis = getDifferentialAmpModelAnalysis({
-      dataset: this.dataset,
-      fitRows: [],
-      plottableSamples: [],
-    });
-    this.updateStageButtons(quickAnalysis);
-    
-    // Add processing state to the active button
-    const button = this.stageButtons.get(stageId);
-    if (button) {
-      button.dataset.processing = "true";
+    if (this.completedAnalysisStages.has(stageId)) {
+      this.render();
+      this.isProcessing = false;
+      return;
     }
 
-    const stageIndex = ANALYSIS_STAGE_IDS.indexOf(stageId);
-    const nextStageId = stageIndex >= 0 && stageIndex < ANALYSIS_STAGE_IDS.length - 1 
-      ? ANALYSIS_STAGE_IDS[stageIndex + 1] 
+    const button = this.stageButtons.get(stageId);
+    if (button) {
+      button.hidden = false;
+      button.dataset.active = "true";
+      button.dataset.processing = "true";
+      button.setAttribute("aria-pressed", "true");
+    }
+
+    const stageIndex = stageIds.indexOf(stageId);
+    const nextStageId = stageIndex >= 0 && stageIndex < stageIds.length - 1
+      ? stageIds[stageIndex + 1]
       : null;
 
     requestAnimationFrame(() => {
-      setTimeout(() => {
-        if (nextStageId && !this.unlockedStages.has(nextStageId)) {
-          this.unlockedStages.add(nextStageId);
-        }
-        this.render();
-        if (button) {
-          button.dataset.processing = "false";
-        }
-        this.isProcessing = false;
-      }, 10);
+      setTimeout(() => this.finishAnalysisStageSelection({ button, nextStageId, stageId }), 10);
     });
+  }
+
+  finishAnalysisStageSelection({ button, nextStageId, stageId }) {
+    let renderResult = null;
+
+    try {
+      if (nextStageId && !this.unlockedStages.has(nextStageId)) {
+        this.unlockedStages.add(nextStageId);
+      }
+
+      renderResult = this.render({ updateStageButtons: false });
+    } catch (error) {
+      this.setBadge(error?.message || "analysis failed");
+      this.finishStageProcessing(button);
+      return;
+    }
+
+    Promise.resolve(renderResult?.stageRender)
+      .catch((error) => {
+        this.setBadge(error?.message || "analysis failed");
+      })
+      .finally(() => {
+        this.completedAnalysisStages.add(stageId);
+        this.updateStageButtons(renderResult?.analysis?.stages);
+        this.finishStageProcessing(button);
+      });
+  }
+
+  finishStageProcessing(button) {
+    if (button) {
+      button.dataset.processing = "false";
+    }
+
+    this.isProcessing = false;
   }
 
   setTestStatus({
@@ -197,25 +239,22 @@ export class AnalysisPanel {
     }
 
     try {
-      const result = this.dataset.loadCsv({
+      const result = this.loadCsv({
         content: await file.text(),
         filename: file.name,
       });
 
-      this.render();
       this.setBadge(`${result.imported} loaded${result.skipped ? `, ${result.skipped} skipped` : ""}`);
     } catch (error) {
       this.setBadge(error?.message || "load failed");
     } finally {
-      if (this.loadInput) {
-        this.loadInput.value = "";
-      }
+      this.loadInput.value = "";
     }
   }
 
   async copyAnalysis() {
     const analysisCsv = this.getAnalysisCsv();
-    const rows = getAnalysisFitRows(
+    const rows = this.model.getAnalysisFitRows(
       this.dataset.getAnalysisSamples().filter((sample) => sample.isPlottable),
     );
 
@@ -228,21 +267,18 @@ export class AnalysisPanel {
   }
 
   getAnalysisCsv() {
-    return [
-      ANALYSIS_CSV_HEADER,
-      ...getAnalysisFitRows(
-        this.dataset.getAnalysisSamples().filter((sample) => sample.isPlottable),
-      ).map(formatAnalysisFitCsvRow),
-    ].join("\n");
+    return this.model.getAnalysisCsv(this.dataset.getAnalysisSamples());
   }
 
-  render() {
+  render({ updateStageButtons = true } = {}) {
     const samples = this.dataset.getAnalysisSamples();
-    
+
+    const stageIds = this.model.getStages().map((stage) => stage.id);
     if (samples.length > 0 && this.unlockedStages.size === 0) {
-      this.unlockedStages.add(ANALYSIS_STAGE_SAMPLES);
+      this.unlockedStages.add(stageIds[0]);
     } else if (samples.length === 0) {
       this.unlockedStages.clear();
+      this.completedAnalysisStages.clear();
       this.activeAnalysisStage = null;
     }
 
@@ -251,31 +287,81 @@ export class AnalysisPanel {
       sample.plot?.kind === "sensor-comparison"
         && Number.isFinite(sample.sensorPredicted.sensor2)
     ));
-    
-    let fitLines = [];
-    let fitRows = [];
 
-    if (this.unlockedStages.has(ANALYSIS_STAGE_FITS)) {
-      if (!this.cachedFitLines || !this.cachedFitRows) {
-        this.cachedFitLines = getSweepFitLines(plottableSamples);
-        this.cachedFitRows = getAnalysisFitRows(plottableSamples);
-      }
-      fitLines = this.cachedFitLines;
-      fitRows = this.cachedFitRows;
-    }
-
-    const fit = getLinearFit(plottableSamples);
-    const modelAnalysis = getDifferentialAmpModelAnalysis({
-      dataset: this.dataset,
-      fitRows,
+    const analysis = this.model.getAnalysis(
+      this.activeAnalysisStage,
       plottableSamples,
-    });
-    const axisRanges = getAxisRanges({ fitLines, plottableSamples, predictedSamples });
+      this.unlockedStages,
+      this.completedAnalysisStages,
+    );
+    const fit = getLinearFit(plottableSamples);
+    const axisRanges = getAxisRanges({ fitLines: analysis.fitLines, plottableSamples, predictedSamples });
 
     this.updateMetrics({ fit, plottableSamples, samples });
-    this.updateStageButtons(modelAnalysis);
-    this.renderChart({ axisRanges, fitLines, plottableSamples, predictedSamples });
-    this.renderStageChart(modelAnalysis);
+    if (updateStageButtons) {
+      this.updateStageButtons(analysis.stages);
+    }
+    const chartRender = this.renderChart({ axisRanges, fitLines: analysis.fitLines, plottableSamples, predictedSamples });
+    const stageRender = this.renderStageChart(analysis.stage);
+
+    return { analysis, chartRender, stageRender };
+  }
+
+  renderStageButtons() {
+    if (!this.stagesContainer) return;
+
+    // Keep the description element if it exists
+    const descriptionEl = this.stagesContainer.querySelector("[data-analysis-stage-description]");
+    this.stagesContainer.innerHTML = "";
+
+    this.stageButtons.clear();
+    this.stageValues.clear();
+    this.stageDetails.clear();
+
+    const stages = this.model.getStages();
+    stages.forEach((stage) => {
+      const button = document.createElement("button");
+      button.className = `analysis-stage-button ${stage.isPrimary ? "analysis-stage-button--primary" : ""}`;
+      button.type = "button";
+      button.dataset.analysisStageButton = stage.id;
+
+      const labelSpan = document.createElement("span");
+      labelSpan.className = "analysis-stage-button__label";
+      labelSpan.textContent = stage.label;
+
+      const valueStrong = document.createElement("strong");
+      valueStrong.dataset.analysisStageValue = stage.id;
+      valueStrong.textContent = "-";
+
+      const detailSpan = document.createElement("span");
+      detailSpan.dataset.analysisStageDetail = stage.id;
+      detailSpan.textContent = stage.defaultDetail;
+
+      button.appendChild(labelSpan);
+      button.appendChild(valueStrong);
+      button.appendChild(detailSpan);
+
+      button.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        this.selectAnalysisStage(stage.id);
+      });
+      button.addEventListener("click", (event) => {
+        if (event.detail === 0) {
+          this.selectAnalysisStage(stage.id);
+        }
+      });
+
+      this.stagesContainer.appendChild(button);
+
+      this.stageButtons.set(stage.id, button);
+      this.stageValues.set(stage.id, valueStrong);
+      this.stageDetails.set(stage.id, detailSpan);
+    });
+
+    if (descriptionEl) {
+      this.stagesContainer.appendChild(descriptionEl);
+      this.stageDescription = descriptionEl;
+    }
   }
 
   updateMetrics({ fit, plottableSamples, samples }) {
@@ -304,14 +390,21 @@ export class AnalysisPanel {
       : "empty dataset");
   }
 
-  updateStageButtons(modelAnalysis) {
-    ANALYSIS_STAGE_IDS.forEach((stageId) => {
-      const stage = modelAnalysis.stages.get(stageId);
+  updateStageButtons(stageDataById) {
+    const stages = this.model.getStages();
+    const activeStageData = this.activeAnalysisStage
+      ? stageDataById?.get(this.activeAnalysisStage) ?? null
+      : null;
+
+    stages.forEach((stage) => {
+      const stageId = stage.id;
       const button = this.stageButtons.get(stageId);
       const value = this.stageValues.get(stageId);
       const detail = this.stageDetails.get(stageId);
       const isUnlocked = this.unlockedStages.has(stageId);
+      const isCompleted = this.completedAnalysisStages.has(stageId);
       const active = stageId === this.activeAnalysisStage;
+      const stageData = stageDataById?.get(stageId) ?? null;
 
       if (button) {
         button.hidden = !isUnlocked;
@@ -320,18 +413,19 @@ export class AnalysisPanel {
       }
 
       if (value) {
-        value.textContent = stage?.value ?? "-";
+        value.textContent = isUnlocked && isCompleted ? stageData?.value ?? "-" : "-";
       }
 
       if (detail) {
-        detail.textContent = stage?.detail ?? "";
+        detail.textContent = isUnlocked && isCompleted
+          ? stageData?.detail ?? stage.defaultDetail
+          : stage.defaultDetail;
       }
     });
 
-    const activeStage = this.activeAnalysisStage ? modelAnalysis.stages.get(this.activeAnalysisStage) : null;
     if (this.stageDescription) {
-      this.stageDescription.hidden = !activeStage;
-      this.stageDescription.innerHTML = activeStage?.description ?? "";
+      this.stageDescription.hidden = !this.activeAnalysisStage;
+      this.stageDescription.innerHTML = activeStageData?.description ?? "";
     }
   }
 
@@ -391,30 +485,29 @@ export class AnalysisPanel {
       })),
     ];
 
-    Plotly.react(this.chartRoot, traces, getChartLayout(axisRanges, predictionArrows, plotLabels), {
+    const renderPromise = Plotly.react(this.chartRoot, traces, getChartLayout(axisRanges, predictionArrows, plotLabels), {
       displaylogo: false,
       responsive: true,
     });
 
     this.observeChartRoot(this.chartRoot);
+
+    return renderPromise;
   }
 
-  renderStageChart(modelAnalysis) {
+  renderStageChart(activeStageData) {
     if (!this.stageChartRoot) {
       return;
     }
 
-    const stage = this.activeAnalysisStage ? modelAnalysis.stages.get(this.activeAnalysisStage) : null;
-
-    if (!stage) {
-      Plotly.purge(this.stageChartRoot);
-      return;
+    if (!activeStageData) {
+      return Plotly.purge(this.stageChartRoot);
     }
 
-    Plotly.react(
+    const renderPromise = Plotly.react(
       this.stageChartRoot,
-      stage.traces ?? [],
-      getStageChartLayout(stage),
+      activeStageData.traces ?? [],
+      getStageChartLayout(activeStageData),
       {
         displaylogo: false,
         responsive: true,
@@ -422,6 +515,8 @@ export class AnalysisPanel {
     );
 
     this.observeChartRoot(this.stageChartRoot);
+
+    return renderPromise;
   }
 
   observeChartRoot(root) {
@@ -435,168 +530,6 @@ export class AnalysisPanel {
     this.resizeObserver.observe(root);
     this.observedChartRoots.add(root);
   }
-}
-
-function getElementsByDataValue(root, datasetKey) {
-  const selector = `[data-${datasetKey.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`)}]`;
-
-  return new Map(
-    Array.from(root?.querySelectorAll(selector) ?? [])
-      .map((element) => [element.dataset[datasetKey], element])
-      .filter(([value]) => value),
-  );
-}
-
-function getDifferentialAmpModelAnalysis({
-  fitRows,
-  plottableSamples,
-}) {
-  return {
-    stages: new Map([
-      [ANALYSIS_STAGE_SAMPLES, getInputSamplesStage(plottableSamples, fitRows)],
-      [ANALYSIS_STAGE_FITS, getLineFitsStage(fitRows)],
-      [ANALYSIS_STAGE_GAIN, getGainTermStage(fitRows)],
-      [ANALYSIS_STAGE_OFFSET, getOffsetTermStage(fitRows)],
-    ]),
-  };
-}
-
-function getInputSamplesStage(samples, fitRows) {
-  if (!fitRows || fitRows.length === 0) {
-    return {
-      detail: "No fits available",
-      traces: [],
-      value: "0",
-      xTitle: "Effective Multiplier",
-      yTitle: "Centre (V)",
-    };
-  }
-
-  const validRows = fitRows.filter((row) => 
-    Number.isFinite(row.computedMultiplier) && Number.isFinite(row.computedCentre)
-  );
-
-  const traces = [
-    {
-      customdata: validRows.map((row) => [
-        row.name,
-        formatWiper(row.gain),
-        formatWiper(row.offset),
-        formatMillivolts(row.rms),
-        row.samples,
-      ]),
-      hovertemplate: [
-        "Multiplier %{x:.4f}",
-        "Centre %{y:.4f} V",
-        "RMS %{customdata[3]}",
-        "samples %{customdata[4]}",
-        "gain %{customdata[1]}",
-        "offset %{customdata[2]}",
-        "%{customdata[0]}",
-        "<extra></extra>",
-      ].join("<br>"),
-      marker: getStageMarker(validRows.map((row) => row.rms), "RMS", 7, [
-        [0, "#7ee787"],
-        [0.5, "#ffcf5a"],
-        [1, "#ff7b72"],
-      ]),
-      mode: "markers",
-      name: "reduced blocks",
-      type: "scatter",
-      x: validRows.map((row) => row.computedMultiplier),
-      y: validRows.map((row) => row.computedCentre),
-    },
-  ];
-
-  const avgMultiplier = validRows.length ? (validRows.reduce((a, b) => a + b.computedMultiplier, 0) / validRows.length) : null;
-
-  return {
-    description: `
-      <p><strong>1: Linear Reduction</strong></p>
-      <p>Reduces thousands of raw sensor samples into a single multiplier and centre voltage for each fixed Gain & Offset block.</p>
-      <ul>
-        <li><strong>Multiplier:</strong> derived from the negative slope (-m) of Sensor2 vs Sensor1.</li>
-        <li><strong>Centre:</strong> derived from the intercept where Sensor1 equals Sensor2.</li>
-      </ul>
-      <p>Visualizing these blocks immediately flags bad hardware configurations with noisy or inactive linear fits (such as gains 0 and 1).</p>
-    `,
-    detail: `${validRows.length} reduced blocks`,
-    traces,
-    value: avgMultiplier !== null ? formatMultiplier(avgMultiplier) : "0",
-    xTitle: "Effective Multiplier",
-    yTitle: "Centre (V)",
-  };
-}
-
-function getLineFitsStage(fitRows) {
-  return {
-    description: `
-      <p><strong>2: Fit Multiplier from Gain</strong></p>
-      <p>Pending implementation...</p>
-    `,
-    detail: "awaiting implementation",
-    traces: [],
-    value: "-",
-    xTitle: "Gain Wiper",
-    yTitle: "Effective Multiplier",
-  };
-}
-
-function getGainTermStage(fitRows) {
-  return {
-    description: `
-      <p><strong>3: Fit Centre from Offset</strong></p>
-      <p>Pending implementation...</p>
-    `,
-    detail: "awaiting implementation",
-    traces: [],
-    value: "-",
-    xTitle: "Offset Wiper",
-    yTitle: "Centre (V)",
-  };
-}
-
-function getOffsetTermStage(fitRows) {
-  return {
-    description: `
-      <p><strong>4: Final Validation</strong></p>
-      <p>Pending implementation...</p>
-    `,
-    detail: "awaiting implementation",
-    traces: [],
-    value: "-",
-    xTitle: "-",
-    yTitle: "-",
-  };
-}
-
-function getStageMarker(values, colorbarTitle, size, colorscale = [
-  [0, "#35c2ff"],
-  [0.5, "#7ee787"],
-  [1, "#ffcf5a"],
-]) {
-  const hasColorValues = values.some(Number.isFinite);
-
-  return {
-    color: values.map((value) => (Number.isFinite(value) ? value : 0)),
-    colorbar: { outlinewidth: 0, thickness: 10, title: { side: "right", text: colorbarTitle } },
-    colorscale,
-    line: { color: "rgba(255, 255, 255, 0.72)", width: 0.8 },
-    opacity: 0.88,
-    showscale: hasColorValues,
-    size,
-  };
-}
-
-function getUniqueConfigCount(samples) {
-  return new Set(samples.map((sample) => [
-    sample.source,
-    sample.ledLabel,
-    sample.wipers?.gain,
-    sample.wipers?.offset,
-    sample.wipers?.top,
-    sample.wipers?.bot,
-  ].map((value) => String(value ?? "")).join("|"))).size;
 }
 
 function getAxisRanges({ fitLines, plottableSamples, predictedSamples }) {
@@ -680,231 +613,6 @@ function getMarkerColorSettings(samples, useSampleOrderColors) {
     ],
     showscale: true,
   };
-}
-
-function getLinearFit(samples) {
-  if (samples.length < 2) {
-    return {
-      intercept: null,
-      lineX: [],
-      lineY: [],
-      rms: null,
-      slope: null,
-    };
-  }
-
-  const points = samples.map((sample) => ({
-    x: sample.plot.x,
-    y: sample.plot.y,
-  }));
-  const meanX = getMean(points.map((point) => point.x));
-  const meanY = getMean(points.map((point) => point.y));
-  const varianceX = points.reduce((sum, point) => sum + (point.x - meanX) ** 2, 0);
-
-  if (!Number.isFinite(varianceX) || varianceX === 0) {
-    return {
-      intercept: null,
-      lineX: [],
-      lineY: [],
-      rms: null,
-      slope: null,
-    };
-  }
-
-  const covariance = points.reduce(
-    (sum, point) => sum + (point.x - meanX) * (point.y - meanY),
-    0,
-  );
-  const slope = covariance / varianceX;
-  const intercept = meanY - slope * meanX;
-  const residuals = points.map((point) => point.y - (slope * point.x + intercept));
-  const lineX = getPaddedRange(points.map((point) => point.x));
-  const lineY = lineX.map((x) => slope * x + intercept);
-
-  return {
-    intercept,
-    lineX,
-    lineY,
-    rms: getRms(residuals),
-    slope,
-  };
-}
-
-function getSweepFitLines(samples) {
-  return getSweepFitGroups(samples)
-    .map((group, index) => ({
-      ...getLinearFit(group.samples),
-      color: FIT_LINE_COLORS[index % FIT_LINE_COLORS.length],
-      name: group.name,
-    }))
-    .filter((fitLine) => fitLine.lineX.length && fitLine.lineY.length);
-}
-
-function getAnalysisFitRows(samples) {
-  return getSweepFitGroups(samples)
-    .map((group) => {
-      const fit = getLinearFit(group.samples);
-      const firstSample = group.samples[0];
-      const mids = group.samples
-        .map((sample) => Number(sample.wipers.mid))
-        .filter(Number.isFinite);
-      const m = fit.slope;
-      const b = fit.intercept;
-      const effectiveMultiplier = Number.isFinite(m) ? -m : null;
-      const centre = (Number.isFinite(m) && m !== 1) ? b / (1 - m) : null;
-
-      return {
-        bot: firstSample?.wipers.bot,
-        computedCentre: centre,
-        computedMultiplier: effectiveMultiplier,
-        diffAmpEffectiveMultiplier: firstSample?.diffAmpEffectiveMultiplier,
-        gain: firstSample?.wipers.gain,
-        intercept: fit.intercept,
-        ledLabel: firstSample?.ledLabel ?? "",
-        ledState: firstSample?.ledState,
-        maxMid: mids.length ? Math.max(...mids) : null,
-        minMid: mids.length ? Math.min(...mids) : null,
-        name: group.name,
-        offset: firstSample?.wipers.offset,
-        rms: fit.rms,
-        samples: group.samples.length,
-        slope: fit.slope,
-        source: firstSample?.source ?? "",
-        top: firstSample?.wipers.top,
-      };
-    })
-    .filter((row) => Number.isFinite(row.slope) && Number.isFinite(row.intercept));
-}
-
-function getSweepFitGroups(samples) {
-  const groupsByKey = new Map();
-
-  samples.forEach((sample) => {
-    const group = getSweepFitGroup(sample);
-
-    if (!group) {
-      return;
-    }
-
-    if (!groupsByKey.has(group.key)) {
-      groupsByKey.set(group.key, { ...group, samples: [] });
-    }
-
-    groupsByKey.get(group.key).samples.push(sample);
-  });
-
-  return Array.from(groupsByKey.values())
-    .filter((group) => group.samples.length >= 2);
-}
-
-function getSweepFitGroup(sample) {
-  const { wipers } = sample;
-
-  if (sample.source === "mid-sweep") {
-    return {
-      key: getSweepFitKey(["mid", wipers.top, wipers.bot, wipers.offset, wipers.gain]),
-      name: `mid fit offset ${formatWiper(wipers.offset)} gain ${formatWiper(wipers.gain)}`,
-    };
-  }
-
-  if (sample.source === "gain-mid-sweep") {
-    return {
-      key: getSweepFitKey([
-        "gain-mid",
-        wipers.top,
-        wipers.bot,
-        wipers.offset,
-        wipers.gain,
-      ]),
-      name: `gain ${formatWiper(wipers.gain)} fit`,
-    };
-  }
-
-  if (sample.source === "offset-sweep") {
-    return {
-      key: getSweepFitKey(["offset", wipers.top, wipers.bot, wipers.offset, wipers.gain]),
-      name: `offset ${formatWiper(wipers.offset)} fit`,
-    };
-  }
-
-  if (sample.source === "test1") {
-    return {
-      key: getSweepFitKey([
-        "test1",
-        wipers.top,
-        wipers.bot,
-        wipers.offset,
-        wipers.gain,
-        sample.ledLabel,
-      ]),
-      name: `Test1 ${sample.ledLabel ?? "off"} fit`,
-    };
-  }
-
-  if (sample.source === "test2") {
-    return {
-      key: getSweepFitKey([
-        "test2",
-        wipers.top,
-        wipers.bot,
-        wipers.offset,
-        wipers.gain,
-      ]),
-      name: "Test2 Sensor2 delta/count fit",
-    };
-  }
-
-  if (sample.source === "test3") {
-    return {
-      key: getSweepFitKey([
-        "test3",
-        wipers.top,
-        wipers.bot,
-        wipers.mid,
-        wipers.gain,
-      ]),
-      name: `Test3 mid ${formatWiper(wipers.mid)} Sensor2 offset delta/count fit`,
-    };
-  }
-
-  if (sample.source === "test4") {
-    return {
-      key: getSweepFitKey([
-        "test4",
-        wipers.top,
-        wipers.bot,
-        wipers.offset,
-        wipers.gain,
-      ]),
-      name: `Test4 gain ${formatWiper(wipers.gain)} Sensor2 mid delta/count fit`,
-    };
-  }
-
-  return null;
-}
-
-function getSweepFitKey(parts) {
-  return parts.map((part) => String(part)).join("|");
-}
-
-function formatAnalysisFitCsvRow(row) {
-  return [
-    row.source,
-    row.name,
-    formatCsvNumber(row.slope, 12),
-    formatCsvNumber(row.intercept, 12),
-    formatCsvNumber(row.rms, 12),
-    row.samples,
-    formatCsvNumber(row.top, 0),
-    formatCsvNumber(row.bot, 0),
-    formatCsvNumber(row.offset, 0),
-    formatCsvNumber(row.gain, 0),
-    formatCsvNumber(row.diffAmpEffectiveMultiplier),
-    formatCsvNumber(row.ledState, 0),
-    row.ledLabel,
-    formatCsvNumber(row.minMid, 0),
-    formatCsvNumber(row.maxMid, 0),
-  ].map(csvCell).join(",");
 }
 
 function getPredictionArrowAnnotations(samples) {
@@ -1036,34 +744,6 @@ function getStageChartLayout(stage) {
   };
 }
 
-function getFitRowsXAxis(rows) {
-  if (rows.some((row) => Number.isFinite(row.diffAmpEffectiveMultiplier))) {
-    return {
-      getValue: (row) => row.diffAmpEffectiveMultiplier,
-      label: "Diff amp multiplier",
-    };
-  }
-
-  if (rows.some((row) => Number.isFinite(row.gain))) {
-    return {
-      getValue: (row) => row.gain,
-      label: "Gain wiper",
-    };
-  }
-
-  if (rows.some((row) => Number.isFinite(row.offset))) {
-    return {
-      getValue: (row) => row.offset,
-      label: "Offset wiper",
-    };
-  }
-
-  return {
-    getValue: (_row, index) => index + 1,
-    label: "Fit row",
-  };
-}
-
 function getTraceNumbers(traces, key) {
   return traces.flatMap((trace) => Array.isArray(trace?.[key]) ? trace[key] : [])
     .filter(Number.isFinite);
@@ -1110,50 +790,6 @@ function getMean(values) {
   return knownValues.reduce((sum, value) => sum + value, 0) / knownValues.length;
 }
 
-function getKnownFiniteNumber(value) {
-  const number = Number(value);
-
-  return Number.isFinite(number) ? number : null;
-}
-
-function getMinimum(values) {
-  const knownValues = values.filter(Number.isFinite);
-
-  return knownValues.length ? Math.min(...knownValues) : null;
-}
-
-function getSpan(values) {
-  const knownValues = values.filter(Number.isFinite);
-
-  return knownValues.length
-    ? Math.max(...knownValues) - Math.min(...knownValues)
-    : null;
-}
-
-function getRms(values) {
-  const knownValues = values.filter(Number.isFinite);
-
-  if (!knownValues.length) {
-    return null;
-  }
-
-  return Math.sqrt(
-    knownValues.reduce((sum, value) => sum + value ** 2, 0) / knownValues.length,
-  );
-}
-
-function formatMillivolts(value) {
-  return Number.isFinite(value)
-    ? `${(value * 1000).toFixed(1)} mV`
-    : "-";
-}
-
-function formatVolts(value) {
-  return Number.isFinite(value)
-    ? `${value.toFixed(4)} V`
-    : "-";
-}
-
 function formatRatio(value) {
   return Number.isFinite(value) ? value.toFixed(3) : "-";
 }
@@ -1174,34 +810,6 @@ function formatSampleIndex(sample) {
   return Number.isFinite(sample.sampleCount)
     ? `${sample.sampleIndex}/${sample.sampleCount}`
     : String(sample.sampleIndex);
-}
-
-function formatWiper(value) {
-  const wiper = Number(value);
-
-  return Number.isFinite(wiper) ? String(wiper) : "-";
-}
-
-function formatMultiplier(value) {
-  return Number.isFinite(value) ? `x${value.toFixed(3)}` : "-";
-}
-
-function formatCsvNumber(value, fractionDigits = 9) {
-  if (value === null || value === undefined || value === "") {
-    return "";
-  }
-
-  const number = Number(value);
-
-  return Number.isFinite(number) ? number.toFixed(fractionDigits) : "";
-}
-
-function csvCell(value) {
-  const text = value === null || value === undefined ? "" : String(value);
-
-  return /[",\n\r]/.test(text)
-    ? `"${text.replaceAll('"', '""')}"`
-    : text;
 }
 
 async function copyText(text) {

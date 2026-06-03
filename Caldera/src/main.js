@@ -45,8 +45,24 @@ function mountAnalysisView() {
 
   const analysisRoot = document.querySelector("[data-analysis-div]");
   const analysisPanel = new AnalysisPanel({ root: analysisRoot, webView });
+
   const handleAnalysisMessage = (message) => {
     if (!claimAnalysisMessage(message, seenAnalysisMessageIds)) {
+      return;
+    }
+
+    if (message.type === "loadCsv") {
+      try {
+        analysisPanel.loadCsv({
+          content: message.content,
+          filename: message.filename || "Dataset.csv",
+        });
+        if (message.filename) {
+          localStorage.setItem("caldera:lastCsv", message.filename);
+        }
+      } catch (error) {
+        analysisPanel.setBadge(error?.message || "load failed");
+      }
       return;
     }
 
@@ -69,11 +85,17 @@ function mountAnalysisView() {
   };
 
   analysisChannel.listen(handleAnalysisMessage);
+  webView.on("loadCsv", handleAnalysisMessage);
   webView.on("analysisClear", handleAnalysisMessage);
   webView.on("analysisSample", handleAnalysisMessage);
   webView.on("testStatus", handleAnalysisMessage);
 
   webView.postReady();
+
+  const lastCsv = localStorage.getItem("caldera:lastCsv");
+  if (lastCsv) {
+    webView.postRequestLoadCsv(lastCsv);
+  }
 }
 
 function mountCircuitView() {
@@ -525,44 +547,8 @@ function getAnalysisSectionHtml() {
             <div class="analysis-chart" data-analysis-chart></div>
           </section>
           <section class="analysis-panel__plot-row">
-            <aside class="analysis-panel__sidebar">
-              <button
-                class="analysis-stage-button analysis-stage-button--primary"
-                type="button"
-                data-analysis-stage-button="samples"
-              >
-                <span class="analysis-stage-button__label">1: Linear reduction</span>
-                <strong data-analysis-stage-value="samples">0</strong>
-                <span data-analysis-stage-detail="samples">raw rows</span>
-              </button>
-              <button
-                class="analysis-stage-button"
-                type="button"
-                data-analysis-stage-button="fits"
-              >
-                <span class="analysis-stage-button__label">2: Fit Multiplier</span>
-                <strong data-analysis-stage-value="fits">0</strong>
-                <span data-analysis-stage-detail="fits">config rows</span>
-              </button>
-              <button
-                class="analysis-stage-button"
-                type="button"
-                data-analysis-stage-button="gain"
-              >
-                <span class="analysis-stage-button__label">3: Fit Centre</span>
-                <strong data-analysis-stage-value="gain">-</strong>
-                <span data-analysis-stage-detail="gain">awaiting fits</span>
-              </button>
-              <button
-                class="analysis-stage-button"
-                type="button"
-                data-analysis-stage-button="offset"
-              >
-                <span class="analysis-stage-button__label">4: Final Validation</span>
-                <strong data-analysis-stage-value="offset">-</strong>
-                <span data-analysis-stage-detail="offset">awaiting fits</span>
-              </button>
-              <div class="analysis-stage-description" data-analysis-stage-description></div>
+            <aside class="analysis-panel__sidebar" data-analysis-stages-container>
+              <div class="analysis-stage-description" data-analysis-stage-description hidden></div>
             </aside>
             <div class="analysis-chart" data-analysis-stage-chart></div>
           </section>

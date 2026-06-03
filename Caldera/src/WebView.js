@@ -60,6 +60,13 @@ export class WebView {
     });
   }
 
+  postRequestLoadCsv(filename = "") {
+    return this.postMessage({
+      type: "requestLoadCsv",
+      filename,
+    });
+  }
+
   postOpenView(view) {
     return this.postMessage({
       type: "openView",

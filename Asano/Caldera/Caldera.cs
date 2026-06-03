@@ -228,6 +228,7 @@ namespace Asano.Caldera
             WebView.Settings.IsWebMessageEnabled = true;
             _ready = true;
             OnInit?.Invoke(this, EventArgs.Empty);
+
         }
 
         private void WebView_WebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
@@ -297,6 +298,9 @@ namespace Asano.Caldera
                 case "openView":
                     HandleOpenViewMessage(root);
                     break;
+                case "requestLoadCsv":
+                    HandleRequestLoadCsvMessage(root);
+                    break;
                 case "closeView":
                     HandleCloseViewMessage(root);
                     break;
@@ -345,6 +349,38 @@ namespace Asano.Caldera
                 view = CalderaView.Analysis;
 
             Control.CloseView(view);
+        }
+
+        private void HandleRequestLoadCsvMessage(JsonElement root)
+        {
+            string? filename = GetStringProperty(root, "filename");
+            if (!string.IsNullOrEmpty(filename) && File.Exists(filename))
+            {
+                PostLoadCsv(filename, File.ReadAllText(filename, CsvEncoding));
+                return;
+            }
+
+            using OpenFileDialog dialog = new OpenFileDialog
+            {
+                Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+                Title = "Load Caldera CSV"
+            };
+
+            if (dialog.ShowDialog(Control.FindForm()) == DialogResult.OK)
+            {
+                PostLoadCsv(dialog.FileName, File.ReadAllText(dialog.FileName, CsvEncoding));
+            }
+        }
+
+        private void PostLoadCsv(string filename, string content)
+        {
+            var json = JsonSerializer.Serialize(new
+            {
+                type = "loadCsv",
+                filename,
+                content
+            });
+            TryPostJson(json);
         }
 
         internal bool PostActiveViewsChanged(IEnumerable<CalderaView> activeViews)
