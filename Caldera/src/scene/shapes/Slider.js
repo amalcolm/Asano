@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import { COMPONENT_BLUE, COMPONENT_STROKE_WIDTH, makeFilledPolygon, makeLineLoop } from "../drawing.js";
 import { isKnownVoltage } from "../voltage.js";
 import { Shape } from "./Shape.js";
@@ -164,6 +165,14 @@ export class Slider extends Shape {
       && localPoint.y >= this.stepArrowY - this.stepArrowHalfHeight - padding
       && localPoint.y <= this.stepArrowY + this.stepArrowHalfHeight + padding
     );
+  }
+
+  getWiperStepAnchorWorldPoint(direction) {
+    return this.localToWorld(new THREE.Vector3(
+      this.wiperX + (direction > 0 ? this.stepArrowOffsetX : -this.stepArrowOffsetX),
+      this.stepArrowY,
+      0,
+    ));
   }
 
   getWiperDragOffset(worldPoint) {

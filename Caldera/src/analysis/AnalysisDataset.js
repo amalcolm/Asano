@@ -1,18 +1,36 @@
 import { DifferentialAmpSensorModel } from "../helpers/DifferentialAmpSensorModel.js";
 import { getModelWipers } from "../helpers/Wipers.js";
 import { isValidSensorVoltage } from "../model/voltage.js";
+import { DEFAULT_MODEL_MAPPING } from "./ModelMapping.js";
 
 export class AnalysisDataset {
   constructor({
+    modelMapping = DEFAULT_MODEL_MAPPING,
     sensorModel = new DifferentialAmpSensorModel(),
   } = {}) {
-    this.metadata = createCsvMetadata();
+    this.modelMapping = modelMapping;
+    this.metadata = createCsvMetadata({ modelMapping: this.modelMapping });
     this.sensorModel = sensorModel;
     this.samples = [];
   }
 
-  clear({ label = null, startedAt = Date.now() } = {}) {
-    this.metadata = createCsvMetadata({ label, startedAt });
+  clear({
+    category = null,
+    label = null,
+    name = null,
+    source = null,
+    startedAt = Date.now(),
+    testId = null,
+  } = {}) {
+    this.metadata = createCsvMetadata({
+      category,
+      label,
+      modelMapping: this.modelMapping,
+      name,
+      source,
+      startedAt,
+      testId,
+    });
     this.samples = [];
   }
 
@@ -141,13 +159,20 @@ export class AnalysisDataset {
       throw new Error("unsupported CSV");
     }
 
-    const source = inferCsvSource({ filename, kind, lookup, rows: parsedRows.slice(1) });
+    const source = inferCsvSource({
+      filename,
+      kind,
+      lookup,
+      modelMapping: this.modelMapping,
+      rows: parsedRows.slice(1),
+    });
     const startedAt = Date.now();
     const samples = parsedRows
       .slice(1)
       .map((row) => createSampleFromCsvRow(row, {
         kind,
         lookup,
+        modelMapping: this.modelMapping,
         sensorModel: this.sensorModel,
         source,
         startedAt,
@@ -159,7 +184,10 @@ export class AnalysisDataset {
     }
 
     this.metadata = createCsvMetadata({
+      filename,
       label: getCsvLabelFromFilename(filename),
+      modelMapping: this.modelMapping,
+      source,
       startedAt,
     });
     this.samples = samples;
@@ -211,6 +239,14 @@ export class AnalysisDataset {
 
   getCsvFilename() {
     return `${sanitiseFilename(this.getCsvName())}.csv`;
+  }
+
+  getAvailableModelTracks() {
+    return this.modelMapping.getModelTracks(this.metadata);
+  }
+
+  hasModelTrack(track) {
+    return this.modelMapping.hasModelTrack(this.metadata, track);
   }
 }
 
@@ -285,10 +321,33 @@ function formatDeltaTestCsvRow(sample) {
   ].join(",");
 }
 
-function createCsvMetadata({ label = null, startedAt = Date.now() } = {}) {
+function createCsvMetadata({
+  category = null,
+  filename = null,
+  label = null,
+  modelMapping = DEFAULT_MODEL_MAPPING,
+  name = null,
+  source = null,
+  startedAt = Date.now(),
+  testId = null,
+} = {}) {
+  const mappedDataset = modelMapping.resolveDataset({
+    category,
+    filename,
+    label,
+    name,
+    source,
+    testId,
+  });
+
   return {
-    label: normaliseCsvLabel(label),
+    category: mappedDataset.category,
+    label: mappedDataset.label,
+    modelTracks: mappedDataset.modelTracks,
+    name: mappedDataset.name,
+    source: mappedDataset.source,
     startedAt: getKnownTimestamp(startedAt) ?? Date.now(),
+    testId: mappedDataset.testId,
   };
 }
 
@@ -309,8 +368,8 @@ function sanitiseFilename(label) {
 }
 
 function getCsvLabelFromFilename(filename) {
-  return normaliseCsvLabel(String(filename ?? "")
-    .replace(/\.[^.\\/]+$/u, "")
+  return normaliseCsvLabel(getFilenameLeaf(filename)
+    .replace(/\.csv$/iu, "")
     .replace(/[_-]+/g, " "));
 }
 
@@ -367,6 +426,7 @@ function normalisePlot(plot, fallbackX, fallbackY) {
 function createSampleFromCsvRow(row, {
   kind,
   lookup,
+  modelMapping,
   sensorModel,
   source,
   startedAt,
@@ -447,7 +507,7 @@ function createSampleFromCsvRow(row, {
         ?? subtractKnown(sensor2Actual, sensor2Predicted),
     },
     source,
-    test: getTestNameForSource(source),
+    test: getTestNameForSource(source, modelMapping),
     timestamp,
     wipers,
   };
@@ -553,9 +613,19 @@ function inferCsvSource({
   filename,
   kind,
   lookup,
+  modelMapping = DEFAULT_MODEL_MAPPING,
   rows,
 }) {
-  const label = String(filename ?? "").toLowerCase();
+  const mappedSource = getCompatibleCsvSource(
+    modelMapping.resolveDataset({ filename })?.source,
+    kind,
+  );
+
+  if (mappedSource) {
+    return mappedSource;
+  }
+
+  const label = getFilenameLeaf(filename).toLowerCase();
 
   if (kind === CSV_KIND_DELTA) {
     if (label.includes("test4")) return "test4";
@@ -565,7 +635,7 @@ function inferCsvSource({
     return "test2";
   }
 
-  if (label.includes("test1")) return "test1";
+  if (label.includes("test1") || (label.includes("diff") && label.includes("amp"))) return "test1";
   if (label.includes("gain")) return "gain-mid-sweep";
   if (label.includes("offset")) return "offset-sweep";
   if (label.includes("mid")) return "mid-sweep";
@@ -607,19 +677,28 @@ function getDeltaCsvPlot(source, wipers, sensor2Delta) {
   };
 }
 
-function getTestNameForSource(source) {
-  switch (source) {
-    case "test1":
-      return "Test1";
-    case "test2":
-      return "Test2";
-    case "test3":
-      return "Test3";
-    case "test4":
-      return "Test4";
-    default:
-      return null;
+function getTestNameForSource(source, modelMapping = DEFAULT_MODEL_MAPPING) {
+  return modelMapping.getTestForSource(source)?.name ?? null;
+}
+
+function getCompatibleCsvSource(source, kind) {
+  if (!source) {
+    return null;
   }
+
+  if (kind === CSV_KIND_DELTA) {
+    return isDeltaSource(source) ? source : null;
+  }
+
+  return isDeltaSource(source) ? null : source;
+}
+
+function isDeltaSource(source) {
+  return source === "test2" || source === "test3" || source === "test4";
+}
+
+function getFilenameLeaf(filename) {
+  return String(filename ?? "").split(/[\\/]/u).pop() ?? "";
 }
 
 function getKnownVoltage(value) {

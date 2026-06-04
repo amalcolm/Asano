@@ -111,7 +111,7 @@ export class Test1Sweep extends Sweep {
     return {
       ledLabel: this.getCurrentConfigurationLabel(),
       ledState: this.getHardwareLedState(),
-      test: "Test1",
+      test: "Diff.Amp.",
     };
   }
 
@@ -138,7 +138,7 @@ export class Test1Sweep extends Sweep {
       return;
     }
 
-    this.button.textContent = this.timer ? "Stop Test1" : "Test1 calib";
+    this.button.textContent = this.timer ? "Stop Diff.Amp." : "Diff.Amp.";
     this.button.dataset.running = String(Boolean(this.timer));
   }
 }

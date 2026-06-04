@@ -3,9 +3,11 @@
   z-index: 10;
   top: 12px;
   left: 50%;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
   width: 30%;
-  height: 20%;
+  height: 26%;
   transform: translateX(-50%);
   border: 1px solid var(--panel-border);
   border-radius: 6px;
@@ -31,7 +33,8 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 8px;
+  margin-top: auto;
+  padding-top: 8px;
   font-weight: 700;
 }
 
@@ -40,27 +43,38 @@
   font-weight: 600;
 }
 
-.test-panel__groups {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  min-height: calc(100% - 48px);
-}
-
-.test-panel__group {
-  min-width: 0;
-}
-
-.test-panel__group-title {
-  margin: 0 0 6px;
-  color: var(--panel-muted);
-  font: inherit;
-  font-weight: 700;
-}
-
 .test-panel__actions {
   display: grid;
   gap: 6px;
+}
+
+.test-panel__matrix {
+  flex: 0 0 auto;
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 8px 0;
+}
+
+.test-panel__matrix th,
+.test-panel__matrix td {
+  padding: 0;
+  vertical-align: top;
+}
+
+.test-panel__matrix th {
+  color: var(--panel-muted);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+}
+
+.test-panel__matrix-row--heading th {
+  padding-bottom: 6px;
+}
+
+.test-panel__matrix-row--spaced th {
+  padding-top: 24px;
 }
 
 .test-panel__button {

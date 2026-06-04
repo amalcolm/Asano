@@ -74,6 +74,19 @@ export class Renderer {
     return this.worldPointer.clone();
   }
 
+  getClientPoint(worldPoint) {
+    const bounds = this.getCanvasBounds();
+
+    this.camera.updateMatrixWorld();
+
+    const projectedPoint = worldPoint.clone().project(this.camera);
+
+    return {
+      x: bounds.left + ((projectedPoint.x + 1) / 2) * bounds.width,
+      y: bounds.top + ((1 - projectedPoint.y) / 2) * bounds.height,
+    };
+  }
+
   updateMatrixWorld() {
     this.scene.updateMatrixWorld(true);
   }

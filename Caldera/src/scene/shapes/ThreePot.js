@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import { COMPONENT_BLUE, COMPONENT_STROKE_WIDTH, makeFilledPolygon, makeLine, updateLine } from "../drawing.js";
 import { Digipot } from "./Digipot.js";
 import { PoweredDigipot } from "./PoweredDigipot.js";
@@ -155,6 +156,16 @@ class LinkedWiperControl extends Shape {
     }
 
     return 0;
+  }
+
+  getWiperStepAnchorWorldPoint(direction) {
+    const { centerY } = this.getBracketPoints();
+
+    return this.localToWorld(new THREE.Vector3(
+      LINK_BRACKET_X,
+      centerY + (direction > 0 ? LINK_ARROW_OFFSET_Y : -LINK_ARROW_OFFSET_Y),
+      0,
+    ));
   }
 
   getWiperDragOffset(worldPoint) {

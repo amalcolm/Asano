@@ -97,15 +97,13 @@
 }
 
 .analysis-panel__test-status {
-  max-width: 220px;
+  min-width: 0;
   overflow: hidden;
   color: #aeb9c9;
   font-size: 12px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin-top: auto;
-  padding: 0 12px;
 }
 
 .analysis-panel__test-status[data-running="true"] {
@@ -149,20 +147,41 @@
   background: rgb(143 199 255 / 22%);
 }
 
+.analysis-panel__button:disabled {
+  opacity: 0.54;
+  cursor: default;
+}
+
+.analysis-panel__button:disabled:hover {
+  background: rgb(143 199 255 / 14%);
+}
+
+.analysis-panel__button[data-running="true"] {
+  border-color: rgb(255 207 90 / 42%);
+  background: rgb(255 207 90 / 15%);
+}
+
 .analysis-panel__body {
   display: grid;
-  grid-template-rows: repeat(2, minmax(250px, 1fr));
+  grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+  grid-template-rows: minmax(170px, 35%) minmax(76px, 8vh) minmax(0, 1fr) auto;
   gap: 16px;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   padding: 16px;
 }
 
 .analysis-panel__plot-row {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
   gap: 16px;
   min-height: 0;
+}
+
+.analysis-panel__plot-row--top {
+  grid-column: 1 / -1;
+  grid-row: 1;
 }
 
 .analysis-panel__sidebar {
@@ -170,15 +189,99 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  min-height: 0;
+}
+
+.analysis-panel__plot-row--top .analysis-panel__sidebar {
+  gap: 7px;
+  overflow: hidden;
+}
+
+.analysis-panel__plot-row--top .analysis-metric {
+  gap: 3px;
+  padding: 8px 10px;
+}
+
+.analysis-panel__plot-row--top .analysis-metric strong {
+  font-size: 18px;
+}
+
+.analysis-panel__plot-row--bottom .analysis-panel__sidebar {
+  grid-column: 1;
+  grid-row: 2 / 4;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  overflow-y: auto;
+  padding: 6px;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.analysis-panel__plot-row--bottom .analysis-panel__sidebar[data-active-model-track="math"] {
+  border-color: rgb(143 199 255 / 34%);
+  background: rgb(31 48 61);
+}
+
+.analysis-panel__plot-row--bottom .analysis-panel__sidebar[data-active-model-track="physics"] {
+  border-color: rgb(93 214 170 / 46%);
+  background: rgb(24 50 44);
+}
+
+.analysis-panel__plot-row--bottom {
+  display: contents;
+}
+
+.analysis-panel__plot-row--bottom .analysis-chart {
+  grid-column: 2;
+  grid-row: 3;
+  min-height: 0;
+}
+
+.analysis-control-panel {
+  display: block;
+  grid-column: 2;
+  grid-row: 2;
+  min-height: 0;
+}
+
+.analysis-control-panel__model-strip {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.analysis-control-panel__model-buttons {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.analysis-control-panel__model-buttons > .analysis-stage-button {
+  flex: 0 0 240px;
+  max-width: 100%;
+  width: 240px;
+}
+
+.analysis-control-panel__surface {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 6px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 7px;
+  background: rgb(255 255 255 / 3%);
 }
 
 .analysis-metric {
   display: grid;
   gap: 5px;
   padding: 12px;
-}
-
-.analysis-metric--primary {
 }
 
 .analysis-metric__label {
@@ -220,9 +323,73 @@
   background: rgb(93 214 170 / 13%);
 }
 
+.analysis-stage-button:disabled {
+  opacity: 0.56;
+  cursor: default;
+}
+
 .analysis-stage-button[data-processing="true"] {
   border-color: rgb(255 207 90 / 46%);
   background: rgb(255 207 90 / 13%);
+}
+
+.analysis-stage-button--math-model {
+  border-color: rgb(143 199 255 / 34%);
+  background: rgb(143 199 255 / 12%);
+}
+
+.analysis-stage-button--math-model:hover,
+.analysis-stage-button--math-model:focus-visible {
+  border-color: rgb(143 199 255 / 50%);
+  background: rgb(143 199 255 / 18%);
+}
+
+.analysis-stage-button--math-model[data-active="true"] {
+  border-color: rgb(143 199 255 / 50%);
+  background: rgb(143 199 255 / 18%);
+}
+
+.analysis-stage-button--physics-model {
+  border-color: rgb(93 214 170 / 46%);
+  background: rgb(93 214 170 / 13%);
+}
+
+.analysis-stage-button--physics-model:hover,
+.analysis-stage-button--physics-model:focus-visible {
+  border-color: rgb(93 214 170 / 56%);
+  background: rgb(93 214 170 / 18%);
+}
+
+.analysis-stage-button--physics-model[data-active="true"],
+.analysis-stage-button--physics-stage {
+  border-color: rgb(93 214 170 / 56%);
+  background: rgb(93 214 170 / 18%);
+}
+
+.analysis-stage-button--physics-stage[data-active="true"] {
+  border-color: rgb(93 214 170 / 52%);
+  background: rgb(93 214 170 / 15%);
+}
+
+.analysis-stage-button--formula-test {
+  border-color: rgb(255 149 0 / 38%);
+  background: rgb(255 149 0 / 12%);
+}
+
+.analysis-stage-button--formula-test:hover,
+.analysis-stage-button--formula-test:focus-visible {
+  border-color: rgb(255 149 0 / 54%);
+  background: rgb(255 149 0 / 18%);
+}
+
+.analysis-stage-button--formula-test[data-active="true"] {
+  border-color: rgb(255 45 85 / 58%);
+  background: rgb(255 45 85 / 18%);
+}
+
+.analysis-stage-button--formula-test:disabled {
+  opacity: 0.52;
+  cursor: default;
 }
 
 .analysis-stage-button__label,
@@ -252,6 +419,43 @@
   display: none !important;
 }
 
+.analysis-stage-button--model-indicator {
+  cursor: default;
+  pointer-events: none;
+  user-select: none;
+}
+
+.analysis-stage-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.analysis-panel__plot-row--bottom .analysis-stage-info {
+  gap: 8px;
+  max-height: 100%;
+  margin-top: auto;
+  overflow-y: auto;
+}
+
+.analysis-panel__plot-row--bottom .analysis-stage-info:not([hidden]) + .analysis-stage-description {
+  margin-top: 0;
+}
+
+.analysis-panel__plot-row--bottom .analysis-stage-button--formula-test {
+  flex: 0 0 auto;
+}
+
+.analysis-control-panel .analysis-stage-button {
+  min-height: 26px;
+  padding: 6px 10px;
+}
+
+.analysis-stage-info[hidden] {
+  display: none !important;
+}
+
 .analysis-stage-description {
   margin-top: auto;
   padding: 12px;
@@ -262,6 +466,41 @@
   font-size: 13px;
   line-height: 1.4;
   overflow-y: auto;
+}
+
+.analysis-stage-formulae {
+  position: absolute;
+  z-index: 30;
+  top: 42.5vh;
+  right: 13vw;
+  display: grid;
+  gap: 6px;
+  width: min(420px, 42vw);
+  border: 1px solid rgb(143 199 255 / 16%);
+  border-radius: 7px;
+  padding: 10px;
+  background: rgb(12 30 42 / 50%);
+  color: #d7dde8;
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 32%);
+}
+
+.analysis-stage-formulae[hidden] {
+  display: none !important;
+}
+
+.analysis-stage-formulae__title {
+  color: #8fc7ff;
+  font-weight: 800;
+}
+
+.analysis-stage-formulae code {
+  color: #ffffff;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .analysis-stage-description[hidden] {
@@ -294,6 +533,16 @@
   border-radius: 7px;
   overflow: hidden;
   background: #08141c;
+}
+
+.analysis-panel__status-bar {
+  display: flex;
+  grid-column: 1 / -1;
+  grid-row: 4;
+  align-items: center;
+  min-height: 24px;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+  padding: 0 2px;
 }
 
 .circuit-div {
@@ -348,14 +597,41 @@
   }
 
   .analysis-panel__body {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(180px, 28svh) auto minmax(76px, auto) minmax(260px, 1fr) auto;
     gap: 10px;
     padding: 10px;
+  }
+
+  .analysis-panel__plot-row--top {
+    grid-column: 1;
+    grid-row: 1;
   }
 
   .analysis-panel__plot-row {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(180px, 1fr);
     gap: 10px;
+  }
+
+  .analysis-control-panel {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .analysis-panel__plot-row--bottom .analysis-panel__sidebar {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .analysis-panel__plot-row--bottom .analysis-chart {
+    grid-column: 1;
+    grid-row: 4;
+  }
+
+  .analysis-panel__status-bar {
+    grid-column: 1;
+    grid-row: 5;
   }
 
   .analysis-panel__sidebar {

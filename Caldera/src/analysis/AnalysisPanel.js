@@ -1,9 +1,31 @@
 import Plotly from "plotly.js-dist-min";
 import { AnalysisDataset } from "./AnalysisDataset.js";
-import { formatMillivolts, getLinearFit } from "./AnalysisMath.js";
-import { DifferentialAmp } from "./modelling/DifferentialAmp.js";
+import { RAINBOW_COLORSCALE, formatMillivolts, getLinearFit } from "./AnalysisMath.js";
+import { MODEL_TRACKS } from "./ModelMapping.js";
+import { DifferentialAmp as MathDifferentialAmp } from "./modelling/math_DiffAmp.js";
+import {
+  DifferentialAmpPhysicsModel,
+  PHYSICS_STAGE_ONE_ID,
+  getPhysicsStageOneData,
+  getPhysicsStages,
+} from "./modelling/phys_DiffAmp.js";
+import { DifferentialAmpFormulaTester } from "./testing/math_DiffAmp.js";
 
 const EMPTY_AXIS_RANGE = [0, 3.3];
+const STAGE_TRACK_MATH = MODEL_TRACKS.MATH;
+const STAGE_TRACK_PHYSICS = MODEL_TRACKS.PHYSICS;
+const GAIN_MARKER_COLORS = Object.freeze([
+  "#ff3b30",
+  "#ff9500",
+  "#ffcc00",
+  "#34c759",
+  "#00c7be",
+  "#007aff",
+  "#5856d6",
+  "#af52de",
+  "#ff2d55",
+  "#ffffff",
+]);
 
 export class AnalysisPanel {
   constructor({
@@ -18,29 +40,52 @@ export class AnalysisPanel {
     this.chartRoot = root?.querySelector("[data-analysis-chart]");
     this.stageChartRoot = root?.querySelector("[data-analysis-stage-chart]");
     this.stageDescription = root?.querySelector("[data-analysis-stage-description]");
+    this.stageFormulae = root?.querySelector("[data-analysis-stage-formulae]");
     this.copyAnalysisButton = root?.querySelector("[data-analysis-copy-analysis]");
     this.loadButton = root?.querySelector("[data-analysis-load-csv]");
     this.loadInput = root?.querySelector("[data-analysis-load-csv-input]");
+    this.runStagesButton = root?.querySelector("[data-analysis-run-stages]");
 
     this.saveButton = root?.querySelector("[data-analysis-save-csv]");
     this.rangeCheckBadge = root?.querySelector("[data-analysis-range-check]");
     this.testStatus = root?.querySelector("[data-analysis-test-status]");
+    this.dynamicControls = root?.querySelector("[data-analysis-dynamic-controls]");
+    this.modelControls = root?.querySelector("[data-analysis-model-controls]");
     this.stagesContainer = root?.querySelector("[data-analysis-stages-container]");
     this.stageButtons = new Map();
     this.stageDetails = new Map();
+    this.formulaTestButton = null;
+    this.activeModelIndicator = null;
+    this.mathModelButton = null;
+    this.mathStageButtons = new Set();
+    this.physicsModelButton = null;
+    this.physicsStageButton = null;
+    this.physicsStageDetail = null;
+    this.physicsStageValue = null;
+    this.stageInfo = null;
     this.stageValues = new Map();
     this.rmsMetric = root?.querySelector("[data-analysis-rms]");
     this.samplesMetric = root?.querySelector("[data-analysis-samples]");
     this.slopeMetric = root?.querySelector("[data-analysis-slope]");
     this.slopeRatioMetric = root?.querySelector("[data-analysis-slope-ratio]");
 
-    this.model = new DifferentialAmp();
+    this.model = new MathDifferentialAmp();
+    this.physicsModel = new DifferentialAmpPhysicsModel();
+    this.formulaTester = new DifferentialAmpFormulaTester();
     this.resizeObserver = null;
     this.observedChartRoots = new Set();
     this.activeAnalysisStage = null;
+    this.activeStageTrack = null;
+    this.activePhysicsStage = null;
+    this.completedStageData = new Map();
     this.completedAnalysisStages = new Set();
+    this.isFormulaTesting = false;
     this.unlockedStages = new Set();
     this.isProcessing = false;
+    this.isPhysicsStageProcessing = false;
+    this.physicsStageRequestId = 0;
+    this.hasRenderedTopFitLines = false;
+    this.isRunningStages = false;
 
     this.loadButton?.addEventListener("click", () => {
       if (this.webView?.postRequestLoadCsv?.("")) {
@@ -52,6 +97,7 @@ export class AnalysisPanel {
     this.loadInput?.addEventListener("change", () => this.loadCsvFile());
     this.saveButton?.addEventListener("click", () => this.saveCsv());
     this.copyAnalysisButton?.addEventListener("click", () => this.copyAnalysis());
+    this.runStagesButton?.addEventListener("click", () => this.runAnalysisStages());
     this.renderStageButtons();
     this.render();
   }
@@ -60,6 +106,8 @@ export class AnalysisPanel {
     const sample = this.dataset.addSampleFromModel(sampleContext);
 
     this.model.clearCache();
+    this.completedStageData.clear();
+    this.hasRenderedTopFitLines = false;
     this.render();
 
     return sample;
@@ -70,14 +118,16 @@ export class AnalysisPanel {
 
     if (addedSample) {
       this.model.clearCache();
+      this.completedStageData.clear();
+      this.hasRenderedTopFitLines = false;
       this.render();
     }
 
     return addedSample;
   }
 
-  clear({ label = null } = {}) {
-    this.dataset.clear({ label });
+  clear(options = {}) {
+    this.dataset.clear(options);
     this.resetAnalysisState();
     this.render();
   }
@@ -89,18 +139,37 @@ export class AnalysisPanel {
     const result = this.dataset.loadCsv({ content, filename });
 
     this.resetAnalysisState();
-    this.render();
+    this.clearTopChart();
+    this.render({ updateTopChart: false });
+    this.queueTopFitLineRender();
+    this.setBadge(`${result.imported} loaded${result.skipped ? `, ${result.skipped} skipped` : ""}`);
 
     return result;
   }
 
   resetAnalysisState() {
     this.model.clearCache();
+    this.completedStageData.clear();
+    this.activeStageTrack = null;
+    this.activePhysicsStage = null;
     this.activeAnalysisStage = null;
     this.completedAnalysisStages.clear();
+    this.formulaTester.setEnabled(false);
+    this.formulaTester.setModel(null);
     this.unlockedStages.clear();
+    this.isFormulaTesting = false;
     this.isProcessing = false;
+    this.isPhysicsStageProcessing = false;
+    this.physicsStageRequestId += 1;
+    this.hasRenderedTopFitLines = false;
+    this.isRunningStages = false;
     this.resetStageButtonSummaries();
+    this.updateFormulaTestButton();
+    this.updateRunStagesButton();
+  }
+
+  hasModelTrack(track) {
+    return this.dataset.hasModelTrack?.(track) === true;
   }
 
   resetStageButtonSummaries() {
@@ -129,23 +198,94 @@ export class AnalysisPanel {
       this.stageDescription.hidden = true;
       this.stageDescription.innerHTML = "";
     }
+
+    if (this.stageFormulae) {
+      this.updateFormulaeVisibility();
+    } else {
+      this.updateStageInfoVisibility();
+    }
+  }
+
+  toggleFormulaTesting() {
+    if (!this.hasCompletedFinalStage()) {
+      this.setBadge("complete modelling stages before testing formulae");
+      return;
+    }
+
+    if (!this.updateFormulaModelIfReady()) {
+      this.setBadge("run stages before testing formulae");
+      return;
+    }
+
+    this.isFormulaTesting = !this.isFormulaTesting;
+    this.formulaTester.setEnabled(this.isFormulaTesting);
+    this.updateFormulaTestButton();
+
+    if (this.isFormulaTesting) {
+      this.render({ updateStageButtons: false });
+    }
+  }
+
+  handleFormulaTelemetry(message = {}) {
+    const sample = this.formulaTester.updateTelemetry({
+      settled: message.settled === true,
+      voltages: message.voltages,
+      wipers: message.wipers,
+    });
+
+    if (sample && this.isFormulaTesting) {
+      this.renderCorrectionChart(this.formulaTester.getCorrectionChartData());
+      this.renderStageChart(this.formulaTester.getChartData());
+      this.updateFormulaTestButton();
+    }
+  }
+
+  hasCompletedFinalStage() {
+    const stages = this.model.getStages();
+    const finalStage = stages[stages.length - 1];
+
+    return Boolean(finalStage && this.completedAnalysisStages.has(finalStage.id));
+  }
+
+  hasCompletedMathStageOne() {
+    return this.completedAnalysisStages.has("samples")
+      && this.completedStageData.has("samples");
+  }
+
+  updateFormulaModelIfReady(plottableSamples = null) {
+    if (!this.hasCompletedFinalStage()) {
+      this.formulaTester.setModel(null);
+      return false;
+    }
+
+    const samples = plottableSamples
+      ?? this.dataset.getAnalysisSamples().filter((sample) => sample.isPlottable);
+
+    return this.formulaTester.setModel(this.model.getModel(samples));
   }
 
   selectAnalysisStage(stageId) {
-    if (this.isProcessing) return;
+    if (this.isProcessing) return Promise.resolve(false);
 
     const stages = this.model.getStages();
     const stageIds = stages.map((stage) => stage.id);
     if (!stageIds.includes(stageId) || stageId === this.activeAnalysisStage || !this.unlockedStages.has(stageId)) {
-      return;
+      return Promise.resolve(false);
     }
 
+    this.activeStageTrack = STAGE_TRACK_MATH;
+    this.activePhysicsStage = null;
     this.isProcessing = true;
+    this.updateRunStagesButton();
     this.activeAnalysisStage = stageId;
     if (this.completedAnalysisStages.has(stageId)) {
-      this.render();
+      if (!this.renderCompletedAnalysisStage(stageId)) {
+        const renderResult = this.render({ updateTopChart: false });
+        this.cacheStageData(renderResult?.analysis?.stages);
+      }
       this.isProcessing = false;
-      return;
+      this.updateRunStagesButton();
+      return Promise.resolve(true);
     }
 
     const button = this.stageButtons.get(stageId);
@@ -161,12 +301,24 @@ export class AnalysisPanel {
       ? stageIds[stageIndex + 1]
       : null;
 
-    requestAnimationFrame(() => {
-      setTimeout(() => this.finishAnalysisStageSelection({ button, nextStageId, stageId }), 10);
+    return new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        setTimeout(() => this.finishAnalysisStageSelection({
+          button,
+          nextStageId,
+          resolve,
+          stageId,
+        }), 10);
+      });
     });
   }
 
-  finishAnalysisStageSelection({ button, nextStageId, stageId }) {
+  finishAnalysisStageSelection({
+    button,
+    nextStageId,
+    resolve = () => {},
+    stageId,
+  }) {
     let renderResult = null;
 
     try {
@@ -174,10 +326,11 @@ export class AnalysisPanel {
         this.unlockedStages.add(nextStageId);
       }
 
-      renderResult = this.render({ updateStageButtons: false });
+      renderResult = this.render({ updateStageButtons: false, updateTopChart: false });
     } catch (error) {
       this.setBadge(error?.message || "analysis failed");
       this.finishStageProcessing(button);
+      resolve(false);
       return;
     }
 
@@ -187,8 +340,11 @@ export class AnalysisPanel {
       })
       .finally(() => {
         this.completedAnalysisStages.add(stageId);
+        this.cacheStageData(renderResult?.analysis?.stages);
+        this.updateFormulaModelIfReady();
         this.updateStageButtons(renderResult?.analysis?.stages);
         this.finishStageProcessing(button);
+        resolve(true);
       });
   }
 
@@ -198,6 +354,71 @@ export class AnalysisPanel {
     }
 
     this.isProcessing = false;
+    this.updateRunStagesButton();
+  }
+
+  async runAnalysisStages() {
+    if (this.isRunningStages || this.isProcessing || this.isPhysicsStageProcessing) {
+      return;
+    }
+
+    if (!this.dataset.getAnalysisSamples().length) {
+      this.setBadge("load data before running a stage");
+      return;
+    }
+
+    if (!this.hasModelTrack(STAGE_TRACK_MATH)) {
+      this.setBadge("no model stages for this dataset");
+      return;
+    }
+
+    const nextStage = this.getNextAutoRunnableStage();
+
+    if (!nextStage) {
+      this.setBadge("stages already run");
+      return;
+    }
+
+    this.isRunningStages = true;
+    this.updateRunStagesButton();
+
+    try {
+      const completed = await this.selectAnalysisStage(nextStage.id);
+      this.setBadge(completed ? `${nextStage.label} complete` : "stage not run");
+    } finally {
+      this.isRunningStages = false;
+      this.updateRunStagesButton();
+    }
+  }
+
+  getNextAutoRunnableStage() {
+    if (!this.hasModelTrack(STAGE_TRACK_MATH)) {
+      return null;
+    }
+
+    return this.model.getStages().find((stage) => (
+      stage.isAutoRunnable !== false
+        && this.unlockedStages.has(stage.id)
+        && !this.completedAnalysisStages.has(stage.id)
+    )) ?? null;
+  }
+
+  updateRunStagesButton() {
+    if (!this.runStagesButton) {
+      return;
+    }
+
+    const hasSamples = this.dataset.getAnalysisSamples().length > 0;
+    const hasRunnableModel = this.hasModelTrack(STAGE_TRACK_MATH)
+      && this.activeStageTrack === STAGE_TRACK_MATH;
+
+    this.runStagesButton.disabled = this.isRunningStages
+      || this.isProcessing
+      || this.isPhysicsStageProcessing
+      || !hasSamples
+      || !hasRunnableModel;
+    this.runStagesButton.dataset.running = String(this.isRunningStages);
+    this.runStagesButton.textContent = this.isRunningStages ? "Running stage" : "Run next stage";
   }
 
   setTestStatus({
@@ -270,13 +491,19 @@ export class AnalysisPanel {
     return this.model.getAnalysisCsv(this.dataset.getAnalysisSamples());
   }
 
-  render({ updateStageButtons = true } = {}) {
+  render({
+    includeTopFitLines = false,
+    updateStageButtons = true,
+    updateStageChart = true,
+    updateTopChart = true,
+  } = {}) {
     const samples = this.dataset.getAnalysisSamples();
+    const hasMathTrack = this.hasModelTrack(STAGE_TRACK_MATH);
 
     const stageIds = this.model.getStages().map((stage) => stage.id);
-    if (samples.length > 0 && this.unlockedStages.size === 0) {
+    if (samples.length > 0 && hasMathTrack && this.unlockedStages.size === 0) {
       this.unlockedStages.add(stageIds[0]);
-    } else if (samples.length === 0) {
+    } else if (samples.length === 0 || !hasMathTrack) {
       this.unlockedStages.clear();
       this.completedAnalysisStages.clear();
       this.activeAnalysisStage = null;
@@ -293,30 +520,288 @@ export class AnalysisPanel {
       plottableSamples,
       this.unlockedStages,
       this.completedAnalysisStages,
+      { includeFitLines: updateTopChart && includeTopFitLines },
     );
+    this.cacheStageData(analysis.stages);
+    const physicsStageData = this.activeStageTrack === STAGE_TRACK_PHYSICS
+      ? this.getCachedPhysicsStageOneData(analysis.stages?.get("samples"))
+      : null;
+    const hasFormulaModel = this.updateFormulaModelIfReady(plottableSamples);
     const fit = getLinearFit(plottableSamples);
     const axisRanges = getAxisRanges({ fitLines: analysis.fitLines, plottableSamples, predictedSamples });
 
+    if (!hasFormulaModel && this.isFormulaTesting) {
+      this.isFormulaTesting = false;
+      this.formulaTester.setEnabled(false);
+    }
+
     this.updateMetrics({ fit, plottableSamples, samples });
     if (updateStageButtons) {
-      this.updateStageButtons(analysis.stages);
+      if (this.activeStageTrack === STAGE_TRACK_PHYSICS) {
+        this.updatePhysicsStageButtons(physicsStageData);
+      } else {
+        this.updateStageButtons(analysis.stages);
+      }
     }
-    const chartRender = this.renderChart({ axisRanges, fitLines: analysis.fitLines, plottableSamples, predictedSamples });
-    const stageRender = this.renderStageChart(analysis.stage);
+    this.updateFormulaeVisibility();
+    const chartRender = updateTopChart
+      ? (
+        this.isFormulaTesting
+          ? this.renderCorrectionChart(this.formulaTester.getCorrectionChartData())
+          : this.renderChart({ axisRanges, fitLines: analysis.fitLines, plottableSamples, predictedSamples })
+      )
+      : null;
+    if (updateTopChart && includeTopFitLines && !this.isFormulaTesting) {
+      this.hasRenderedTopFitLines = true;
+    }
+    const stageRender = updateStageChart
+      ? this.renderStageChart(
+        physicsStageData ?? (this.isFormulaTesting ? this.formulaTester.getChartData() : analysis.stage),
+      )
+      : null;
+    this.updateFormulaTestButton();
+    this.updateRunStagesButton();
 
     return { analysis, chartRender, stageRender };
+  }
+
+  queueTopFitLineRender() {
+    if (this.hasRenderedTopFitLines
+      || !this.chartRoot
+      || !this.dataset.getAnalysisSamples().some((sample) => sample.isPlottable)
+      || this.isFormulaTesting) {
+      return;
+    }
+
+    this.hasRenderedTopFitLines = true;
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (!this.chartRoot
+          || !this.dataset.getAnalysisSamples().some((sample) => sample.isPlottable)
+          || this.isFormulaTesting) {
+          this.hasRenderedTopFitLines = false;
+          return;
+        }
+
+        try {
+          this.render({
+            includeTopFitLines: true,
+            updateStageButtons: false,
+            updateStageChart: false,
+            updateTopChart: true,
+          });
+        } catch (error) {
+          this.hasRenderedTopFitLines = false;
+          this.setBadge(error?.message || "fit line render failed");
+        }
+      }, 0);
+    });
+  }
+
+  clearTopChart() {
+    if (this.chartRoot) {
+      Plotly.purge(this.chartRoot);
+    }
+  }
+
+  renderCompletedAnalysisStage(stageId) {
+    const stageData = this.completedStageData.get(stageId);
+
+    if (!stageData) {
+      return false;
+    }
+
+    this.updateStageButtons(this.completedStageData);
+    this.renderStageChart(stageData);
+    this.updateFormulaTestButton();
+    this.updateRunStagesButton();
+    return true;
+  }
+
+  cacheStageData(stageDataById) {
+    if (!stageDataById) {
+      return;
+    }
+
+    for (const [stageId, stageData] of stageDataById) {
+      if (stageData) {
+        this.completedStageData.set(stageId, stageData);
+      }
+    }
+  }
+
+  activatePhysicsModelTrack() {
+    if (this.isProcessing || this.isPhysicsStageProcessing) {
+      return;
+    }
+
+    if (!this.hasModelTrack(STAGE_TRACK_PHYSICS)) {
+      this.setBadge("physics model unavailable for this dataset");
+      return;
+    }
+
+    if (!this.dataset.getAnalysisSamples().length) {
+      this.setBadge("load data before opening physics model");
+      return;
+    }
+
+    this.activeStageTrack = STAGE_TRACK_PHYSICS;
+    this.activePhysicsStage = null;
+    this.activeAnalysisStage = null;
+
+    this.updatePhysicsStageButtons(null);
+    this.updateFormulaeVisibility();
+    this.updateRunStagesButton();
+    this.setBadge("physics model opened");
+  }
+
+  runPhysicsStageOneSelection() {
+    if (this.isProcessing || this.isPhysicsStageProcessing) {
+      return;
+    }
+
+    if (!this.hasModelTrack(STAGE_TRACK_PHYSICS)) {
+      this.setBadge("physics model unavailable for this dataset");
+      return;
+    }
+
+    if (!this.dataset.getAnalysisSamples().length) {
+      this.setBadge("load data before running physics stage");
+      return;
+    }
+
+    this.activeStageTrack = STAGE_TRACK_PHYSICS;
+    this.activePhysicsStage = PHYSICS_STAGE_ONE_ID;
+    this.activeAnalysisStage = null;
+    this.isPhysicsStageProcessing = true;
+    const requestId = ++this.physicsStageRequestId;
+    this.setBadge("reducing math stage 1 for physics model");
+    this.updatePhysicsStageButtons(null, { processing: true });
+    this.updateRunStagesButton();
+
+    requestAnimationFrame(() => {
+      setTimeout(() => this.finishPhysicsStageOneSelection(requestId), 0);
+    });
+  }
+
+  activateMathModelTrack() {
+    if (!this.hasModelTrack(STAGE_TRACK_MATH)) {
+      this.setBadge("math model unavailable for this dataset");
+      return;
+    }
+
+    this.isPhysicsStageProcessing = false;
+    this.physicsStageRequestId += 1;
+    this.activeStageTrack = STAGE_TRACK_MATH;
+    this.activePhysicsStage = null;
+    this.render({ updateStageButtons: true, updateTopChart: false });
+    this.setBadge("math model opened");
+  }
+
+  togglePhysicsModelTrack() {
+    if (this.activeStageTrack === STAGE_TRACK_PHYSICS) {
+      this.activateMathModelTrack();
+      return;
+    }
+
+    this.activatePhysicsModelTrack();
+  }
+
+  getCachedPhysicsStageOneData(mathStageData = null) {
+    const sourceStageData = this.hasCompletedMathStageOne()
+      ? mathStageData ?? this.completedStageData.get("samples") ?? null
+      : null;
+
+    return getPhysicsStageOneData(sourceStageData);
+  }
+
+  getPhysicsStageOneData(mathStageData = null) {
+    const sourceStageData = mathStageData ?? this.ensureMathStageOneData();
+
+    return getPhysicsStageOneData(sourceStageData);
+  }
+
+  finishPhysicsStageOneSelection(requestId) {
+    if (requestId !== this.physicsStageRequestId || this.activeStageTrack !== STAGE_TRACK_PHYSICS) {
+      return;
+    }
+
+    let stageData = null;
+
+    try {
+      stageData = this.getPhysicsStageOneData();
+    } catch (error) {
+      this.setBadge(error?.message || "physics stage failed");
+    } finally {
+      this.isPhysicsStageProcessing = false;
+    }
+
+    if (requestId !== this.physicsStageRequestId || this.activeStageTrack !== STAGE_TRACK_PHYSICS) {
+      return;
+    }
+
+    this.updatePhysicsStageButtons(stageData);
+    this.renderStageChart(stageData);
+    this.updateFormulaeVisibility();
+    this.updateRunStagesButton();
+    this.setBadge(stageData?.traces?.length ? "physics model opened" : "physics model awaiting math stage 1");
+  }
+
+  ensureMathStageOneData() {
+    const cachedStage = this.completedStageData.get("samples");
+
+    if (this.hasCompletedMathStageOne() && cachedStage) {
+      return cachedStage;
+    }
+
+    const samples = this.dataset.getAnalysisSamples();
+    const plottableSamples = samples.filter((sample) => sample.isPlottable);
+
+    if (!plottableSamples.length) {
+      return null;
+    }
+
+    const unlockedStages = new Set(this.unlockedStages);
+    const completedStages = new Set(this.completedAnalysisStages);
+
+    unlockedStages.add("samples");
+
+    const analysis = this.model.getAnalysis("samples", plottableSamples, unlockedStages, completedStages);
+    const stageData = analysis.stages?.get("samples") ?? analysis.stage ?? null;
+
+    if (stageData) {
+      this.unlockedStages.add("samples");
+      this.unlockedStages.add("fits");
+      this.completedAnalysisStages.add("samples");
+      this.completedStageData.set("samples", stageData);
+      this.cacheStageData(analysis.stages);
+    }
+
+    return stageData;
   }
 
   renderStageButtons() {
     if (!this.stagesContainer) return;
 
-    // Keep the description element if it exists
+    // Stage buttons stay in the lower side panel; model-track controls live above the graph.
     const descriptionEl = this.stagesContainer.querySelector("[data-analysis-stage-description]");
     this.stagesContainer.innerHTML = "";
+    if (this.dynamicControls && this.dynamicControls !== this.stagesContainer) {
+      this.dynamicControls.innerHTML = "";
+    }
+    if (this.modelControls && this.modelControls !== this.stagesContainer) {
+      this.modelControls.innerHTML = "";
+    }
 
     this.stageButtons.clear();
+    this.mathStageButtons.clear();
     this.stageValues.clear();
     this.stageDetails.clear();
+
+    this.activeModelIndicator = document.createElement("div");
+    this.activeModelIndicator.className = "analysis-stage-button analysis-stage-button--model-indicator";
+    this.activeModelIndicator.hidden = true;
+    this.stagesContainer.appendChild(this.activeModelIndicator);
 
     const stages = this.model.getStages();
     stages.forEach((stage) => {
@@ -353,15 +838,91 @@ export class AnalysisPanel {
 
       this.stagesContainer.appendChild(button);
 
+      this.mathStageButtons.add(button);
       this.stageButtons.set(stage.id, button);
       this.stageValues.set(stage.id, valueStrong);
       this.stageDetails.set(stage.id, detailSpan);
     });
 
+    this.renderPhysicsStageButton();
+
+    this.mathModelButton = document.createElement("button");
+    this.mathModelButton.className = "analysis-stage-button analysis-stage-button--math-model";
+    this.mathModelButton.hidden = true;
+    this.mathModelButton.type = "button";
+    this.mathModelButton.textContent = "Math Model";
+    this.mathModelButton.addEventListener("click", () => this.activateMathModelTrack());
+
+    this.physicsModelButton = document.createElement("button");
+    this.physicsModelButton.className = "analysis-stage-button analysis-stage-button--physics-model";
+    this.physicsModelButton.hidden = true;
+    this.physicsModelButton.type = "button";
+    this.physicsModelButton.textContent = "Physics Model";
+    this.physicsModelButton.addEventListener("click", () => this.activatePhysicsModelTrack());
+
+    this.formulaTestButton = document.createElement("button");
+    this.formulaTestButton.className = "analysis-stage-button analysis-stage-button--formula-test";
+    this.formulaTestButton.type = "button";
+    this.formulaTestButton.textContent = "Test Formulae";
+    this.formulaTestButton.addEventListener("click", () => this.toggleFormulaTesting());
+
+    const infoGroup = document.createElement("div");
+    infoGroup.className = "analysis-stage-info";
+    this.stageInfo = infoGroup;
+
+    infoGroup.appendChild(this.formulaTestButton);
+    this.updateFormulaTestButton();
+
+    this.stagesContainer.appendChild(infoGroup);
+
     if (descriptionEl) {
       this.stagesContainer.appendChild(descriptionEl);
       this.stageDescription = descriptionEl;
     }
+
+    (this.modelControls ?? this.stagesContainer).append(
+      this.mathModelButton,
+      this.physicsModelButton,
+    );
+    this.updateModelTrackControls();
+    this.updateFormulaeVisibility();
+  }
+
+  renderPhysicsStageButton() {
+    const stage = getPhysicsStages()[0];
+    const button = document.createElement("button");
+    const labelSpan = document.createElement("span");
+    const valueStrong = document.createElement("strong");
+    const detailSpan = document.createElement("span");
+
+    button.className = "analysis-stage-button analysis-stage-button--physics-stage";
+    button.hidden = true;
+    button.type = "button";
+    button.dataset.physicsStageButton = stage.id;
+
+    labelSpan.className = "analysis-stage-button__label";
+    labelSpan.textContent = stage.label;
+
+    valueStrong.textContent = "-";
+    detailSpan.textContent = stage.defaultDetail;
+
+    button.appendChild(labelSpan);
+    button.appendChild(valueStrong);
+    button.appendChild(detailSpan);
+    button.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      this.runPhysicsStageOneSelection();
+    });
+    button.addEventListener("click", (event) => {
+      if (event.detail === 0) {
+        this.runPhysicsStageOneSelection();
+      }
+    });
+
+    this.stagesContainer.appendChild(button);
+    this.physicsStageButton = button;
+    this.physicsStageValue = valueStrong;
+    this.physicsStageDetail = detailSpan;
   }
 
   updateMetrics({ fit, plottableSamples, samples }) {
@@ -391,6 +952,25 @@ export class AnalysisPanel {
   }
 
   updateStageButtons(stageDataById) {
+    const isMathTrack = this.hasModelTrack(STAGE_TRACK_MATH)
+      && this.activeStageTrack === STAGE_TRACK_MATH;
+
+    if (!isMathTrack) {
+      this.setMathStageButtonsHidden(true);
+      this.updatePhysicsStageButtons(null);
+
+      if (this.stageDescription && this.activeStageTrack !== STAGE_TRACK_PHYSICS) {
+        this.stageDescription.hidden = true;
+        this.stageDescription.innerHTML = "";
+      }
+
+      this.updateFormulaeVisibility();
+      return;
+    }
+
+    this.setMathStageButtonsHidden(false);
+    this.updatePhysicsStageButtons(null);
+
     const stages = this.model.getStages();
     const activeStageData = this.activeAnalysisStage
       ? stageDataById?.get(this.activeAnalysisStage) ?? null
@@ -424,9 +1004,173 @@ export class AnalysisPanel {
     });
 
     if (this.stageDescription) {
-      this.stageDescription.hidden = !this.activeAnalysisStage;
+      this.stageDescription.hidden = !this.activeAnalysisStage || !activeStageData?.description;
       this.stageDescription.innerHTML = activeStageData?.description ?? "";
     }
+
+    this.updateFormulaeVisibility();
+  }
+
+  updatePhysicsStageButtons(stageData, { processing = false } = {}) {
+    const hasMathTrack = this.hasModelTrack(STAGE_TRACK_MATH);
+    const hasPhysicsTrack = this.hasModelTrack(STAGE_TRACK_PHYSICS);
+    const isMathTrack = hasMathTrack && this.activeStageTrack === STAGE_TRACK_MATH;
+    const isPhysicsTrack = hasPhysicsTrack && this.activeStageTrack === STAGE_TRACK_PHYSICS;
+
+    this.setMathStageButtonsHidden(!isMathTrack);
+
+    if (this.physicsStageButton) {
+      const isStageActive = isPhysicsTrack && (processing || Boolean(stageData));
+
+      this.physicsStageButton.hidden = !isPhysicsTrack;
+      this.physicsStageButton.dataset.active = String(isStageActive);
+      this.physicsStageButton.dataset.processing = String(isPhysicsTrack && processing);
+      this.physicsStageButton.setAttribute("aria-pressed", String(isStageActive));
+    }
+
+    if (this.physicsStageValue) {
+      this.physicsStageValue.textContent = isPhysicsTrack
+        ? (processing ? "..." : stageData?.value ?? "-")
+        : "-";
+    }
+
+    if (this.physicsStageDetail) {
+      this.physicsStageDetail.textContent = isPhysicsTrack
+        ? (processing ? "reducing math stage 1" : stageData?.detail ?? "uses math stage 1")
+        : "uses math stage 1";
+    }
+
+    if (this.stageDescription && isPhysicsTrack) {
+      this.stageDescription.hidden = !stageData?.description;
+      this.stageDescription.innerHTML = stageData?.description ?? "";
+    }
+
+    this.updateModelTrackControls();
+    this.updateFormulaeVisibility();
+  }
+
+  updateModelTrackControls() {
+    const hasMathTrack = this.hasModelTrack(STAGE_TRACK_MATH);
+    const hasPhysicsTrack = this.hasModelTrack(STAGE_TRACK_PHYSICS);
+    const isMathTrack = !this.isFormulaTesting
+      && hasMathTrack
+      && this.activeStageTrack === STAGE_TRACK_MATH;
+    const isPhysicsTrack = !this.isFormulaTesting
+      && hasPhysicsTrack
+      && this.activeStageTrack === STAGE_TRACK_PHYSICS;
+
+    if (this.mathModelButton) {
+      this.mathModelButton.hidden = !hasMathTrack;
+      this.mathModelButton.disabled = isMathTrack;
+      this.mathModelButton.dataset.active = String(isMathTrack);
+      this.mathModelButton.setAttribute("aria-pressed", String(isMathTrack));
+    }
+
+    if (this.physicsModelButton) {
+      this.physicsModelButton.hidden = !hasPhysicsTrack;
+      this.physicsModelButton.disabled = isPhysicsTrack;
+      this.physicsModelButton.dataset.active = String(isPhysicsTrack);
+      this.physicsModelButton.setAttribute("aria-pressed", String(isPhysicsTrack));
+    }
+
+    this.updateActiveModelIndicator();
+  }
+
+  updateActiveModelIndicator() {
+    if (!this.activeModelIndicator) {
+      return;
+    }
+
+    const isMathTrack = !this.isFormulaTesting
+      && this.hasModelTrack(STAGE_TRACK_MATH)
+      && this.activeStageTrack === STAGE_TRACK_MATH;
+    const isPhysicsTrack = !this.isFormulaTesting
+      && this.hasModelTrack(STAGE_TRACK_PHYSICS)
+      && this.activeStageTrack === STAGE_TRACK_PHYSICS;
+
+    if (this.stagesContainer) {
+      const activeTrack = isMathTrack
+        ? STAGE_TRACK_MATH
+        : (isPhysicsTrack ? STAGE_TRACK_PHYSICS : "");
+
+      if (activeTrack) {
+        this.stagesContainer.dataset.activeModelTrack = activeTrack;
+      } else {
+        delete this.stagesContainer.dataset.activeModelTrack;
+      }
+    }
+
+    this.activeModelIndicator.hidden = !isMathTrack && !isPhysicsTrack;
+    this.activeModelIndicator.className = [
+      "analysis-stage-button",
+      "analysis-stage-button--model-indicator",
+      isMathTrack ? "analysis-stage-button--math-model" : "",
+      isPhysicsTrack ? "analysis-stage-button--physics-model" : "",
+    ].filter(Boolean).join(" ");
+    this.activeModelIndicator.dataset.active = String(isMathTrack || isPhysicsTrack);
+    this.activeModelIndicator.textContent = isPhysicsTrack ? "Physics Model" : "Math Model";
+  }
+
+  setMathStageButtonsHidden(hidden) {
+    this.mathStageButtons.forEach((button) => {
+      button.hidden = hidden || !this.unlockedStages.has(button.dataset.analysisStageButton);
+    });
+  }
+
+  updateFormulaeVisibility() {
+    if (this.hasCompletedFinalStage()) {
+      this.updateFormulaModelIfReady();
+    }
+
+    const formulae = this.hasCompletedFinalStage() ? this.formulaTester.getFormulae() : "";
+    const visible = Boolean(formulae);
+
+    if (this.formulaTestButton) {
+      this.formulaTestButton.hidden = !visible || this.activeStageTrack === STAGE_TRACK_PHYSICS;
+    }
+
+    if (!visible && this.isFormulaTesting) {
+      this.isFormulaTesting = false;
+      this.formulaTester.setEnabled(false);
+      this.updateFormulaTestButton();
+    }
+
+    this.updateFormulaTestButton();
+
+    if (!this.stageFormulae) {
+      this.updateStageInfoVisibility();
+      return;
+    }
+
+    this.stageFormulae.hidden = !formulae;
+    this.stageFormulae.innerHTML = formulae;
+    this.updateStageInfoVisibility();
+  }
+
+  updateStageInfoVisibility() {
+    if (!this.stageInfo) {
+      return;
+    }
+
+    const hasFormulaTest = Boolean(this.formulaTestButton && !this.formulaTestButton.hidden);
+
+    this.stageInfo.hidden = !hasFormulaTest;
+  }
+
+  updateFormulaTestButton() {
+    if (!this.formulaTestButton) {
+      return;
+    }
+
+    const hasModel = Boolean(this.formulaTester.getModel());
+    const sampleCount = this.formulaTester.samples.length;
+
+    this.formulaTestButton.disabled = !hasModel;
+    this.formulaTestButton.dataset.active = String(this.isFormulaTesting);
+    this.formulaTestButton.textContent = sampleCount
+      ? `Test Formulae (${sampleCount})`
+      : "Test Formulae";
+    this.updateModelTrackControls();
   }
 
   setBadge(text) {
@@ -474,21 +1218,33 @@ export class AnalysisPanel {
         x: plottableSamples.map((sample) => sample.plot.x),
         y: plottableSamples.map((sample) => sample.plot.y),
       },
-      ...fitLines.map((fitLine) => ({
-        hoverinfo: "skip",
-        line: { color: fitLine.color, dash: "dot", width: 2 },
-        mode: "lines",
-        name: fitLine.name,
-        type: "scatter",
-        x: fitLine.lineX,
-        y: fitLine.lineY,
-      })),
+      ...getTopFitLineTraces(fitLines),
     ];
 
     const renderPromise = Plotly.react(this.chartRoot, traces, getChartLayout(axisRanges, predictionArrows, plotLabels), {
       displaylogo: false,
       responsive: true,
     });
+
+    this.observeChartRoot(this.chartRoot);
+
+    return renderPromise;
+  }
+
+  renderCorrectionChart(correctionChartData) {
+    if (!this.chartRoot) {
+      return;
+    }
+
+    const renderPromise = Plotly.react(
+      this.chartRoot,
+      correctionChartData.traces ?? [],
+      getStageChartLayout(correctionChartData),
+      {
+        displaylogo: false,
+        responsive: true,
+      },
+    );
 
     this.observeChartRoot(this.chartRoot);
 
@@ -566,28 +1322,50 @@ function shouldColorBySampleOrder(samples) {
 }
 
 function getMarkerColorSettings(samples, useSampleOrderColors) {
-  if (!useSampleOrderColors) {
-    const useGainColors = samples.length > 0
-      && samples.every((sample) => sample.source === "test4");
+  const gainColors = samples.map((sample) => sample.wipers.gain);
+  const hasGainColors = gainColors.some(Number.isFinite);
+
+  if (hasGainColors) {
+    const gains = getSortedUniqueNumbers(gainColors);
+    const gainIndexByValue = new Map(gains.map((gain, index) => [gain, index]));
+    const colors = gains.map((_, index) => GAIN_MARKER_COLORS[index % GAIN_MARKER_COLORS.length]);
 
     return {
-      color: samples.map((sample) => (useGainColors ? sample.wipers.gain : sample.wipers.mid)),
-      ...(useGainColors
+      cmax: gains.length - 0.5,
+      cmin: -0.5,
+      color: gainColors.map((value) => gainIndexByValue.get(value) ?? null),
+      colorbar: {
+        len: 0.64,
+        outlinewidth: 0,
+        thickness: 10,
+        tickmode: "array",
+        ticktext: gains.map(formatColorbarTick),
+        tickvals: gains.map((_, index) => index),
+        title: { side: "right", text: "gain" },
+      },
+      colorscale: getSteppedColorscale(colors),
+      showscale: true,
+    };
+  }
+
+  if (!useSampleOrderColors) {
+    const colors = samples.map((sample) => sample.wipers.mid);
+    const hasColorValues = colors.some(Number.isFinite);
+
+    return {
+      color: colors.map((value) => (Number.isFinite(value) ? value : 0)),
+      ...(hasColorValues
         ? {
           colorbar: {
             len: 0.64,
             outlinewidth: 0,
             thickness: 10,
-            title: { side: "right", text: "gain" },
+            title: { side: "right", text: "mid" },
           },
           showscale: true,
         }
         : {}),
-      colorscale: [
-        [0, "#35c2ff"],
-        [0.5, "#7ee787"],
-        [1, "#ffcf5a"],
-      ],
+      colorscale: RAINBOW_COLORSCALE,
     };
   }
 
@@ -606,11 +1384,7 @@ function getMarkerColorSettings(samples, useSampleOrderColors) {
       thickness: 10,
       title: { side: "right", text: "sample" },
     },
-    colorscale: [
-      [0, "#35c2ff"],
-      [0.5, "#7ee787"],
-      [1, "#ffcf5a"],
-    ],
+    colorscale: RAINBOW_COLORSCALE,
     showscale: true,
   };
 }
@@ -635,6 +1409,90 @@ function getPredictionArrowAnnotations(samples) {
     y: sample.sensorPredicted.sensor2,
     yref: "y",
   }));
+}
+
+function getTopFitLineTraces(fitLines) {
+  const gainLineColors = getGainLineColors(fitLines);
+
+  return fitLines.map((fitLine) => ({
+    hoverinfo: "skip",
+    line: {
+      color: getTopFitLineColor(fitLine, gainLineColors),
+      dash: "dot",
+      width: 2,
+    },
+    mode: "lines",
+    name: fitLine.name,
+    type: "scatter",
+    x: fitLine.lineX,
+    y: fitLine.lineY,
+  }));
+}
+
+function getGainLineColors(fitLines) {
+  const gains = getSortedUniqueNumbers(fitLines.map((fitLine) => Number(fitLine.gain)));
+
+  return new Map(gains.map((gain, index) => [
+    gain,
+    withAlpha(GAIN_MARKER_COLORS[index % GAIN_MARKER_COLORS.length], 0.10),
+  ]));
+}
+
+function getTopFitLineColor(fitLine, gainLineColors) {
+  const gain = Number(fitLine.gain);
+
+  return Number.isFinite(gain)
+    ? gainLineColors.get(gain) ?? fitLine.color
+    : fitLine.color;
+}
+
+function withAlpha(color, alpha) {
+  const hex = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(color);
+
+  if (!hex) {
+    return color;
+  }
+
+  const [, red, green, blue] = hex;
+
+  return `rgba(${parseInt(red, 16)}, ${parseInt(green, 16)}, ${parseInt(blue, 16)}, ${alpha})`;
+}
+
+function getSortedUniqueNumbers(values) {
+  return Array.from(new Set(values.filter(Number.isFinite)))
+    .sort((left, right) => left - right);
+}
+
+function getSteppedColorscale(colors) {
+  if (colors.length <= 1) {
+    const color = colors[0] ?? "#ffffff";
+
+    return [
+      [0, color],
+      [1, color],
+    ];
+  }
+
+  const epsilon = 0.000001;
+
+  return colors.flatMap((color, index) => {
+    const start = index / colors.length;
+    const end = (index + 1) / colors.length;
+    const stops = [
+      [start, color],
+      [Math.max(start, end - epsilon), color],
+    ];
+
+    if (index === colors.length - 1) {
+      stops.push([1, color]);
+    }
+
+    return stops;
+  });
+}
+
+function formatColorbarTick(value) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
 function getPlotLabels(samples) {
@@ -697,7 +1555,7 @@ function getChartLayout(axisRanges, annotations = [], plotLabels = getPlotLabels
   return {
     annotations,
     autosize: true,
-    margin: { b: 54, l: 64, r: 28, t: 26 },
+    margin: { b: 54, l: 64, r: 58, t: 26 },
     paper_bgcolor: "rgba(0, 0, 0, 0)",
     plot_bgcolor: "rgba(8, 20, 28, 0.72)",
     showlegend: false,
@@ -723,21 +1581,39 @@ function getStageChartLayout(stage) {
 
   return {
     autosize: true,
-    margin: { b: 54, l: 64, r: 28, t: 26 },
+    margin: { b: 54, l: 64, r: 58, t: 48 },
     paper_bgcolor: "rgba(0, 0, 0, 0)",
     plot_bgcolor: "rgba(8, 20, 28, 0.72)",
-    showlegend: false,
+    legend: {
+      bgcolor: "rgba(8, 20, 28, 0.72)",
+      bordercolor: "rgba(255, 255, 255, 0.12)",
+      borderwidth: 1,
+      font: { color: "#d7dde8", size: 11 },
+      itemclick: false,
+      itemdoubleclick: false,
+      x: 0.99,
+      xanchor: "right",
+      y: 0.99,
+      yanchor: "top",
+    },
+    showlegend: stage?.showLegend === true,
+    title: {
+      font: { color: "#edf4ff", size: 14 },
+      text: stage?.title ?? "",
+      x: 0.02,
+      xanchor: "left",
+    },
     xaxis: {
       color: "#b8c2d6",
       gridcolor: "rgba(184, 194, 214, 0.14)",
-      range: getPaddedRangeOrDefault(getTraceNumbers(traces, "x"), [0, 1]),
+      range: stage?.xRange ?? getPaddedRangeOrDefault(getTraceNumbers(traces, "x"), [0, 1]),
       title: { font: { color: "#d7dde8" }, text: stage?.xTitle ?? "" },
       zeroline: false,
     },
     yaxis: {
       color: "#b8c2d6",
       gridcolor: "rgba(184, 194, 214, 0.14)",
-      range: getPaddedRangeOrDefault(getTraceNumbers(traces, "y"), [0, 1]),
+      range: stage?.yRange ?? getPaddedRangeOrDefault(getTraceNumbers(traces, "y"), [0, 1]),
       title: { font: { color: "#d7dde8" }, text: stage?.yTitle ?? "" },
       zeroline: false,
     },

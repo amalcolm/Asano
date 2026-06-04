@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import { COMPONENT_BLUE, COMPONENT_STROKE_WIDTH, makeFilledPolygon, makeLineLoop } from "../drawing.js";
 import { DigiPot as DigiPotModel } from "../../model/components/DigiPot.js";
 import { Shape } from "./Shape.js";
@@ -143,6 +144,14 @@ export class Digipot extends Shape {
       && localPoint.y >= centerY - this.stepArrowHalfHeight - padding
       && localPoint.y <= centerY + this.stepArrowHalfHeight + padding
     );
+  }
+
+  getWiperStepAnchorWorldPoint(direction) {
+    return this.localToWorld(new THREE.Vector3(
+      this.stepArrowX,
+      this.wiperY + (direction > 0 ? this.stepArrowOffsetY : -this.stepArrowOffsetY),
+      0,
+    ));
   }
 
   getWiperDragOffset(worldPoint) {

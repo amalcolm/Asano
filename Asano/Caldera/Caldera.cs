@@ -1,6 +1,8 @@
 using Microsoft.Web.WebView2.Core;
 using TheLib;
 using TheLib.Packets;
+using System.Drawing;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Asano.MyGLTools.UserControls;
@@ -307,6 +309,9 @@ namespace Asano.Caldera
                 case "getActiveViews":
                     Control.PostActiveViewsChanged();
                     break;
+                case "moveMousePointer":
+                    HandleMoveMousePointerMessage(root);
+                    break;
                 case "startTest":
                 case "stopTest":
                     ForwardWebMessage(CalderaView.Circuit, root.GetRawText());
@@ -329,6 +334,28 @@ namespace Asano.Caldera
             {
                 // Reserved for a future frontend readiness handshake.
             }
+        }
+
+        private void HandleMoveMousePointerMessage(JsonElement root)
+        {
+            if (!TryGetFiniteDoubleProperty(root, "screenX", out var screenX)
+                || !TryGetFiniteDoubleProperty(root, "screenY", out var screenY))
+            {
+                return;
+            }
+
+            var virtualScreen = System.Windows.Forms.SystemInformation.VirtualScreen;
+            var x = (int)Math.Clamp(Math.Round(screenX), virtualScreen.Left, virtualScreen.Right - 1);
+            var y = (int)Math.Clamp(Math.Round(screenY), virtualScreen.Top, virtualScreen.Bottom - 1);
+            Action moveCursor = () =>
+            {
+                System.Windows.Forms.Cursor.Position = new Point(x, y);
+            };
+
+            if (Control.InvokeRequired)
+                Control.BeginInvoke(moveCursor);
+            else
+                moveCursor();
         }
 
         private void HandleOpenViewMessage(JsonElement root)
@@ -579,6 +606,26 @@ namespace Asano.Caldera
             => root.TryGetProperty(propertyName, out var element) && element.ValueKind == JsonValueKind.String
                 ? element.GetString()
                 : null;
+
+        private static bool TryGetFiniteDoubleProperty(JsonElement root, string propertyName, out double value)
+        {
+            value = 0;
+
+            if (!root.TryGetProperty(propertyName, out var element))
+                return false;
+
+            if (element.ValueKind == JsonValueKind.Number)
+                return element.TryGetDouble(out value) && double.IsFinite(value);
+
+            if (element.ValueKind == JsonValueKind.String)
+                return double.TryParse(
+                    element.GetString(),
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out value) && double.IsFinite(value);
+
+            return false;
+        }
 
         private static string NormaliseCsvFilename(string? suggestedFileName)
         {

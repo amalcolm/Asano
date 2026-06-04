@@ -17,11 +17,13 @@ import { clampVoltage } from "./voltage.js";
 export class CircuitScene {
   constructor(mount, model, {
     onManualWiperInput = null,
+    onPointerMoveRequest = null,
     onSettingsChange = null,
   } = {}) {
     this.mount = mount;
     this.model = model;
     this.onManualWiperInput = onManualWiperInput;
+    this.onPointerMoveRequest = onPointerMoveRequest;
     this.onSettingsChange = onSettingsChange;
     this.renderer = new Renderer(mount, { onResize: () => this.render() });
     this.shapes = [];
@@ -121,7 +123,7 @@ export class CircuitScene {
 
     if (stepControl) {
       event.preventDefault();
-      this.applyWiperStep(stepControl);
+      this.applyWiperStep(stepControl, event);
       return;
     }
 
@@ -238,7 +240,7 @@ export class CircuitScene {
     return this.dragControls.find((control) => control.containsWiperPoint(worldPoint));
   }
 
-  applyWiperStep({ control, direction }) {
+  applyWiperStep({ control, direction }, event = null) {
     const previousValue = control.value;
 
     control.stepWiper(direction, { emit: false });
@@ -252,7 +254,36 @@ export class CircuitScene {
     this.notifyManualWiperInput("change");
     this.notifyManualWiperInput("end");
     this.render();
+    this.requestPointerMoveForStep(control, direction, event);
     this.notifySettingsChange();
+  }
+
+  requestPointerMoveForStep(control, direction, event) {
+    if (!this.onPointerMoveRequest) {
+      return;
+    }
+
+    const worldPoint = control.getWiperStepAnchorWorldPoint?.(direction);
+
+    if (!worldPoint) {
+      return;
+    }
+
+    const clientPoint = this.renderer.getClientPoint(worldPoint);
+    const screenPoint = getScreenPointForClientPoint(clientPoint, event);
+
+    if (!screenPoint) {
+      return;
+    }
+
+    this.onPointerMoveRequest({
+      clientX: Math.round(clientPoint.x),
+      clientY: Math.round(clientPoint.y),
+      devicePixelRatio: window.devicePixelRatio || 1,
+      reason: "wiper-step",
+      screenX: Math.round(screenPoint.x),
+      screenY: Math.round(screenPoint.y),
+    });
   }
 
   getSettings() {
@@ -598,4 +629,35 @@ function getSecondaryResistanceLabel(primaryOhms, secondaryOhms) {
   return Number(secondaryOhms) === Number(primaryOhms)
     ? null
     : formatResistance(secondaryOhms);
+}
+
+function getScreenPointForClientPoint(clientPoint, event) {
+  if (!Number.isFinite(clientPoint?.x) || !Number.isFinite(clientPoint?.y)) {
+    return null;
+  }
+
+  if (
+    event
+    && Number.isFinite(event.screenX)
+    && Number.isFinite(event.screenY)
+    && Number.isFinite(event.clientX)
+    && Number.isFinite(event.clientY)
+  ) {
+    return {
+      x: event.screenX + clientPoint.x - event.clientX,
+      y: event.screenY + clientPoint.y - event.clientY,
+    };
+  }
+
+  const screenX = Number.isFinite(window.screenX) ? window.screenX : window.screenLeft;
+  const screenY = Number.isFinite(window.screenY) ? window.screenY : window.screenTop;
+
+  if (!Number.isFinite(screenX) || !Number.isFinite(screenY)) {
+    return null;
+  }
+
+  return {
+    x: screenX + clientPoint.x,
+    y: screenY + clientPoint.y,
+  };
 }

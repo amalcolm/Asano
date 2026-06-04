@@ -6,6 +6,29 @@ export const FIT_LINE_COLORS = Object.freeze([
   "rgba(255, 123, 114, 0.10)",
 ]);
 
+export const RAINBOW_COLORSCALE = Object.freeze([
+  [0, "#ff2d55"],
+  [0.16, "#ff9500"],
+  [0.32, "#ffcc00"],
+  [0.5, "#34c759"],
+  [0.66, "#00c7be"],
+  [0.82, "#007aff"],
+  [1, "#af52de"],
+]);
+
+export const HEAT_COLORSCALE = Object.freeze([
+  [0, "#1877f2"],
+  [0.45, "#ffcc00"],
+  [0.78, "#ff3b30"],
+  [1, "#ffffff"],
+]);
+
+export function getRainbowColor(index, total, alpha = 1) {
+  const hue = total > 1 ? (index / (total - 1)) * 300 : 210;
+
+  return `hsla(${hue.toFixed(1)}, 92%, 62%, ${alpha})`;
+}
+
 export function getLinearFit(samples) {
   if (samples.length < 2) {
     return getEmptyFit();
@@ -42,11 +65,7 @@ export function getLinearFit(samples) {
   };
 }
 
-export function getStageMarker(values, colorbarTitle, size, colorscale = [
-  [0, "#35c2ff"],
-  [0.5, "#7ee787"],
-  [1, "#ffcf5a"],
-]) {
+export function getStageMarker(values, colorbarTitle, size, colorscale = RAINBOW_COLORSCALE) {
   const hasColorValues = values.some(Number.isFinite);
 
   return {

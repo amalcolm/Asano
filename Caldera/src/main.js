@@ -15,6 +15,7 @@ const LED_BUTTON_OFF_TICK_FREQUENCY = 1024;
 const LED_BUTTON_ON_TICK_FREQUENCY = 2048;
 const SETTINGS_STORAGE_KEY = "caldera:circuit-settings:v1";
 const ANALYSIS_CHANNEL_NAME = "caldera:analysis:v1";
+const FORMULA_TELEMETRY_SETTLE_DELAY_MS = 500;
 const VIEW_CIRCUIT = "circuit";
 const VIEW_ANALYSIS = "analysis";
 const buttonTickSound = new TickSound({ frequency: BUTTON_TICK_FREQUENCY });
@@ -81,6 +82,11 @@ function mountAnalysisView() {
 
     if (message.type === "testStatus") {
       analysisPanel.setTestStatus(message);
+      return;
+    }
+
+    if (message.type === "formulaTelemetry") {
+      analysisPanel.handleFormulaTelemetry(message);
     }
   };
 
@@ -88,6 +94,7 @@ function mountAnalysisView() {
   webView.on("loadCsv", handleAnalysisMessage);
   webView.on("analysisClear", handleAnalysisMessage);
   webView.on("analysisSample", handleAnalysisMessage);
+  webView.on("formulaTelemetry", handleAnalysisMessage);
   webView.on("testStatus", handleAnalysisMessage);
 
   webView.postReady();
@@ -251,12 +258,15 @@ function mountCircuitView() {
   let wiperMessageCount = 0;
   let liveWiperRevision = 0;
   let liveWipers = null;
+  let formulaTelemetrySettleTimer = null;
+  let formulaTelemetrySettleRevision = 0;
   const hasHostTelemetry = Boolean(window.chrome?.webview);
   const analysisChannel = createAnalysisChannel();
   const headlessAnalysisPanel = new AnalysisPanel({ root: null, webView });
   const analysisBridge = createAnalysisBridge(headlessAnalysisPanel, webView, analysisChannel);
   const circuitScene = new CircuitScene(sceneRoot, model, {
     onManualWiperInput: handleManualWiperInput,
+    onPointerMoveRequest: (pointer) => webView.postMoveMousePointer(pointer),
     onSettingsChange: saveStoredSettings,
   });
   const commandFlagsControl = new DebugFlagsControl({
@@ -333,6 +343,9 @@ function mountCircuitView() {
     if (applied) {
       circuitScene.render();
     }
+
+    analysisBridge.postFormulaTelemetry({ wipers: liveWipers });
+    scheduleSettledFormulaTelemetry();
   });
 
   webView.on("stateChanged", ({ state }) => {
@@ -350,6 +363,8 @@ function mountCircuitView() {
     if (circuitScene.applyPhysicalVoltages(voltages)) {
       circuitScene.render();
     }
+
+    analysisBridge.postFormulaTelemetry({ voltages });
   });
 
   webView.on("startTest", ({ test }) => {
@@ -387,6 +402,38 @@ function mountCircuitView() {
     }
 
     webView.postSettingsChange(sceneSettings);
+  }
+
+  function scheduleSettledFormulaTelemetry() {
+    formulaTelemetrySettleRevision += 1;
+    const scheduledRevision = formulaTelemetrySettleRevision;
+
+    if (formulaTelemetrySettleTimer) {
+      clearTimeout(formulaTelemetrySettleTimer);
+    }
+
+    formulaTelemetrySettleTimer = setTimeout(() => {
+      formulaTelemetrySettleTimer = null;
+
+      if (scheduledRevision !== formulaTelemetrySettleRevision) {
+        return;
+      }
+
+      analysisBridge.postFormulaTelemetry({
+        settled: true,
+        voltages: getCurrentFormulaVoltages(),
+        wipers: liveWipers,
+      });
+    }, FORMULA_TELEMETRY_SETTLE_DELAY_MS);
+  }
+
+  function getCurrentFormulaVoltages() {
+    return {
+      sensor1: Number.isFinite(model.sensor1Voltage)
+        ? model.sensor1Voltage
+        : circuitScene.getSceneSensor1Voltage(),
+      sensor2: model.sensor2Voltage,
+    };
   }
 
   function handleManualWiperInput({ phase, wipers }) {
@@ -520,11 +567,18 @@ function getAnalysisSectionHtml() {
             >
               Copy analysis
             </button>
+            <button
+              class="analysis-panel__button"
+              type="button"
+              data-analysis-run-stages
+            >
+              Run next stage
+            </button>
             <span class="analysis-panel__badge" data-analysis-badge>empty dataset</span>
           </div>
         </div>
         <div class="analysis-panel__body">
-          <section class="analysis-panel__plot-row">
+          <section class="analysis-panel__plot-row analysis-panel__plot-row--top">
             <aside class="analysis-panel__sidebar">
               <div class="analysis-metric analysis-metric--primary">
                 <span class="analysis-metric__label">Linear slope</span>
@@ -542,16 +596,26 @@ function getAnalysisSectionHtml() {
                 <span class="analysis-metric__label">Samples</span>
                 <strong data-analysis-samples>0</strong>
               </div>
-              <div class="analysis-panel__test-status" data-analysis-test-status>idle</div>
             </aside>
             <div class="analysis-chart" data-analysis-chart></div>
+            <div class="analysis-stage-formulae" data-analysis-stage-formulae hidden></div>
           </section>
-          <section class="analysis-panel__plot-row">
+          <section class="analysis-control-panel" data-analysis-control-panel>
+            <div class="analysis-control-panel__surface">
+              <div class="analysis-control-panel__model-strip">
+                <div class="analysis-control-panel__model-buttons" data-analysis-model-controls></div>
+              </div>
+            </div>
+          </section>
+          <section class="analysis-panel__plot-row analysis-panel__plot-row--bottom">
             <aside class="analysis-panel__sidebar" data-analysis-stages-container>
               <div class="analysis-stage-description" data-analysis-stage-description hidden></div>
             </aside>
             <div class="analysis-chart" data-analysis-stage-chart></div>
           </section>
+          <div class="analysis-panel__status-bar">
+            <span class="analysis-panel__test-status" data-analysis-test-status>idle</span>
+          </div>
         </div>
       </div>
     </section>
@@ -589,6 +653,9 @@ function createAnalysisBridge(analysisPanel, webView, analysisChannel) {
         "testStatus",
         status && typeof status === "object" ? status : { status },
       ));
+    },
+    postFormulaTelemetry(telemetry = {}) {
+      postMessage(createMessage("formulaTelemetry", telemetry));
     },
   };
 }

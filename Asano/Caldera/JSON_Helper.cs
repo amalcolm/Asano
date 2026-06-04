@@ -19,6 +19,7 @@ namespace Asano.Caldera
 
         private const string StateChangedPrefix = "{\"type\":\"stateChanged\",\"state\":";
         private const string MessageEnd = "}";
+        private const string VoltageFormat = "F6";
 
         public static string CreateWipersChanged(WiperValues wipers)
         {
@@ -98,7 +99,7 @@ namespace Asano.Caldera
                 return 4;
 
             Span<char> buffer = stackalloc char[32];
-            value.TryFormat(buffer, out var length, "G9", CultureInfo.InvariantCulture);
+            value.TryFormat(buffer, out var length, VoltageFormat, CultureInfo.InvariantCulture);
             return length;
         }
 
@@ -122,7 +123,7 @@ namespace Asano.Caldera
                 return;
             }
 
-            value.TryFormat(span, out var length, "G9", CultureInfo.InvariantCulture);
+            value.TryFormat(span, out var length, VoltageFormat, CultureInfo.InvariantCulture);
             span = span[length..];
         }
     }

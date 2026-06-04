@@ -188,7 +188,7 @@ export class Test4Sweep extends Sweep {
   getSampleContext() {
     return {
       ledState: this.getHardwareLedState(),
-      test: "Test4",
+      test: "Mid Step",
     };
   }
 
@@ -217,7 +217,7 @@ export class Test4Sweep extends Sweep {
       return;
     }
 
-    this.button.textContent = this.timer ? "Stop Test4" : "Test4";
+    this.button.textContent = this.timer ? "Stop Mid Step" : "Mid Step";
     this.button.dataset.running = String(Boolean(this.timer));
   }
 }

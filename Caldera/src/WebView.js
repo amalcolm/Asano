@@ -81,6 +81,17 @@ export class WebView {
     });
   }
 
+  postMoveMousePointer(pointer) {
+    if (!pointer || typeof pointer !== "object") {
+      return false;
+    }
+
+    return this.postMessage({
+      type: "moveMousePointer",
+      ...pointer,
+    });
+  }
+
   postGetActiveViews() {
     return this.postMessage({
       type: "getActiveViews",

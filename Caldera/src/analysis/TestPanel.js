@@ -3,50 +3,125 @@ import { Test1Sweep } from "../tests/Test1Sweep.js";
 import { Test2Sweep } from "../tests/Test2Sweep.js";
 import { Test3Sweep } from "../tests/Test3Sweep.js";
 import { Test4Sweep } from "../tests/Test4Sweep.js";
+import { DEFAULT_MODEL_MAPPING } from "./ModelMapping.js";
+
+// Test naming convention:
+// - Columns describe how the data is gathered: Single, Stacked, or Custom.
+// - Model rows describe why the data is gathered, such as Calibration.
+// - Stable data attributes keep legacy sweep IDs separate from UI labels.
+const TEST_PANEL_MODEL_MAPPING = DEFAULT_MODEL_MAPPING;
 
 export const TEST_PANEL_HTML = `
   <div class="test-panel" data-test-panel>
     <div class="test-panel__header">
-      <span>Analsies</span>
+      <span>Analyses</span>
     </div>
-    <div class="test-panel__groups">
-      <section class="test-panel__group">
-        <h2 class="test-panel__group-title">Single</h2>
-        <div class="test-panel__actions">
-          <button class="test-panel__button" type="button" data-mid-sweep-button>
-            Sweep mid
-          </button>
-        </div>
-      </section>
-      <section class="test-panel__group">
-        <h2 class="test-panel__group-title">Stacked</h2>
-        <div class="test-panel__actions">
-          <button class="test-panel__button" type="button" data-offset-sweep-button>
-            Sweep offset
-          </button>
-          <button class="test-panel__button" type="button" data-gain-sweep-button>
-            Sweep gain
-          </button>
-        </div>
-      </section>
-      <section class="test-panel__group">
-        <h2 class="test-panel__group-title">Custom</h2>
-        <div class="test-panel__actions">
-          <button class="test-panel__button" type="button" data-test1-button>
-            Test1
-          </button>
-          <button class="test-panel__button" type="button" data-test2-button>
-            Test2
-          </button>
-          <button class="test-panel__button" type="button" data-test3-button>
-            Test3
-          </button>
-          <button class="test-panel__button" type="button" data-test4-button>
-            Test4
-          </button>
-        </div>
-      </section>
-    </div>
+    <table class="test-panel__matrix" aria-label="Test selection">
+      <tbody>
+        <tr class="test-panel__matrix-row test-panel__matrix-row--heading">
+          <th scope="col">Single</th>
+          <th scope="col">Stacked</th>
+          <th scope="col">Custom</th>
+        </tr>
+        <tr class="test-panel__matrix-row test-panel__matrix-row--buttons">
+          <td>
+            <div class="test-panel__actions">
+              <button
+                class="test-panel__button"
+                type="button"
+                data-mid-sweep-button
+                data-test-id="mid"
+                data-test-category="Single"
+                data-test-name="Sweep mid"
+              >
+                Sweep mid
+              </button>
+            </div>
+          </td>
+          <td>
+            <div class="test-panel__actions">
+              <button
+                class="test-panel__button"
+                type="button"
+                data-offset-sweep-button
+                data-test-id="offset"
+                data-test-category="Stacked"
+                data-test-name="Sweep offset"
+              >
+                Sweep offset
+              </button>
+              <button
+                class="test-panel__button"
+                type="button"
+                data-gain-sweep-button
+                data-test-id="gain"
+                data-test-category="Stacked"
+                data-test-name="Sweep gain"
+              >
+                Sweep gain
+              </button>
+            </div>
+          </td>
+          <td>
+            <div class="test-panel__actions">
+              <button
+                class="test-panel__button"
+                type="button"
+                data-test2-button
+                data-test-id="test2"
+                data-test-category="Custom"
+                data-test-name="Test2"
+              >
+                Test2
+              </button>
+              <button
+                class="test-panel__button"
+                type="button"
+                data-test3-button
+                data-test-id="test3"
+                data-test-category="Custom"
+                data-test-name="Test3"
+              >
+                Test3
+              </button>
+            </div>
+          </td>
+        </tr>
+        <tr class="test-panel__matrix-row test-panel__matrix-row--heading test-panel__matrix-row--spaced">
+          <th scope="row">Calibration</th>
+          <th aria-hidden="true"></th>
+          <th aria-hidden="true"></th>
+        </tr>
+        <tr class="test-panel__matrix-row test-panel__matrix-row--buttons">
+          <td>
+            <div class="test-panel__actions">
+              <button
+                class="test-panel__button"
+                type="button"
+                data-test1-button
+                data-test-id="test1"
+                data-test-category="Calibration"
+                data-test-name="Diff.Amp."
+              >
+                Diff.Amp.
+              </button>
+              <button
+                class="test-panel__button"
+                type="button"
+                data-test4-button
+                data-test-id="test4"
+                data-test-category="Calibration"
+                data-test-name="Mid Step"
+              >
+                Mid Step
+              </button>
+            </div>
+          </td>
+          <td></td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
     <div class="test-panel__footer">
       <span data-test-status>idle</span>
     </div>
@@ -102,20 +177,20 @@ export class TestPanel {
     this.midSweep = new Sweep({
       ...commonOptions,
       button: midSweepButton,
-      onClear: () => this.analysisPanel.clear({ label: getButtonLabel(midSweepButton) }),
+      onClear: () => this.analysisPanel.clear(getButtonDatasetOptions(midSweepButton)),
       onStart: () => this.handleStart(this.midSweep),
     });
     this.offsetSweep = new OffsetSweep({
       ...commonOptions,
       button: offsetSweepButton,
-      onClear: () => this.analysisPanel.clear({ label: getButtonLabel(offsetSweepButton) }),
+      onClear: () => this.analysisPanel.clear(getButtonDatasetOptions(offsetSweepButton)),
       onStart: () => this.handleStart(this.offsetSweep),
     });
     this.gainSweep = new GainSweep({
       ...commonOptions,
       button: gainSweepButton,
       onClear: () => this.analysisPanel.clear({
-        label: getButtonLabel(gainSweepButton),
+        ...getButtonDatasetOptions(gainSweepButton),
         panel: "gain",
       }),
       onStart: () => this.handleStart(this.gainSweep),
@@ -124,7 +199,7 @@ export class TestPanel {
       ...commonOptions,
       button: test1Button,
       onClear: () => this.analysisPanel.clear({
-        label: getButtonLabel(test1Button),
+        ...getButtonDatasetOptions(test1Button),
         panel: "test1",
       }),
       onStart: () => this.handleStart(this.test1Sweep),
@@ -133,19 +208,19 @@ export class TestPanel {
     this.test2Sweep = new Test2Sweep({
       ...commonOptions,
       button: test2Button,
-      onClear: () => this.analysisPanel.clear({ label: getButtonLabel(test2Button) }),
+      onClear: () => this.analysisPanel.clear(getButtonDatasetOptions(test2Button)),
       onStart: () => this.handleStart(this.test2Sweep),
     });
     this.test3Sweep = new Test3Sweep({
       ...commonOptions,
       button: test3Button,
-      onClear: () => this.analysisPanel.clear({ label: getButtonLabel(test3Button) }),
+      onClear: () => this.analysisPanel.clear(getButtonDatasetOptions(test3Button)),
       onStart: () => this.handleStart(this.test3Sweep),
     });
     this.test4Sweep = new Test4Sweep({
       ...commonOptions,
       button: test4Button,
-      onClear: () => this.analysisPanel.clear({ label: getButtonLabel(test4Button) }),
+      onClear: () => this.analysisPanel.clear(getButtonDatasetOptions(test4Button)),
       onStart: () => this.handleStart(this.test4Sweep),
     });
     this.sweeps = [
@@ -238,4 +313,20 @@ function getButtonLabel(button) {
   const label = String(button?.textContent ?? "").replace(/\s+/g, " ").trim();
 
   return label.replace(/^Stop\s+/i, "") || null;
+}
+
+function getButtonDatasetOptions(button) {
+  const mappedDataset = TEST_PANEL_MODEL_MAPPING.resolveDataset({
+    category: button?.dataset.testCategory,
+    name: button?.dataset.testName ?? getButtonLabel(button),
+    testId: button?.dataset.testId,
+  });
+
+  return {
+    category: mappedDataset.category,
+    label: mappedDataset.label,
+    name: mappedDataset.name,
+    source: mappedDataset.source,
+    testId: mappedDataset.testId,
+  };
 }
