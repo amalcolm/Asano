@@ -1,12 +1,15 @@
 import Plotly from "plotly.js-dist-min";
+import katex from "katex";
 import { AnalysisDataset } from "./AnalysisDataset.js";
 import { RAINBOW_COLORSCALE, formatMillivolts, getLinearFit } from "./AnalysisMath.js";
 import { MODEL_TRACKS } from "./ModelMapping.js";
 import { DifferentialAmp as MathDifferentialAmp } from "./modelling/math_DiffAmp.js";
 import {
   DifferentialAmpPhysicsModel,
+  PHYSICS_STAGE_FIVE_ID,
+  PHYSICS_STAGE_FOUR_ID,
   PHYSICS_STAGE_ONE_ID,
-  getPhysicsStageOneData,
+  getPhysicsStageData as getPhysicsStageModelData,
   getPhysicsStages,
 } from "./modelling/phys_DiffAmp.js";
 import { DifferentialAmpFormulaTester } from "./testing/math_DiffAmp.js";
@@ -40,6 +43,7 @@ export class AnalysisPanel {
     this.chartRoot = root?.querySelector("[data-analysis-chart]");
     this.stageChartRoot = root?.querySelector("[data-analysis-stage-chart]");
     this.stageDescription = root?.querySelector("[data-analysis-stage-description]");
+    this.stageConstants = root?.querySelector("[data-analysis-stage-constants]");
     this.stageFormulae = root?.querySelector("[data-analysis-stage-formulae]");
     this.copyAnalysisButton = root?.querySelector("[data-analysis-copy-analysis]");
     this.loadButton = root?.querySelector("[data-analysis-load-csv]");
@@ -50,8 +54,10 @@ export class AnalysisPanel {
     this.rangeCheckBadge = root?.querySelector("[data-analysis-range-check]");
     this.testStatus = root?.querySelector("[data-analysis-test-status]");
     this.dynamicControls = root?.querySelector("[data-analysis-dynamic-controls]");
+    this.comparatorControls = root?.querySelector("[data-analysis-comparator-controls]");
     this.modelControls = root?.querySelector("[data-analysis-model-controls]");
     this.stagesContainer = root?.querySelector("[data-analysis-stages-container]");
+    this.testingControls = root?.querySelector("[data-analysis-testing-controls]");
     this.stageButtons = new Map();
     this.stageDetails = new Map();
     this.formulaTestButton = null;
@@ -59,9 +65,9 @@ export class AnalysisPanel {
     this.mathModelButton = null;
     this.mathStageButtons = new Set();
     this.physicsModelButton = null;
-    this.physicsStageButton = null;
-    this.physicsStageDetail = null;
-    this.physicsStageValue = null;
+    this.physicsStageButtons = new Map();
+    this.physicsStageDetails = new Map();
+    this.physicsStageValues = new Map();
     this.stageInfo = null;
     this.stageValues = new Map();
     this.rmsMetric = root?.querySelector("[data-analysis-rms]");
@@ -79,6 +85,10 @@ export class AnalysisPanel {
     this.activePhysicsStage = null;
     this.completedStageData = new Map();
     this.completedAnalysisStages = new Set();
+    this.completedPhysicsStages = new Set();
+    this.compareModelsButton = null;
+    this.compareModelsDetail = null;
+    this.compareModelsValue = null;
     this.isFormulaTesting = false;
     this.unlockedStages = new Set();
     this.isProcessing = false;
@@ -86,6 +96,8 @@ export class AnalysisPanel {
     this.physicsStageRequestId = 0;
     this.hasRenderedTopFitLines = false;
     this.isRunningStages = false;
+    this.autoRunHandle = null;
+    this.backgroundMathRunHandle = null;
 
     this.loadButton?.addEventListener("click", () => {
       if (this.webView?.postRequestLoadCsv?.("")) {
@@ -105,6 +117,7 @@ export class AnalysisPanel {
   addSampleFromModel(sampleContext) {
     const sample = this.dataset.addSampleFromModel(sampleContext);
 
+    this.cancelBackgroundMathValidation();
     this.model.clearCache();
     this.completedStageData.clear();
     this.hasRenderedTopFitLines = false;
@@ -117,6 +130,7 @@ export class AnalysisPanel {
     const addedSample = this.dataset.addSample(sample);
 
     if (addedSample) {
+      this.cancelBackgroundMathValidation();
       this.model.clearCache();
       this.completedStageData.clear();
       this.hasRenderedTopFitLines = false;
@@ -143,17 +157,21 @@ export class AnalysisPanel {
     this.render({ updateTopChart: false });
     this.queueTopFitLineRender();
     this.setBadge(`${result.imported} loaded${result.skipped ? `, ${result.skipped} skipped` : ""}`);
+    this.scheduleAutoModelRun();
 
     return result;
   }
 
   resetAnalysisState() {
+    this.cancelAutoModelRun();
+    this.cancelBackgroundMathValidation();
     this.model.clearCache();
     this.completedStageData.clear();
     this.activeStageTrack = null;
     this.activePhysicsStage = null;
     this.activeAnalysisStage = null;
     this.completedAnalysisStages.clear();
+    this.completedPhysicsStages.clear();
     this.formulaTester.setEnabled(false);
     this.formulaTester.setModel(null);
     this.unlockedStages.clear();
@@ -194,6 +212,27 @@ export class AnalysisPanel {
       }
     });
 
+    getPhysicsStages().forEach((stage) => {
+      const button = this.physicsStageButtons.get(stage.id);
+      const value = this.physicsStageValues.get(stage.id);
+      const detail = this.physicsStageDetails.get(stage.id);
+
+      if (button) {
+        button.hidden = true;
+        button.dataset.active = "false";
+        button.dataset.processing = "false";
+        button.setAttribute("aria-pressed", "false");
+      }
+
+      if (value) {
+        value.textContent = "-";
+      }
+
+      if (detail) {
+        detail.textContent = stage.defaultDetail;
+      }
+    });
+
     if (this.stageDescription) {
       this.stageDescription.hidden = true;
       this.stageDescription.innerHTML = "";
@@ -207,8 +246,8 @@ export class AnalysisPanel {
   }
 
   toggleFormulaTesting() {
-    if (!this.hasCompletedFinalStage()) {
-      this.setBadge("complete modelling stages before testing formulae");
+    if (!this.isFormulaTestReady()) {
+      this.setBadge("complete stage 5 before testing formulae");
       return;
     }
 
@@ -252,8 +291,26 @@ export class AnalysisPanel {
       && this.completedStageData.has("samples");
   }
 
+  getLatestCompletedMathStageId() {
+    return [...this.model.getStages()]
+      .reverse()
+      .find((stage) => (
+        this.completedAnalysisStages.has(stage.id)
+          && this.completedStageData.has(stage.id)
+      ))?.id ?? null;
+  }
+
+  getLatestCompletedPhysicsStageId() {
+    return [...getPhysicsStages()]
+      .reverse()
+      .find((stage) => (
+        this.completedPhysicsStages.has(stage.id)
+          && this.completedStageData.has(stage.id)
+      ))?.id ?? null;
+  }
+
   updateFormulaModelIfReady(plottableSamples = null) {
-    if (!this.hasCompletedFinalStage()) {
+    if (!this.hasCompletedFinalStage() && !this.hasCompletedPhysicsValidationStage()) {
       this.formulaTester.setModel(null);
       return false;
     }
@@ -262,6 +319,38 @@ export class AnalysisPanel {
       ?? this.dataset.getAnalysisSamples().filter((sample) => sample.isPlottable);
 
     return this.formulaTester.setModel(this.model.getModel(samples));
+  }
+
+  isFormulaTestReady() {
+    return this.activeStageTrack === STAGE_TRACK_PHYSICS
+      ? this.hasCompletedPhysicsValidationStage()
+      : this.hasCompletedFinalStage();
+  }
+
+  hasCompletedPhysicsFormulaStage() {
+    return this.completedPhysicsStages.has(PHYSICS_STAGE_FOUR_ID)
+      && this.completedStageData.has(PHYSICS_STAGE_FOUR_ID);
+  }
+
+  hasCompletedPhysicsValidationStage() {
+    return this.completedPhysicsStages.has(PHYSICS_STAGE_FIVE_ID)
+      && this.completedStageData.has(PHYSICS_STAGE_FIVE_ID);
+  }
+
+  getPhysicsFormulae() {
+    return this.hasCompletedPhysicsFormulaStage()
+      ? this.completedStageData.get(PHYSICS_STAGE_FOUR_ID)?.formulae ?? ""
+      : "";
+  }
+
+  getPhysicsConstants() {
+    return this.hasCompletedPhysicsFormulaStage()
+      ? this.completedStageData.get(PHYSICS_STAGE_FOUR_ID)?.constants ?? ""
+      : "";
+  }
+
+  canCompareModels() {
+    return this.hasCompletedFinalStage() && this.hasCompletedPhysicsValidationStage();
   }
 
   selectAnalysisStage(stageId) {
@@ -367,14 +456,22 @@ export class AnalysisPanel {
       return;
     }
 
-    if (!this.hasModelTrack(STAGE_TRACK_MATH)) {
+    const track = this.getRunnableTrack();
+
+    if (!track) {
       this.setBadge("no model stages for this dataset");
       return;
     }
 
-    const nextStage = this.getNextAutoRunnableStage();
+    if (track === STAGE_TRACK_PHYSICS && this.activeStageTrack !== STAGE_TRACK_PHYSICS) {
+      this.activatePhysicsModelTrack();
+    } else if (track === STAGE_TRACK_MATH && this.activeStageTrack !== STAGE_TRACK_MATH) {
+      this.activateMathModelTrack();
+    }
 
-    if (!nextStage) {
+    const firstStage = this.getNextAutoRunnableStage(track);
+
+    if (!firstStage) {
       this.setBadge("stages already run");
       return;
     }
@@ -382,17 +479,68 @@ export class AnalysisPanel {
     this.isRunningStages = true;
     this.updateRunStagesButton();
 
+    let completedCount = 0;
+    let lastStage = null;
+
     try {
-      const completed = await this.selectAnalysisStage(nextStage.id);
-      this.setBadge(completed ? `${nextStage.label} complete` : "stage not run");
+      while (true) {
+        const nextStage = this.getNextAutoRunnableStage(track);
+
+        if (!nextStage) {
+          break;
+        }
+
+        const completed = track === STAGE_TRACK_PHYSICS
+          ? await this.selectPhysicsStage(nextStage.id)
+          : await this.selectAnalysisStage(nextStage.id);
+
+        if (!completed) {
+          break;
+        }
+
+        completedCount += 1;
+        lastStage = nextStage;
+      }
+
+      this.setBadge(completedCount
+        ? `${lastStage?.label ?? "stages"} complete`
+        : "stage not run");
     } finally {
       this.isRunningStages = false;
       this.updateRunStagesButton();
     }
   }
 
-  getNextAutoRunnableStage() {
-    if (!this.hasModelTrack(STAGE_TRACK_MATH)) {
+  getRunnableTrack() {
+    if (this.activeStageTrack && this.hasModelTrack(this.activeStageTrack)) {
+      return this.activeStageTrack;
+    }
+
+    if (this.hasModelTrack(STAGE_TRACK_PHYSICS)) {
+      return STAGE_TRACK_PHYSICS;
+    }
+
+    if (this.hasModelTrack(STAGE_TRACK_MATH)) {
+      return STAGE_TRACK_MATH;
+    }
+
+    return null;
+  }
+
+  getNextAutoRunnableStage(track = this.activeStageTrack) {
+    if (track === STAGE_TRACK_PHYSICS) {
+      if (!this.hasModelTrack(STAGE_TRACK_PHYSICS)) {
+        return null;
+      }
+
+      return getPhysicsStages().find((stage) => (
+        stage.isAutoRunnable !== false
+          && this.isPhysicsStageUnlocked(stage.id)
+          && !this.completedPhysicsStages.has(stage.id)
+      )) ?? null;
+    }
+
+    if (track !== STAGE_TRACK_MATH || !this.hasModelTrack(STAGE_TRACK_MATH)) {
       return null;
     }
 
@@ -409,16 +557,125 @@ export class AnalysisPanel {
     }
 
     const hasSamples = this.dataset.getAnalysisSamples().length > 0;
-    const hasRunnableModel = this.hasModelTrack(STAGE_TRACK_MATH)
-      && this.activeStageTrack === STAGE_TRACK_MATH;
+    const track = this.getRunnableTrack();
+    const nextStage = track ? this.getNextAutoRunnableStage(track) : null;
 
     this.runStagesButton.disabled = this.isRunningStages
       || this.isProcessing
       || this.isPhysicsStageProcessing
       || !hasSamples
-      || !hasRunnableModel;
+      || !track
+      || !nextStage;
     this.runStagesButton.dataset.running = String(this.isRunningStages);
-    this.runStagesButton.textContent = this.isRunningStages ? "Running stage" : "Run next stage";
+    this.runStagesButton.textContent = this.isRunningStages ? "Running stages" : "Run stages";
+  }
+
+  scheduleAutoModelRun() {
+    this.cancelAutoModelRun();
+
+    this.autoRunHandle = window.setTimeout(() => {
+      this.autoRunHandle = null;
+
+      if (!this.dataset.getAnalysisSamples().length || this.isRunningStages) {
+        return;
+      }
+
+      const track = this.hasModelTrack(STAGE_TRACK_PHYSICS)
+        ? STAGE_TRACK_PHYSICS
+        : (this.hasModelTrack(STAGE_TRACK_MATH) ? STAGE_TRACK_MATH : null);
+
+      if (!track) {
+        return;
+      }
+
+      if (track === STAGE_TRACK_PHYSICS) {
+        this.activatePhysicsModelTrack();
+      } else {
+        this.activateMathModelTrack();
+      }
+
+      this.runAnalysisStages();
+    }, 0);
+  }
+
+  cancelAutoModelRun() {
+    if (this.autoRunHandle !== null) {
+      window.clearTimeout(this.autoRunHandle);
+      this.autoRunHandle = null;
+    }
+  }
+
+  scheduleBackgroundMathValidation() {
+    if (this.backgroundMathRunHandle !== null
+      || this.hasCompletedFinalStage()
+      || !this.hasCompletedPhysicsValidationStage()
+      || !this.hasModelTrack(STAGE_TRACK_MATH)) {
+      return;
+    }
+
+    this.backgroundMathRunHandle = window.setTimeout(() => {
+      this.backgroundMathRunHandle = null;
+      this.runBackgroundMathValidation();
+    }, 0);
+  }
+
+  cancelBackgroundMathValidation() {
+    if (this.backgroundMathRunHandle !== null) {
+      window.clearTimeout(this.backgroundMathRunHandle);
+      this.backgroundMathRunHandle = null;
+    }
+  }
+
+  runBackgroundMathValidation() {
+    if (this.hasCompletedFinalStage() || !this.hasModelTrack(STAGE_TRACK_MATH)) {
+      return false;
+    }
+
+    const stages = this.model.getStages();
+    const finalStage = stages[stages.length - 1];
+    const plottableSamples = this.dataset.getAnalysisSamples().filter((sample) => sample.isPlottable);
+
+    if (!finalStage || !plottableSamples.length) {
+      return false;
+    }
+
+    const unlockedStages = new Set(this.unlockedStages);
+    const completedStages = new Set(this.completedAnalysisStages);
+
+    stages.forEach((stage) => {
+      unlockedStages.add(stage.id);
+      completedStages.add(stage.id);
+    });
+
+    let analysis = null;
+
+    try {
+      analysis = this.model.getAnalysis(
+        finalStage.id,
+        plottableSamples,
+        unlockedStages,
+        completedStages,
+        { includeFitLines: false },
+      );
+    } catch (error) {
+      return false;
+    }
+
+    const finalStageData = analysis?.stages?.get(finalStage.id) ?? analysis?.stage ?? null;
+
+    if (!finalStageData?.traces?.length) {
+      return false;
+    }
+
+    this.cacheStageData(analysis.stages);
+    stages.forEach((stage) => {
+      this.unlockedStages.add(stage.id);
+      this.completedAnalysisStages.add(stage.id);
+    });
+    this.updateFormulaModelIfReady(plottableSamples);
+    this.updateComparatorControls();
+
+    return true;
   }
 
   setTestStatus({
@@ -523,8 +780,8 @@ export class AnalysisPanel {
       { includeFitLines: updateTopChart && includeTopFitLines },
     );
     this.cacheStageData(analysis.stages);
-    const physicsStageData = this.activeStageTrack === STAGE_TRACK_PHYSICS
-      ? this.getCachedPhysicsStageOneData(analysis.stages?.get("samples"))
+    const physicsStageData = this.activeStageTrack === STAGE_TRACK_PHYSICS && this.activePhysicsStage
+      ? this.getCachedPhysicsStageData(this.activePhysicsStage, analysis.stages?.get("samples"))
       : null;
     const hasFormulaModel = this.updateFormulaModelIfReady(plottableSamples);
     const fit = getLinearFit(plottableSamples);
@@ -556,7 +813,9 @@ export class AnalysisPanel {
     }
     const stageRender = updateStageChart
       ? this.renderStageChart(
-        physicsStageData ?? (this.isFormulaTesting ? this.formulaTester.getChartData() : analysis.stage),
+        this.isFormulaTesting
+          ? this.formulaTester.getChartData()
+          : (physicsStageData ?? analysis.stage),
       )
       : null;
     this.updateFormulaTestButton();
@@ -646,41 +905,79 @@ export class AnalysisPanel {
     }
 
     this.activeStageTrack = STAGE_TRACK_PHYSICS;
-    this.activePhysicsStage = null;
+    this.activePhysicsStage = this.getLatestCompletedPhysicsStageId();
     this.activeAnalysisStage = null;
+    const stageData = this.activePhysicsStage
+      ? this.completedStageData.get(this.activePhysicsStage) ?? null
+      : null;
 
-    this.updatePhysicsStageButtons(null);
+    this.updatePhysicsStageButtons(stageData);
+    this.renderStageChart(stageData);
     this.updateFormulaeVisibility();
     this.updateRunStagesButton();
+    if (this.activePhysicsStage === PHYSICS_STAGE_FIVE_ID) {
+      this.scheduleBackgroundMathValidation();
+    }
     this.setBadge("physics model opened");
   }
 
   runPhysicsStageOneSelection() {
+    return this.selectPhysicsStage(PHYSICS_STAGE_ONE_ID);
+  }
+
+  selectPhysicsStage(stageId) {
     if (this.isProcessing || this.isPhysicsStageProcessing) {
-      return;
+      return Promise.resolve(false);
     }
 
     if (!this.hasModelTrack(STAGE_TRACK_PHYSICS)) {
       this.setBadge("physics model unavailable for this dataset");
-      return;
+      return Promise.resolve(false);
     }
 
     if (!this.dataset.getAnalysisSamples().length) {
       this.setBadge("load data before running physics stage");
-      return;
+      return Promise.resolve(false);
+    }
+
+    const stage = getPhysicsStages().find((candidate) => candidate.id === stageId);
+
+    if (!stage || !this.isPhysicsStageUnlocked(stageId)) {
+      return Promise.resolve(false);
     }
 
     this.activeStageTrack = STAGE_TRACK_PHYSICS;
-    this.activePhysicsStage = PHYSICS_STAGE_ONE_ID;
+    this.activePhysicsStage = stageId;
     this.activeAnalysisStage = null;
+
+    if (this.completedPhysicsStages.has(stageId) && this.completedStageData.has(stageId)) {
+      const stageData = this.completedStageData.get(stageId);
+
+      this.updatePhysicsStageButtons(stageData);
+      this.renderStageChart(stageData);
+      this.updateFormulaeVisibility();
+      this.updateRunStagesButton();
+      if (stageId === PHYSICS_STAGE_FIVE_ID) {
+        this.scheduleBackgroundMathValidation();
+      }
+
+      return Promise.resolve(true);
+    }
+
     this.isPhysicsStageProcessing = true;
     const requestId = ++this.physicsStageRequestId;
-    this.setBadge("reducing math stage 1 for physics model");
-    this.updatePhysicsStageButtons(null, { processing: true });
+    this.setBadge(`running ${stage.label}`);
+    this.updatePhysicsStageButtons(null, { processingStageId: stageId });
     this.updateRunStagesButton();
 
-    requestAnimationFrame(() => {
-      setTimeout(() => this.finishPhysicsStageOneSelection(requestId), 0);
+    return new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        setTimeout(() => this.finishPhysicsStageSelection({
+          requestId,
+          resolve,
+          stageId,
+        }), 0);
+      });
     });
   }
 
@@ -694,7 +991,20 @@ export class AnalysisPanel {
     this.physicsStageRequestId += 1;
     this.activeStageTrack = STAGE_TRACK_MATH;
     this.activePhysicsStage = null;
-    this.render({ updateStageButtons: true, updateTopChart: false });
+    this.activeAnalysisStage = this.getLatestCompletedMathStageId();
+
+    if (this.activeAnalysisStage && this.completedStageData.has(this.activeAnalysisStage)) {
+      const stageData = this.completedStageData.get(this.activeAnalysisStage);
+
+      this.updateStageButtons(this.completedStageData);
+      this.renderStageChart(stageData);
+      this.updateFormulaeVisibility();
+      this.updateFormulaTestButton();
+      this.updateRunStagesButton();
+    } else {
+      this.render({ updateStageButtons: true, updateTopChart: false });
+    }
+
     this.setBadge("math model opened");
   }
 
@@ -707,29 +1017,58 @@ export class AnalysisPanel {
     this.activatePhysicsModelTrack();
   }
 
-  getCachedPhysicsStageOneData(mathStageData = null) {
-    const sourceStageData = this.hasCompletedMathStageOne()
-      ? mathStageData ?? this.completedStageData.get("samples") ?? null
+  getCachedPhysicsStageData(stageId, mathStageData = null) {
+    if (this.completedPhysicsStages.has(stageId) && this.completedStageData.has(stageId)) {
+      return this.completedStageData.get(stageId);
+    }
+
+    return this.activePhysicsStage === stageId
+      ? this.buildPhysicsStageData(stageId, { mathStageData, useCachedOnly: true })
       : null;
-
-    return getPhysicsStageOneData(sourceStageData);
   }
 
-  getPhysicsStageOneData(mathStageData = null) {
-    const sourceStageData = mathStageData ?? this.ensureMathStageOneData();
+  buildPhysicsStageData(stageId, {
+    mathStageData = null,
+    useCachedOnly = false,
+  } = {}) {
+    const sourceStageData = stageId === PHYSICS_STAGE_ONE_ID
+      ? (useCachedOnly
+        ? (this.hasCompletedMathStageOne()
+          ? mathStageData ?? this.completedStageData.get("samples") ?? null
+          : null)
+        : mathStageData ?? this.ensureMathStageOneData())
+      : mathStageData ?? this.ensureMathStageOneData();
+    const plottableSamples = this.dataset.getAnalysisSamples().filter((sample) => sample.isPlottable);
+    const mathModel = plottableSamples.length
+      ? this.model.getModel(plottableSamples)
+      : null;
+    const fitRows = plottableSamples.length
+      ? this.model.getCachedFitRows(plottableSamples)
+      : [];
 
-    return getPhysicsStageOneData(sourceStageData);
+    return getPhysicsStageModelData(stageId, {
+      fitRows,
+      mathModel,
+      mathStageData: sourceStageData,
+      physicsModel: this.physicsModel,
+      samples: plottableSamples,
+    });
   }
 
-  finishPhysicsStageOneSelection(requestId) {
+  finishPhysicsStageSelection({
+    requestId,
+    resolve = () => {},
+    stageId,
+  }) {
     if (requestId !== this.physicsStageRequestId || this.activeStageTrack !== STAGE_TRACK_PHYSICS) {
+      resolve(false);
       return;
     }
 
     let stageData = null;
 
     try {
-      stageData = this.getPhysicsStageOneData();
+      stageData = this.buildPhysicsStageData(stageId);
     } catch (error) {
       this.setBadge(error?.message || "physics stage failed");
     } finally {
@@ -737,14 +1076,26 @@ export class AnalysisPanel {
     }
 
     if (requestId !== this.physicsStageRequestId || this.activeStageTrack !== STAGE_TRACK_PHYSICS) {
+      resolve(false);
       return;
+    }
+
+    const completed = Boolean(stageData?.traces?.length);
+
+    if (completed) {
+      this.completedPhysicsStages.add(stageId);
+      this.completedStageData.set(stageId, stageData);
     }
 
     this.updatePhysicsStageButtons(stageData);
     this.renderStageChart(stageData);
     this.updateFormulaeVisibility();
     this.updateRunStagesButton();
-    this.setBadge(stageData?.traces?.length ? "physics model opened" : "physics model awaiting math stage 1");
+    this.setBadge(stageData?.traces?.length ? "physics stage complete" : "physics stage awaiting data");
+    if (completed && stageId === PHYSICS_STAGE_FIVE_ID) {
+      this.scheduleBackgroundMathValidation();
+    }
+    resolve(completed);
   }
 
   ensureMathStageOneData() {
@@ -789,12 +1140,24 @@ export class AnalysisPanel {
     if (this.dynamicControls && this.dynamicControls !== this.stagesContainer) {
       this.dynamicControls.innerHTML = "";
     }
+    if (this.comparatorControls && this.comparatorControls !== this.stagesContainer) {
+      this.comparatorControls.innerHTML = "";
+    }
     if (this.modelControls && this.modelControls !== this.stagesContainer) {
       this.modelControls.innerHTML = "";
+    }
+    if (this.testingControls && this.testingControls !== this.stagesContainer) {
+      this.testingControls.innerHTML = "";
     }
 
     this.stageButtons.clear();
     this.mathStageButtons.clear();
+    this.physicsStageButtons.clear();
+    this.physicsStageValues.clear();
+    this.physicsStageDetails.clear();
+    this.compareModelsButton = null;
+    this.compareModelsDetail = null;
+    this.compareModelsValue = null;
     this.stageValues.clear();
     this.stageDetails.clear();
 
@@ -844,7 +1207,7 @@ export class AnalysisPanel {
       this.stageDetails.set(stage.id, detailSpan);
     });
 
-    this.renderPhysicsStageButton();
+    this.renderPhysicsStageButtons();
 
     this.mathModelButton = document.createElement("button");
     this.mathModelButton.className = "analysis-stage-button analysis-stage-button--math-model";
@@ -860,6 +1223,33 @@ export class AnalysisPanel {
     this.physicsModelButton.textContent = "Physics Model";
     this.physicsModelButton.addEventListener("click", () => this.activatePhysicsModelTrack());
 
+    this.compareModelsButton = document.createElement("button");
+    this.compareModelsButton.className = "analysis-stage-button analysis-stage-button--comparator";
+    this.compareModelsButton.disabled = true;
+    this.compareModelsButton.type = "button";
+
+    const compareLabel = document.createElement("span");
+    compareLabel.className = "analysis-stage-button__label";
+    compareLabel.textContent = "Compare Models";
+
+    this.compareModelsValue = document.createElement("strong");
+    this.compareModelsValue.textContent = "-";
+
+    this.compareModelsDetail = document.createElement("span");
+    this.compareModelsDetail.dataset.analysisStageDetail = "comparator";
+    this.compareModelsDetail.textContent = "finish both validations";
+
+    this.compareModelsButton.append(
+      compareLabel,
+      this.compareModelsValue,
+      this.compareModelsDetail,
+    );
+    this.compareModelsButton.addEventListener("click", () => {
+      if (this.canCompareModels()) {
+        this.showModelComparator();
+      }
+    });
+
     this.formulaTestButton = document.createElement("button");
     this.formulaTestButton.className = "analysis-stage-button analysis-stage-button--formula-test";
     this.formulaTestButton.type = "button";
@@ -868,11 +1258,11 @@ export class AnalysisPanel {
 
     const infoGroup = document.createElement("div");
     infoGroup.className = "analysis-stage-info";
-    this.stageInfo = infoGroup;
-
+    infoGroup.hidden = true;
     infoGroup.appendChild(this.formulaTestButton);
-    this.updateFormulaTestButton();
 
+    this.stageInfo = infoGroup;
+    this.updateFormulaTestButton();
     this.stagesContainer.appendChild(infoGroup);
 
     if (descriptionEl) {
@@ -884,45 +1274,50 @@ export class AnalysisPanel {
       this.mathModelButton,
       this.physicsModelButton,
     );
+    (this.comparatorControls ?? this.modelControls ?? this.stagesContainer).append(
+      this.compareModelsButton,
+    );
+    this.updateComparatorControls();
     this.updateModelTrackControls();
     this.updateFormulaeVisibility();
   }
 
-  renderPhysicsStageButton() {
-    const stage = getPhysicsStages()[0];
-    const button = document.createElement("button");
-    const labelSpan = document.createElement("span");
-    const valueStrong = document.createElement("strong");
-    const detailSpan = document.createElement("span");
+  renderPhysicsStageButtons() {
+    getPhysicsStages().forEach((stage) => {
+      const button = document.createElement("button");
+      const labelSpan = document.createElement("span");
+      const valueStrong = document.createElement("strong");
+      const detailSpan = document.createElement("span");
 
-    button.className = "analysis-stage-button analysis-stage-button--physics-stage";
-    button.hidden = true;
-    button.type = "button";
-    button.dataset.physicsStageButton = stage.id;
+      button.className = "analysis-stage-button analysis-stage-button--physics-stage";
+      button.hidden = true;
+      button.type = "button";
+      button.dataset.physicsStageButton = stage.id;
 
-    labelSpan.className = "analysis-stage-button__label";
-    labelSpan.textContent = stage.label;
+      labelSpan.className = "analysis-stage-button__label";
+      labelSpan.textContent = stage.label;
 
-    valueStrong.textContent = "-";
-    detailSpan.textContent = stage.defaultDetail;
+      valueStrong.textContent = "-";
+      detailSpan.textContent = stage.defaultDetail;
 
-    button.appendChild(labelSpan);
-    button.appendChild(valueStrong);
-    button.appendChild(detailSpan);
-    button.addEventListener("mousedown", (event) => {
-      event.preventDefault();
-      this.runPhysicsStageOneSelection();
+      button.appendChild(labelSpan);
+      button.appendChild(valueStrong);
+      button.appendChild(detailSpan);
+      button.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        this.selectPhysicsStage(stage.id);
+      });
+      button.addEventListener("click", (event) => {
+        if (event.detail === 0) {
+          this.selectPhysicsStage(stage.id);
+        }
+      });
+
+      this.stagesContainer.appendChild(button);
+      this.physicsStageButtons.set(stage.id, button);
+      this.physicsStageValues.set(stage.id, valueStrong);
+      this.physicsStageDetails.set(stage.id, detailSpan);
     });
-    button.addEventListener("click", (event) => {
-      if (event.detail === 0) {
-        this.runPhysicsStageOneSelection();
-      }
-    });
-
-    this.stagesContainer.appendChild(button);
-    this.physicsStageButton = button;
-    this.physicsStageValue = valueStrong;
-    this.physicsStageDetail = detailSpan;
   }
 
   updateMetrics({ fit, plottableSamples, samples }) {
@@ -1011,7 +1406,7 @@ export class AnalysisPanel {
     this.updateFormulaeVisibility();
   }
 
-  updatePhysicsStageButtons(stageData, { processing = false } = {}) {
+  updatePhysicsStageButtons(activeStageData = null, { processingStageId = null } = {}) {
     const hasMathTrack = this.hasModelTrack(STAGE_TRACK_MATH);
     const hasPhysicsTrack = this.hasModelTrack(STAGE_TRACK_PHYSICS);
     const isMathTrack = hasMathTrack && this.activeStageTrack === STAGE_TRACK_MATH;
@@ -1019,34 +1414,57 @@ export class AnalysisPanel {
 
     this.setMathStageButtonsHidden(!isMathTrack);
 
-    if (this.physicsStageButton) {
-      const isStageActive = isPhysicsTrack && (processing || Boolean(stageData));
+    getPhysicsStages().forEach((stage) => {
+      const stageId = stage.id;
+      const button = this.physicsStageButtons.get(stageId);
+      const value = this.physicsStageValues.get(stageId);
+      const detail = this.physicsStageDetails.get(stageId);
+      const isUnlocked = this.isPhysicsStageUnlocked(stageId);
+      const isCompleted = this.completedPhysicsStages.has(stageId);
+      const isProcessing = processingStageId === stageId;
+      const isActive = isPhysicsTrack && stageId === this.activePhysicsStage;
+      const stageData = this.completedStageData.get(stageId);
 
-      this.physicsStageButton.hidden = !isPhysicsTrack;
-      this.physicsStageButton.dataset.active = String(isStageActive);
-      this.physicsStageButton.dataset.processing = String(isPhysicsTrack && processing);
-      this.physicsStageButton.setAttribute("aria-pressed", String(isStageActive));
-    }
+      if (button) {
+        button.hidden = !isPhysicsTrack || !isUnlocked;
+        button.dataset.active = String(isActive || isProcessing);
+        button.dataset.processing = String(isProcessing);
+        button.setAttribute("aria-pressed", String(isActive || isProcessing));
+      }
 
-    if (this.physicsStageValue) {
-      this.physicsStageValue.textContent = isPhysicsTrack
-        ? (processing ? "..." : stageData?.value ?? "-")
-        : "-";
-    }
+      if (value) {
+        value.textContent = isPhysicsTrack
+          ? (isProcessing ? "..." : (isCompleted ? stageData?.value ?? "-" : "-"))
+          : "-";
+      }
 
-    if (this.physicsStageDetail) {
-      this.physicsStageDetail.textContent = isPhysicsTrack
-        ? (processing ? "reducing math stage 1" : stageData?.detail ?? "uses math stage 1")
-        : "uses math stage 1";
-    }
+      if (detail) {
+        detail.innerHTML = isPhysicsTrack
+          ? (isProcessing ? "running stage" : (isCompleted ? stageData?.detail ?? stage.defaultDetail : stage.defaultDetail))
+          : stage.defaultDetail;
+      }
+    });
 
     if (this.stageDescription && isPhysicsTrack) {
+      const stageData = activeStageData ?? this.completedStageData.get(this.activePhysicsStage) ?? null;
+
       this.stageDescription.hidden = !stageData?.description;
       this.stageDescription.innerHTML = stageData?.description ?? "";
     }
 
     this.updateModelTrackControls();
     this.updateFormulaeVisibility();
+  }
+
+  isPhysicsStageUnlocked(stageId) {
+    const stages = getPhysicsStages();
+    const index = stages.findIndex((stage) => stage.id === stageId);
+
+    if (index < 0) {
+      return false;
+    }
+
+    return index === 0 || this.completedPhysicsStages.has(stages[index - 1].id);
   }
 
   updateModelTrackControls() {
@@ -1073,7 +1491,188 @@ export class AnalysisPanel {
       this.physicsModelButton.setAttribute("aria-pressed", String(isPhysicsTrack));
     }
 
+    this.updateComparatorControls();
     this.updateActiveModelIndicator();
+  }
+
+  updateComparatorControls() {
+    if (!this.compareModelsButton) {
+      return;
+    }
+
+    const hasBothTracks = this.hasModelTrack(STAGE_TRACK_MATH)
+      && this.hasModelTrack(STAGE_TRACK_PHYSICS);
+    const canCompare = hasBothTracks && this.canCompareModels();
+
+    this.compareModelsButton.hidden = !hasBothTracks;
+    this.compareModelsButton.disabled = !canCompare;
+    this.compareModelsButton.dataset.active = String(canCompare);
+
+    if (this.compareModelsValue) {
+      this.compareModelsValue.textContent = canCompare ? "Ready" : "-";
+    }
+
+    if (this.compareModelsDetail) {
+      this.compareModelsDetail.textContent = canCompare
+        ? "both validations complete"
+        : "finish both validations";
+    }
+  }
+
+  showModelComparator() {
+    const chartData = this.getCircuitFormulaComparisonChart();
+
+    if (!chartData?.traces?.length) {
+      this.setBadge("no circuit formula estimates to compare");
+      return;
+    }
+
+    if (this.stageDescription) {
+      this.stageDescription.hidden = false;
+      this.stageDescription.innerHTML = chartData.description ?? "";
+    }
+
+    this.renderStageChart(chartData);
+    this.setBadge("circuit formula comparison ready");
+  }
+
+  getCircuitFormulaComparisonChart() {
+    const rows = this.getCircuitFormulaComparisonRows();
+
+    if (!rows.length) {
+      return null;
+    }
+
+    const axisRange = getAbsoluteErrorComparisonRange(rows);
+    const oldWins = rows.filter((row) => row.oldAbsErrorMv < row.derivedAbsErrorMv).length;
+    const derivedWins = rows.filter((row) => row.derivedAbsErrorMv < row.oldAbsErrorMv).length;
+    const meanImprovementMv = getMean(rows.map((row) => row.improvementMv));
+
+    return {
+      description: `
+        <p><strong>Circuit Formula vs Derived Model</strong></p>
+        <p>Compares the old circuit-view Sensor1 estimate from the source data with the newly derived Sensor1 estimate.</p>
+        <ul>
+          <li><strong>X:</strong> old circuit formula absolute Sensor1 error.</li>
+          <li><strong>Y:</strong> derived model absolute Sensor1 error.</li>
+          <li>Points below the diagonal favour the derived model.</li>
+        </ul>
+      `,
+      title: "Circuit formula vs derived model Sensor1 error",
+      traces: [
+        {
+          hoverinfo: "skip",
+          line: { color: "rgba(255, 255, 255, 0.46)", dash: "dot", width: 1.5 },
+          mode: "lines",
+          name: "equal error",
+          showlegend: false,
+          type: "scatter",
+          x: axisRange,
+          y: axisRange,
+        },
+        {
+          customdata: rows.map((row) => [
+            formatHoverValue(row.gain, 0),
+            formatHoverValue(row.offset, 0),
+            formatHoverVoltage(row.measuredSensor1),
+            formatHoverVoltage(row.measuredSensor2),
+            formatHoverVoltage(row.oldEstimate),
+            formatHoverVoltage(row.derivedEstimate),
+            formatSignedMillivolts(row.oldError),
+            formatSignedMillivolts(row.derivedError),
+            formatSignedMillivoltValue(row.improvementMv),
+          ]),
+          hovertemplate: [
+            "old abs error %{x:.3f} mV",
+            "derived abs error %{y:.3f} mV",
+            "old estimate %{customdata[4]}",
+            "derived estimate %{customdata[5]}",
+            "old residual %{customdata[6]}",
+            "derived residual %{customdata[7]}",
+            "improvement %{customdata[8]}",
+            "measured Sensor1 %{customdata[2]}",
+            "measured Sensor2 %{customdata[3]}",
+            "gain %{customdata[0]}",
+            "offset %{customdata[1]}",
+            "<extra></extra>",
+          ].join("<br>"),
+          marker: {
+            ...getMarkerColorSettings(rows.map((row) => row.sample), false),
+            line: { color: "rgba(255, 255, 255, 0.72)", width: 0.8 },
+            opacity: 0.88,
+            size: 6.5,
+          },
+          mode: "markers",
+          name: "Sensor1 estimate comparison",
+          type: "scatter",
+          x: rows.map((row) => row.oldAbsErrorMv),
+          y: rows.map((row) => row.derivedAbsErrorMv),
+        },
+      ],
+      value: formatSignedMillivolts(meanImprovementMv / 1000),
+      xRange: axisRange,
+      xTitle: "Old Circuit Formula |Sensor1 Error| (mV)",
+      yRange: axisRange,
+      yTitle: "Derived Model |Sensor1 Error| (mV)",
+      detail: `${derivedWins} improved, ${oldWins} worse`,
+    };
+  }
+
+  getCircuitFormulaComparisonRows() {
+    const samples = this.dataset.getAnalysisSamples().filter((sample) => sample.isPlottable);
+    const derivedModel = this.model.getModel(samples);
+
+    if (!derivedModel.ready) {
+      return [];
+    }
+
+    return samples
+      .map((sample) => {
+        const oldEstimate = sample.sensorEstimated?.sensor1;
+        const measuredSensor1 = sample.sensorActual?.sensor1;
+        const measuredSensor2 = sample.sensorActual?.sensor2;
+        const gain = sample.wipers?.gain;
+        const offset = sample.wipers?.offset;
+        const derivedEstimate = getDerivedSensor1Estimate({
+          gain,
+          model: derivedModel,
+          offset,
+          sensor2: measuredSensor2,
+        });
+
+        if (!Number.isFinite(oldEstimate)
+          || !Number.isFinite(derivedEstimate)
+          || !Number.isFinite(measuredSensor1)
+          || !Number.isFinite(measuredSensor2)
+          || !Number.isFinite(gain)
+          || !Number.isFinite(offset)) {
+          return null;
+        }
+
+        const oldError = oldEstimate - measuredSensor1;
+        const derivedError = derivedEstimate - measuredSensor1;
+
+        return {
+          derivedAbsErrorMv: Math.abs(derivedError * 1000),
+          derivedError,
+          derivedEstimate,
+          gain,
+          improvementMv: Math.abs(oldError * 1000) - Math.abs(derivedError * 1000),
+          measuredSensor1,
+          measuredSensor2,
+          offset,
+          oldAbsErrorMv: Math.abs(oldError * 1000),
+          oldError,
+          oldEstimate,
+          sample,
+        };
+      })
+      .filter(Boolean)
+      .sort((left, right) => (
+        left.gain - right.gain
+          || left.offset - right.offset
+          || left.measuredSensor1 - right.measuredSensor1
+      ));
   }
 
   updateActiveModelIndicator() {
@@ -1118,18 +1717,31 @@ export class AnalysisPanel {
   }
 
   updateFormulaeVisibility() {
-    if (this.hasCompletedFinalStage()) {
+    const hasMathFormulae = this.hasCompletedFinalStage();
+
+    if (hasMathFormulae) {
       this.updateFormulaModelIfReady();
     }
 
-    const formulae = this.hasCompletedFinalStage() ? this.formulaTester.getFormulae() : "";
+    const mathFormulae = hasMathFormulae ? this.formulaTester.getFormulae() : "";
+    const physicsFormulae = this.getPhysicsFormulae();
+    const physicsConstants = this.getPhysicsConstants();
+    const formulae = this.activeStageTrack === STAGE_TRACK_PHYSICS
+      ? physicsFormulae
+      : mathFormulae;
+    const constants = this.activeStageTrack === STAGE_TRACK_PHYSICS
+      ? physicsConstants
+      : "";
     const visible = Boolean(formulae);
+    const canTestFormulae = visible
+      && this.isFormulaTestReady()
+      && this.updateFormulaModelIfReady();
 
     if (this.formulaTestButton) {
-      this.formulaTestButton.hidden = !visible || this.activeStageTrack === STAGE_TRACK_PHYSICS;
+      this.formulaTestButton.hidden = !visible;
     }
 
-    if (!visible && this.isFormulaTesting) {
+    if (!canTestFormulae && this.isFormulaTesting) {
       this.isFormulaTesting = false;
       this.formulaTester.setEnabled(false);
       this.updateFormulaTestButton();
@@ -1144,7 +1756,29 @@ export class AnalysisPanel {
 
     this.stageFormulae.hidden = !formulae;
     this.stageFormulae.innerHTML = formulae;
+    this.renderFormulaeMath();
+
+    if (this.stageConstants) {
+      this.stageConstants.hidden = !constants;
+      this.stageConstants.innerHTML = constants;
+    }
+
     this.updateStageInfoVisibility();
+  }
+
+  renderFormulaeMath() {
+    if (!this.stageFormulae) {
+      return;
+    }
+
+    this.stageFormulae
+      .querySelectorAll("[data-analysis-formula-tex]")
+      .forEach((element) => {
+        katex.render(element.dataset.analysisFormulaTex ?? "", element, {
+          displayMode: true,
+          throwOnError: false,
+        });
+      });
   }
 
   updateStageInfoVisibility() {
@@ -1163,9 +1797,10 @@ export class AnalysisPanel {
     }
 
     const hasModel = Boolean(this.formulaTester.getModel());
+    const canTestFormulae = hasModel && this.isFormulaTestReady();
     const sampleCount = this.formulaTester.samples.length;
 
-    this.formulaTestButton.disabled = !hasModel;
+    this.formulaTestButton.disabled = !canTestFormulae;
     this.formulaTestButton.dataset.active = String(this.isFormulaTesting);
     this.formulaTestButton.textContent = sampleCount
       ? `Test Formulae (${sampleCount})`
@@ -1635,6 +2270,36 @@ function getPaddedRangeOrDefault(values, fallback) {
   return getPaddedRange(knownValues);
 }
 
+function getDerivedSensor1Estimate({
+  gain,
+  model,
+  offset,
+  sensor2,
+}) {
+  const multiplier = model?.multiplier?.intercept + model?.multiplier?.slope * gain;
+  const centre = model?.centre?.intercept + model?.centre?.slope * offset;
+
+  if (!Number.isFinite(multiplier)
+    || Math.abs(multiplier) < 1e-9
+    || !Number.isFinite(centre)
+    || !Number.isFinite(sensor2)) {
+    return null;
+  }
+
+  return centre + (centre - sensor2) / multiplier;
+}
+
+function getAbsoluteErrorComparisonRange(rows) {
+  const maxErrorMv = Math.max(
+    0,
+    ...rows.map((row) => row.oldAbsErrorMv),
+    ...rows.map((row) => row.derivedAbsErrorMv),
+  );
+  const extent = maxErrorMv > 0 ? maxErrorMv * 1.08 : 1;
+
+  return [0, extent];
+}
+
 function getSlopeMultiplierRatio(dataset, fit, samples) {
   if (!Number.isFinite(fit.slope)) {
     return null;
@@ -1672,6 +2337,22 @@ function formatRatio(value) {
 
 function formatHoverVoltage(value) {
   return Number.isFinite(value) ? `${value.toFixed(4)} V` : "---";
+}
+
+function formatSignedMillivolts(value) {
+  if (!Number.isFinite(value)) {
+    return "---";
+  }
+
+  return `${value >= 0 ? "+" : ""}${(value * 1000).toFixed(3)} mV`;
+}
+
+function formatSignedMillivoltValue(value) {
+  if (!Number.isFinite(value)) {
+    return "---";
+  }
+
+  return `${value >= 0 ? "+" : ""}${value.toFixed(3)} mV`;
 }
 
 function formatHoverValue(value, fractionDigits = 6) {

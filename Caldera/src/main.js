@@ -3,6 +3,7 @@ import { CircuitScene } from "./scene/CircuitScene.js";
 import { COMMAND_FLAGS, normaliseCommandFlags } from "./helpers/CommandFlags.js";
 import { DebugFlagsControl } from "./helpers/DebugFlagsControl.js";
 import { DebugSettingsControl } from "./helpers/DebugSettingsControl.js";
+import { FB_Store } from "./firebase/FB_Store.js";
 import { Model } from "./model/Model.js";
 import { STATE_LED_ROWS, StateControl } from "./helpers/StateControl.js";
 import { TEST_PANEL_HTML, TestPanel } from "./analysis/TestPanel.js";
@@ -264,6 +265,7 @@ function mountCircuitView() {
   const analysisChannel = createAnalysisChannel();
   const headlessAnalysisPanel = new AnalysisPanel({ root: null, webView });
   const analysisBridge = createAnalysisBridge(headlessAnalysisPanel, webView, analysisChannel);
+  const firebaseStore = new FB_Store();
   const circuitScene = new CircuitScene(sceneRoot, model, {
     onManualWiperInput: handleManualWiperInput,
     onPointerMoveRequest: (pointer) => webView.postMoveMousePointer(pointer),
@@ -321,7 +323,28 @@ function mountCircuitView() {
   openAnalysisButton?.addEventListener("click", () => {
     toggleAnalysisView(webView, activeViews, openAnalysisButton);
   });
+/*
+  debugFirebaseTestButton?.addEventListener("click", async () => {
+    debugFirebaseTestButton.disabled = true;
+    debugSettingsStatus.textContent = "firebase saving";
 
+    try {
+      const result = await firebaseStore.saveModelRun({
+        clientTime: new Date().toISOString(),
+        message: "hello world",
+        modelType: "smoke-test",
+        sourceCsvName: "firebase-smoke-test.csv",
+      });
+
+      debugSettingsStatus.textContent = `firebase ${result.id}`;
+    } catch (error) {
+      debugSettingsStatus.textContent = "firebase failed";
+      console.error("Firebase smoke-test write failed", error);
+    } finally {
+      debugFirebaseTestButton.disabled = false;
+    }
+  });
+*/
   circuitScene.applySettings(storedSettings);
   circuitScene.start();
 
@@ -599,11 +622,23 @@ function getAnalysisSectionHtml() {
             </aside>
             <div class="analysis-chart" data-analysis-chart></div>
             <div class="analysis-stage-formulae" data-analysis-stage-formulae hidden></div>
+            <div class="analysis-stage-constants" data-analysis-stage-constants hidden></div>
           </section>
           <section class="analysis-control-panel" data-analysis-control-panel>
             <div class="analysis-control-panel__surface">
-              <div class="analysis-control-panel__model-strip">
-                <div class="analysis-control-panel__model-buttons" data-analysis-model-controls></div>
+              <div class="analysis-control-panel__grid">
+                <section class="analysis-control-panel__column">
+                  <h2 class="analysis-control-panel__heading">Modelling</h2>
+                  <div class="analysis-control-panel__controls" data-analysis-model-controls></div>
+                </section>
+                <section class="analysis-control-panel__column">
+                  <h2 class="analysis-control-panel__heading">Comparitors</h2>
+                  <div class="analysis-control-panel__controls" data-analysis-comparator-controls></div>
+                </section>
+                <section class="analysis-control-panel__column analysis-control-panel__column--wide">
+                  <h2 class="analysis-control-panel__heading" aria-hidden="true">&nbsp;</h2>
+                  <div class="analysis-control-panel__controls" data-analysis-testing-controls></div>
+                </section>
               </div>
             </div>
           </section>

@@ -28,6 +28,18 @@ const ANALYSIS_CSV_HEADER = [
 ].join(",");
 
 const MIN_MODEL_GAIN = 2;
+const GAIN_MARKER_COLORS = Object.freeze([
+  "#ff3b30",
+  "#ff9500",
+  "#ffcc00",
+  "#34c759",
+  "#00c7be",
+  "#007aff",
+  "#5856d6",
+  "#af52de",
+  "#ff2d55",
+  "#ffffff",
+]);
 
 function formatCsvNumber(value, fractionDigits = 9) {
   if (value === null || value === undefined || value === "") {
@@ -262,7 +274,12 @@ function getForwardModelRows(samples, empiricalModel) {
         sample,
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((left, right) => (
+      left.gain - right.gain
+        || left.offset - right.offset
+        || left.measuredSensor1 - right.measuredSensor1
+    ));
 }
 
 function getForwardModelBlocks(rows) {
@@ -343,7 +360,12 @@ function getInverseModelRows(samples, empiricalModel) {
         sample,
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((left, right) => (
+      left.gain - right.gain
+        || left.offset - right.offset
+        || left.measuredSensor1 - right.measuredSensor1
+    ));
 }
 
 function getRowsByNumber(rows, key) {
@@ -365,6 +387,72 @@ function getRowsByNumber(rows, key) {
 
   return Array.from(groupsByValue.entries())
     .sort((left, right) => left[0] - right[0]);
+}
+
+function getGainColorDomainFromSamples(samples) {
+  return getSortedUniqueNumbers((samples ?? []).map((sample) => sample.wipers?.gain));
+}
+
+function getGainMarker(gains, colorDomain = gains) {
+  const uniqueGains = getSortedUniqueNumbers([...colorDomain, ...gains]);
+  const gainIndexByValue = new Map(uniqueGains.map((gain, index) => [gain, index]));
+  const colors = uniqueGains.map((_, index) => GAIN_MARKER_COLORS[index % GAIN_MARKER_COLORS.length]);
+
+  return {
+    cmax: Math.max(0.5, uniqueGains.length - 0.5),
+    cmin: -0.5,
+    color: gains.map((gain) => gainIndexByValue.get(gain) ?? null),
+    colorbar: {
+      outlinewidth: 0,
+      thickness: 10,
+      tickmode: "array",
+      ticktext: uniqueGains.map(formatWiperTick),
+      tickvals: uniqueGains.map((_, index) => index),
+      title: { side: "right", text: "Gain" },
+    },
+    colorscale: getSteppedColorscale(colors),
+    line: { color: "rgba(255, 255, 255, 0.72)", width: 0.8 },
+    opacity: 0.9,
+    showscale: uniqueGains.length > 0,
+    size: 7,
+  };
+}
+
+function getSortedUniqueNumbers(values) {
+  return Array.from(new Set(values.filter(Number.isFinite)))
+    .sort((left, right) => left - right);
+}
+
+function getSteppedColorscale(colors) {
+  if (colors.length <= 1) {
+    const color = colors[0] ?? "#ffffff";
+
+    return [
+      [0, color],
+      [1, color],
+    ];
+  }
+
+  const epsilon = 0.000001;
+
+  return colors.flatMap((color, index) => {
+    const start = index / colors.length;
+    const end = (index + 1) / colors.length;
+    const stops = [
+      [start, color],
+      [Math.max(start, end - epsilon), color],
+    ];
+
+    if (index === colors.length - 1) {
+      stops.push([1, color]);
+    }
+
+    return stops;
+  });
+}
+
+function formatWiperTick(value) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
 function getPaddedRangeFromValues(values, fallback) {
@@ -555,11 +643,106 @@ function formatSignedMillivolts(value, fractionDigits = 3) {
   return `${value >= 0 ? "+" : "-"}${Math.abs(value * 1000).toFixed(fractionDigits)} mV`;
 }
 
+const FORMULA_ROW_GAP = "1.0em";
+const FORMULA_ROW_HEIGHT_STRUT = "\\vphantom{\\dfrac{\\mathrm{centre}-\\mathrm{sensor2}}{\\mathrm{multiplier}}}";
+const FORMULA_CONSTANT_COLOR = "#aeb9c9";
+const FORMULA_INTERMEDIATE_COLOR = "#ffb3b3";
+const FORMULA_MODEL_COLOR = "#b9d8ff";
+const FORMULA_ESTIMATE_COLOR = "#b8f7c5";
+
 function getFormulaeHtml(lines) {
+  const alignedFormulae = lines.map(getAlignedFormulaLine).join(` \\\\[${FORMULA_ROW_GAP}] `);
+
   return [
     "<span class=\"analysis-stage-formulae__title\">Math formulae</span>",
-    ...lines.map((line) => `<code>${line}</code>`),
+    `<span class="analysis-stage-formulae__math" data-analysis-formula-tex="${escapeHtml(`\\begin{aligned}${alignedFormulae}\\end{aligned}`)}"></span>`,
   ].join("");
+}
+
+function getAlignedFormulaLine(line) {
+  return `${FORMULA_ROW_HEIGHT_STRUT}${getFormulaLineTex(line).replace(/\s*=\s*/, " &= ")}`;
+}
+
+function getFormulaLineTex(line) {
+  const [left, ...rightParts] = String(line).split("=");
+  const right = rightParts.join("=");
+
+  if (!right) {
+    return getFormulaExpressionTex(left);
+  }
+
+  return `${getFormulaTermTex(left.trim())} = ${getFormulaExpressionTex(right.trim())}`;
+}
+
+function getFormulaExpressionTex(expression) {
+  const trimmed = String(expression).trim();
+  const additiveFractionMatch = trimmed.match(/^(.+?)\s*\+\s*\((.+)\)\s*\/\s*(.+)$/);
+
+  if (additiveFractionMatch) {
+    return [
+      getFormulaExpressionTex(additiveFractionMatch[1]),
+      "+",
+      `\\frac{${getFormulaExpressionTex(additiveFractionMatch[2])}}{${getFormulaExpressionTex(additiveFractionMatch[3])}}`,
+    ].join(" ");
+  }
+
+  const denominatorFractionMatch = trimmed.match(/^(.+?)\s*\/\s*\((.+)\)$/);
+
+  if (denominatorFractionMatch) {
+    return `\\frac{${getFormulaExpressionTex(denominatorFractionMatch[1])}}{${getFormulaExpressionTex(denominatorFractionMatch[2])}}`;
+  }
+
+  return getFormulaInlineTex(trimmed);
+}
+
+function getFormulaInlineTex(expression) {
+  return colorFormulaNumbers(String(expression).replaceAll("*", " \\cdot "))
+    .replace(/\b(sensor1_est|sensor2_est|sensor1|sensor2|multiplier|centre|error|gain|offset|m|b|A|B|C|D)\b/g, (token) => (
+      getFormulaTermTex(token)
+    ));
+}
+
+function colorFormulaNumbers(expression) {
+  return expression.replace(/(^|[\s(])([+-]?\d+(?:\.\d+)?)/g, (_match, prefix, value) => (
+    `${prefix}${getFormulaSymbol(value, FORMULA_CONSTANT_COLOR)}`
+  ));
+}
+
+function getFormulaTermTex(term) {
+  const token = String(term).trim();
+
+  switch (token) {
+    case "A":
+    case "B":
+    case "C":
+    case "D":
+    case "b":
+    case "m":
+      return getFormulaSymbol(`\\mathrm{${token}}`, FORMULA_CONSTANT_COLOR);
+    case "centre":
+    case "multiplier":
+      return getFormulaSymbol(`\\mathrm{${token}}`, FORMULA_MODEL_COLOR);
+    case "error":
+      return getFormulaSymbol("\\mathrm{error}", FORMULA_INTERMEDIATE_COLOR);
+    case "sensor1_est":
+      return getFormulaSymbol("\\mathrm{sensor1}_{est}", FORMULA_ESTIMATE_COLOR);
+    case "sensor2_est":
+      return getFormulaSymbol("\\mathrm{sensor2}_{est}", FORMULA_ESTIMATE_COLOR);
+    default:
+      return `\\mathrm{${token}}`;
+  }
+}
+
+function getFormulaSymbol(tex, color) {
+  return `\\textcolor{${color}}{${tex}}`;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
 }
 
 function getEmpiricalModelFormulae(empiricalModel, lines) {
@@ -1217,7 +1400,6 @@ export class DifferentialAmp {
     const minError = Math.min(...errors);
     const maxError = Math.max(...errors);
     const maxAbsError = Math.max(...absoluteErrors);
-    const rowsByGain = getRowsByNumber(modelRows, "gain");
     const sensor1Range = getValueRange(modelRows.map((row) => row.measuredSensor1));
     const zeroTrace = sensor1Range
       ? {
@@ -1248,11 +1430,11 @@ export class DifferentialAmp {
         "sensor1_est = centre + (centre - sensor2) / multiplier",
         "error = sensor1_est - sensor1",
       ]),
-      showLegend: true,
       traces: [
         zeroTrace,
-        ...rowsByGain.map(([gain, gainRows], index) => ({
-          customdata: gainRows.map((row) => [
+        {
+          customdata: modelRows.map((row) => [
+            formatWiper(row.gain),
             formatWiper(row.offset),
             formatVoltage(row.estimatedSensor1),
             formatSignedMillivolts(row.error),
@@ -1263,27 +1445,25 @@ export class DifferentialAmp {
           hovertemplate: [
             "measured Sensor1 %{x:.4f} V",
             "Sensor1 error %{y:.4f} V",
-            "error %{customdata[2]}",
-            "estimated Sensor1 %{customdata[1]}",
-            "measured Sensor2 %{customdata[3]}",
-            "gain " + formatWiper(gain),
-            "offset %{customdata[0]}",
-            "multiplier %{customdata[4]}",
-            "centre %{customdata[5]}",
+            "error %{customdata[3]}",
+            "estimated Sensor1 %{customdata[2]}",
+            "measured Sensor2 %{customdata[4]}",
+            "gain %{customdata[0]}",
+            "offset %{customdata[1]}",
+            "multiplier %{customdata[5]}",
+            "centre %{customdata[6]}",
             "<extra></extra>",
           ].join("<br>"),
-          marker: {
-            color: getRainbowColor(index, rowsByGain.length, 0.88),
-            line: { color: "rgba(255, 255, 255, 0.62)", width: 0.6 },
-            opacity: 0.82,
-            size: 4.8,
-          },
+          marker: getGainMarker(
+            modelRows.map((row) => row.gain),
+            getGainColorDomainFromSamples(samples),
+          ),
           mode: "markers",
-          name: `gain ${formatWiper(gain)}`,
+          name: "Sensor1 residuals",
           type: "scatter",
-          x: gainRows.map((row) => row.measuredSensor1),
-          y: gainRows.map((row) => row.error),
-        })),
+          x: modelRows.map((row) => row.measuredSensor1),
+          y: modelRows.map((row) => row.error),
+        },
       ].filter(Boolean),
       value: formatMillivolts(rmse),
       xRange: axisRanges.x,

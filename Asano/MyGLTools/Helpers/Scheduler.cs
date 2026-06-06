@@ -131,16 +131,18 @@ namespace Asano.MyGLTools.Helpers
 
         private static readonly WipersChangedMessage     lastWipersChangeSent   = new();
         private static readonly VoltagesChangedMessage lastVoltagesChangeSent   = new();
-        private static readonly WipersChangedMessage     pendingWipersChange    = new();
-        private static readonly VoltagesChangedMessage pendingVoltagesChange    = new();
-        private static int  forceNextWipersPost;
+        private static readonly WipersChangedMessage      pendingWipersChange   = new();
+        private static readonly VoltagesChangedMessage  pendingVoltagesChange   = new();
+
 
         private static readonly double PostIntervalMs = 50.0;
         private static readonly Stopwatch swPost = Stopwatch.StartNew();
 
+        private static MyFlag forceNextWipersPost = 0;
+
         public static void RequestWipersRefresh()
         {
-            Interlocked.Exchange(ref forceNextWipersPost, 1);
+            forceNextWipersPost.Set();
             Program.serialPort?.Write(new XCMD_SetWipers());
         }
 
@@ -148,23 +150,12 @@ namespace Asano.MyGLTools.Helpers
         {
             var caldera     = Program.Caldera;
             var activeChart = MyChart.ActiveChart;
-            var forceWipers = Interlocked.Exchange(ref forceNextWipersPost, 0) != 0;
+            if (caldera == null || activeChart == null) return;
+            if (swPost.Elapsed.TotalMilliseconds < PostIntervalMs) return;
 
-            if (swPost.Elapsed.TotalMilliseconds < PostIntervalMs)
-            {
-                if (forceWipers)
-                    Interlocked.Exchange(ref forceNextWipersPost, 1);
-                return;
-            }
-            else
-                swPost.Restart();
+            var forceWipers = forceNextWipersPost.TestAndClear();
 
-            if (caldera == null || activeChart == null)
-            {
-                if (forceWipers)
-                    Interlocked.Exchange(ref forceNextWipersPost, 1);
-                return;
-            }
+            swPost.Restart();
             
             activeChart.CopyLatestCalderaMessages(pendingWipersChange, pendingVoltagesChange);
 

@@ -1,3 +1,4 @@
+@import "katex/dist/katex.min.css";
 @import "./styles/base.css";
 @import "./styles/analysis.css";
 @import "./styles/scene.css";
@@ -5,3 +6,22 @@
 @import "./styles/debug-panel.css";
 @import "./styles/wiper-debug.css";
 @import "./styles/test-panel.css";
+
+
+.ai-output {
+  position: fixed;
+  bottom: 10%;
+  left: 33%;
+  width: 360px;
+  height: 250px;
+  padding: 20px;
+  transform: translateX(-50%);
+  background-color: rgba(14, 36, 13, 0.2);
+  padding: 10px;
+  border-radius: 20px;
+  border: 2px solid rgba(7, 49, 5, 0.747);
+  box-shadow: 5px 10px 10px rgba(0,0,0, 0.5);
+  z-index: 1000; 
+  color: #210a72dc;
+  font: 16px "Arial", sans-serif;
+}
