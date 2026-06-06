@@ -9,6 +9,7 @@ import {
   PHYSICS_STAGE_FIVE_ID,
   PHYSICS_STAGE_FOUR_ID,
   PHYSICS_STAGE_ONE_ID,
+  createDifferentialAmpModelPayload,
   getPhysicsStageData as getPhysicsStageModelData,
   getPhysicsStages,
 } from "./modelling/phys_DiffAmp.js";
@@ -17,6 +18,9 @@ import { DifferentialAmpFormulaTester } from "./testing/math_DiffAmp.js";
 const EMPTY_AXIS_RANGE = [0, 3.3];
 const STAGE_TRACK_MATH = MODEL_TRACKS.MATH;
 const STAGE_TRACK_PHYSICS = MODEL_TRACKS.PHYSICS;
+const MODEL_UPLOAD_STATE_IDLE = "idle";
+const MODEL_UPLOAD_STATE_UPLOADING = "uploading";
+const MODEL_UPLOAD_STATE_UPLOADED = "uploaded";
 const GAIN_MARKER_COLORS = Object.freeze([
   "#ff3b30",
   "#ff9500",
@@ -33,10 +37,16 @@ const GAIN_MARKER_COLORS = Object.freeze([
 export class AnalysisPanel {
   constructor({
     dataset = new AnalysisDataset(),
+    firebaseStore = null,
+    previewCompareMode = false,
+    previewModelType = "",
     root,
     webView = null,
   } = {}) {
     this.dataset = dataset;
+    this.firebaseStore = firebaseStore;
+    this.previewCompareMode = previewCompareMode === true;
+    this.previewModelType = previewModelType;
     this.root = root;
     this.webView = webView;
     this.badge = root?.querySelector("[data-analysis-badge]");
@@ -89,6 +99,17 @@ export class AnalysisPanel {
     this.compareModelsButton = null;
     this.compareModelsDetail = null;
     this.compareModelsValue = null;
+    this.modelUploadButton = null;
+    this.modelUploadDetail = null;
+    this.modelUploadOverlay = null;
+    this.modelUploadStatus = null;
+    this.modelUploadTextarea = null;
+    this.modelUploadValue = null;
+    this.modelUploadFields = null;
+    this.installModelButton = null;
+    this.modelUploadState = MODEL_UPLOAD_STATE_IDLE;
+    this.uploadedModelRunId = null;
+    this.sourceCsvFilename = null;
     this.isFormulaTesting = false;
     this.unlockedStages = new Set();
     this.isProcessing = false;
@@ -117,6 +138,7 @@ export class AnalysisPanel {
   addSampleFromModel(sampleContext) {
     const sample = this.dataset.addSampleFromModel(sampleContext);
 
+    this.resetModelUploadState({ closeOverlay: true });
     this.cancelBackgroundMathValidation();
     this.model.clearCache();
     this.completedStageData.clear();
@@ -130,6 +152,7 @@ export class AnalysisPanel {
     const addedSample = this.dataset.addSample(sample);
 
     if (addedSample) {
+      this.resetModelUploadState({ closeOverlay: true });
       this.cancelBackgroundMathValidation();
       this.model.clearCache();
       this.completedStageData.clear();
@@ -142,6 +165,7 @@ export class AnalysisPanel {
 
   clear(options = {}) {
     this.dataset.clear(options);
+    this.sourceCsvFilename = null;
     this.resetAnalysisState();
     this.render();
   }
@@ -152,6 +176,7 @@ export class AnalysisPanel {
   } = {}) {
     const result = this.dataset.loadCsv({ content, filename });
 
+    this.sourceCsvFilename = filename;
     this.resetAnalysisState();
     this.clearTopChart();
     this.render({ updateTopChart: false });
@@ -176,6 +201,7 @@ export class AnalysisPanel {
     this.formulaTester.setModel(null);
     this.unlockedStages.clear();
     this.isFormulaTesting = false;
+    this.resetModelUploadState({ closeOverlay: true });
     this.isProcessing = false;
     this.isPhysicsStageProcessing = false;
     this.physicsStageRequestId += 1;
@@ -511,6 +537,83 @@ export class AnalysisPanel {
     }
   }
 
+  async previewModelComparison() {
+    this.cancelAutoModelRun();
+
+    if (!this.dataset.getAnalysisSamples().length) {
+      this.setBadge("load data before previewing model");
+      return false;
+    }
+
+    if (!this.hasComparableModelTracks()) {
+      this.setBadge("model comparison unavailable for this dataset");
+      return false;
+    }
+
+    const previewTrack = this.getPreviewModelTrack();
+    const secondaryTrack = previewTrack === STAGE_TRACK_MATH
+      ? STAGE_TRACK_PHYSICS
+      : STAGE_TRACK_MATH;
+
+    await this.runPreviewModelTrack(previewTrack);
+
+    if (secondaryTrack === STAGE_TRACK_PHYSICS) {
+      await this.runPreviewModelTrack(STAGE_TRACK_PHYSICS);
+    } else if (!this.hasCompletedFinalStage()) {
+      this.runBackgroundMathValidation();
+    }
+
+    this.activatePreviewModelTrack(previewTrack);
+    this.updateComparatorControls();
+
+    if (!this.canCompareModels()) {
+      this.setBadge("model comparison awaiting validation");
+      return false;
+    }
+
+    this.showModelComparator();
+    return true;
+  }
+
+  getPreviewModelTrack() {
+    return String(this.previewModelType ?? "").trim().toLowerCase() === STAGE_TRACK_MATH
+      ? STAGE_TRACK_MATH
+      : STAGE_TRACK_PHYSICS;
+  }
+
+  activatePreviewModelTrack(track) {
+    if (track === STAGE_TRACK_MATH) {
+      this.activateMathModelTrack();
+      return;
+    }
+
+    this.activatePhysicsModelTrack();
+  }
+
+  async runPreviewModelTrack(track) {
+    if (track === STAGE_TRACK_MATH) {
+      this.activateMathModelTrack();
+    } else {
+      this.activatePhysicsModelTrack();
+    }
+
+    while (true) {
+      const nextStage = this.getNextAutoRunnableStage(track);
+
+      if (!nextStage) {
+        break;
+      }
+
+      const completed = track === STAGE_TRACK_PHYSICS
+        ? await this.selectPhysicsStage(nextStage.id)
+        : await this.selectAnalysisStage(nextStage.id);
+
+      if (!completed) {
+        break;
+      }
+    }
+  }
+
   getRunnableTrack() {
     if (this.activeStageTrack && this.hasModelTrack(this.activeStageTrack)) {
       return this.activeStageTrack;
@@ -684,6 +787,10 @@ export class AnalysisPanel {
     status = "idle",
     test = null,
   } = {}) {
+    if (running && this.modelUploadState === MODEL_UPLOAD_STATE_UPLOADED) {
+      this.resetModelUploadState({ closeOverlay: true });
+    }
+
     const statusText = String(status ?? "idle");
     const testText = test ? `${test}: ${statusText}` : statusText;
 
@@ -695,6 +802,15 @@ export class AnalysisPanel {
     if (this.rangeCheckBadge) {
       this.rangeCheckBadge.hidden = !rangeCheck;
     }
+  }
+
+  setStatusBarText(text, { running = false } = {}) {
+    if (!this.testStatus) {
+      return;
+    }
+
+    this.testStatus.textContent = String(text ?? "");
+    this.testStatus.dataset.running = String(Boolean(running));
   }
 
   saveCsv() {
@@ -1158,6 +1274,10 @@ export class AnalysisPanel {
     this.compareModelsButton = null;
     this.compareModelsDetail = null;
     this.compareModelsValue = null;
+    this.modelUploadButton = null;
+    this.modelUploadDetail = null;
+    this.modelUploadValue = null;
+    this.installModelButton = null;
     this.stageValues.clear();
     this.stageDetails.clear();
 
@@ -1169,7 +1289,11 @@ export class AnalysisPanel {
     const stages = this.model.getStages();
     stages.forEach((stage) => {
       const button = document.createElement("button");
-      button.className = `analysis-stage-button ${stage.isPrimary ? "analysis-stage-button--primary" : ""}`;
+      button.className = [
+        "analysis-stage-button",
+        "analysis-stage-button--math-stage",
+        stage.isPrimary ? "analysis-stage-button--primary" : "",
+      ].filter(Boolean).join(" ");
       button.type = "button";
       button.dataset.analysisStageButton = stage.id;
 
@@ -1250,6 +1374,31 @@ export class AnalysisPanel {
       }
     });
 
+    this.modelUploadButton = document.createElement("button");
+    this.modelUploadButton.className = "analysis-stage-button analysis-stage-button--upload-model";
+    this.modelUploadButton.disabled = true;
+    this.modelUploadButton.type = "button";
+
+    this.modelUploadValue = document.createElement("strong");
+    this.modelUploadValue.textContent = "Preparing upload...";
+
+    this.modelUploadButton.append(this.modelUploadValue);
+    this.modelUploadButton.addEventListener("click", () => {
+      if (!this.modelUploadButton.disabled) {
+        this.openModelUploadOverlay();
+      }
+    });
+
+    this.installModelButton = document.createElement("button");
+    this.installModelButton.className = "firebase-panel-button analysis-install-model-button";
+    this.installModelButton.hidden = true;
+    this.installModelButton.type = "button";
+    this.installModelButton.append(
+      createButtonLine("Install new"),
+      createButtonLine(this.getInstallModelButtonModelText()),
+    );
+    this.installModelButton.addEventListener("click", () => this.handleInstallModelClick());
+
     this.formulaTestButton = document.createElement("button");
     this.formulaTestButton.className = "analysis-stage-button analysis-stage-button--formula-test";
     this.formulaTestButton.type = "button";
@@ -1276,8 +1425,11 @@ export class AnalysisPanel {
     );
     (this.comparatorControls ?? this.modelControls ?? this.stagesContainer).append(
       this.compareModelsButton,
+      this.modelUploadButton,
+      this.installModelButton,
     );
     this.updateComparatorControls();
+    this.updateModelUploadButton();
     this.updateModelTrackControls();
     this.updateFormulaeVisibility();
   }
@@ -1500,13 +1652,19 @@ export class AnalysisPanel {
       return;
     }
 
-    const hasBothTracks = this.hasModelTrack(STAGE_TRACK_MATH)
-      && this.hasModelTrack(STAGE_TRACK_PHYSICS);
+    const hasBothTracks = this.hasComparableModelTracks();
     const canCompare = hasBothTracks && this.canCompareModels();
+    const showInstallModel = this.previewCompareMode && hasBothTracks;
 
-    this.compareModelsButton.hidden = !hasBothTracks;
+    this.compareModelsButton.hidden = showInstallModel || !hasBothTracks;
     this.compareModelsButton.disabled = !canCompare;
     this.compareModelsButton.dataset.active = String(canCompare);
+
+    if (this.installModelButton) {
+      this.installModelButton.hidden = !showInstallModel;
+      this.installModelButton.disabled = !canCompare;
+      this.updateInstallModelButtonLabel();
+    }
 
     if (this.compareModelsValue) {
       this.compareModelsValue.textContent = canCompare ? "Ready" : "-";
@@ -1517,6 +1675,355 @@ export class AnalysisPanel {
         ? "both validations complete"
         : "finish both validations";
     }
+
+    this.updateModelUploadButton();
+  }
+
+  updateModelUploadButton(formulaeVisible = this.isFormulaePanelVisible()) {
+    if (!this.modelUploadButton) {
+      return;
+    }
+
+    if (this.previewCompareMode) {
+      this.modelUploadButton.hidden = true;
+      this.modelUploadButton.disabled = true;
+      this.modelUploadButton.dataset.active = "false";
+      return;
+    }
+
+    const hasModelTools = this.hasComparableModelTracks();
+    const isUploading = this.modelUploadState === MODEL_UPLOAD_STATE_UPLOADING;
+    const isUploaded = this.modelUploadState === MODEL_UPLOAD_STATE_UPLOADED;
+    const canUpload = Boolean(
+      hasModelTools
+        && formulaeVisible
+        && this.firebaseStore
+        && !isUploading
+        && !isUploaded,
+    );
+
+    this.modelUploadButton.hidden = !hasModelTools;
+    this.modelUploadButton.disabled = !canUpload;
+    this.modelUploadButton.dataset.active = String(canUpload || isUploading);
+
+    if (this.modelUploadValue) {
+      this.modelUploadValue.textContent = getModelUploadButtonText({
+        canUpload,
+        firebaseStore: this.firebaseStore,
+        state: this.modelUploadState,
+      });
+    }
+  }
+
+  resetModelUploadState({ closeOverlay = false } = {}) {
+    this.modelUploadState = MODEL_UPLOAD_STATE_IDLE;
+    this.uploadedModelRunId = null;
+
+    if (closeOverlay) {
+      this.closeModelUploadOverlay();
+    }
+
+    if (this.modelUploadStatus) {
+      this.modelUploadStatus.textContent = "ready";
+    }
+
+    this.updateModelUploadButton();
+  }
+
+  hasComparableModelTracks() {
+    return this.hasModelTrack(STAGE_TRACK_MATH)
+      && this.hasModelTrack(STAGE_TRACK_PHYSICS);
+  }
+
+  handleInstallModelClick() {
+    this.setBadge("model install pending");
+  }
+
+  getInstallModelButtonModelText() {
+    const displayType = getDisplayModelType(this.previewModelType);
+
+    return displayType ? `${displayType} Model` : "Model";
+  }
+
+  updateInstallModelButtonLabel() {
+    if (!this.installModelButton) {
+      return;
+    }
+
+    const [firstLine, secondLine] = this.installModelButton.querySelectorAll("span");
+
+    if (firstLine) {
+      firstLine.textContent = "Install new";
+    }
+
+    if (secondLine) {
+      secondLine.textContent = this.getInstallModelButtonModelText();
+    }
+  }
+
+  isFormulaePanelVisible() {
+    return Boolean(this.stageFormulae
+      && !this.stageFormulae.hidden
+      && this.stageFormulae.innerHTML.trim());
+  }
+
+  openModelUploadOverlay() {
+    const overlay = this.ensureModelUploadOverlay();
+    const fields = this.modelUploadFields;
+    const packet = this.createModelUploadPacket();
+    const details = packet.details ?? {};
+    const timestamp = getUploadTimestamp({ createdAt: packet.createdAt });
+
+    fields.date.value = timestamp.date;
+    fields.time.value = timestamp.time;
+    fields.process.value = details.process ?? "";
+    fields.component.value = details.component ?? "";
+    fields.model.value = details.model ?? "";
+    fields.name.value = details.name ?? "";
+    fields.notes.value = details.notes ?? "";
+    fields.researcher.value = details.researcher ?? "";
+    fields.revision.value = String(details.revision ?? 1);
+    this.updateModelUploadPacketPreview();
+
+    overlay.hidden = false;
+    fields.name.focus();
+    fields.name.select();
+  }
+
+  closeModelUploadOverlay() {
+    if (this.modelUploadOverlay) {
+      this.modelUploadOverlay.hidden = true;
+    }
+  }
+
+  ensureModelUploadOverlay() {
+    if (this.modelUploadOverlay) {
+      return this.modelUploadOverlay;
+    }
+
+    const overlay = document.createElement("div");
+    const form = document.createElement("form");
+    const closeButton = document.createElement("button");
+    const title = document.createElement("h2");
+    const body = document.createElement("div");
+    const grid = document.createElement("div");
+    const notesLabel = document.createElement("label");
+    const notesCaption = document.createElement("span");
+    const notesTextarea = document.createElement("textarea");
+    const textareaLabel = document.createElement("label");
+    const textareaCaption = document.createElement("span");
+    const textarea = document.createElement("textarea");
+    const footer = document.createElement("div");
+    const dateTime = document.createElement("div");
+    const actions = document.createElement("div");
+    const cancelButton = document.createElement("button");
+    const uploadButton = document.createElement("button");
+    const status = document.createElement("span");
+
+    overlay.className = "analysis-model-upload-overlay";
+    overlay.hidden = true;
+    form.className = "analysis-model-upload-overlay__panel";
+    body.className = "analysis-model-upload-overlay__body";
+    closeButton.className = "analysis-model-upload-overlay__close";
+    closeButton.type = "button";
+    closeButton.textContent = "X";
+    title.textContent = "Upload Model";
+    grid.className = "analysis-model-upload-overlay__grid";
+    notesLabel.className = "analysis-model-upload-overlay__notes";
+    notesCaption.textContent = "Notes";
+    notesTextarea.name = "notes";
+    notesTextarea.spellcheck = true;
+    textareaLabel.className = "analysis-model-upload-overlay__json";
+    textareaCaption.textContent = "Data packet";
+    textarea.spellcheck = false;
+    textarea.wrap = "off";
+    footer.className = "analysis-model-upload-overlay__footer";
+    dateTime.className = "analysis-model-upload-overlay__datetime";
+    actions.className = "analysis-model-upload-overlay__actions";
+    cancelButton.className = "analysis-panel__button";
+    cancelButton.type = "button";
+    cancelButton.textContent = "Cancel";
+    uploadButton.className = "analysis-panel__button";
+    uploadButton.type = "submit";
+    uploadButton.textContent = "Upload";
+    status.className = "analysis-model-upload-overlay__status";
+    status.textContent = "ready";
+
+    const fields = {
+      component: createModelUploadInput({ label: "Component", name: "component" }),
+      date: createModelUploadInput({ label: "Date", name: "date", readOnly: true }),
+      model: createModelUploadInput({ label: "Model", name: "model", readOnly: true }),
+      name: createModelUploadInput({ label: "Name", name: "name" }),
+      notes: {
+        input: notesTextarea,
+        label: notesLabel,
+      },
+      process: createModelUploadInput({ label: "Process", name: "process" }),
+      researcher: createModelUploadInput({ label: "Researcher", name: "researcher" }),
+      revision: createModelUploadInput({ label: "Revision number", name: "revision", type: "number" }),
+      time: createModelUploadInput({ label: "Time", name: "time", readOnly: true }),
+    };
+
+    [
+      fields.process,
+      fields.component,
+      fields.model,
+      fields.name,
+      fields.revision,
+      fields.researcher,
+    ].forEach(({ input, label }) => {
+      input.addEventListener("input", () => this.updateModelUploadPacketPreview());
+      grid.appendChild(label);
+    });
+
+    notesTextarea.addEventListener("input", () => this.updateModelUploadPacketPreview());
+    notesLabel.append(notesCaption, notesTextarea);
+    [fields.date, fields.time].forEach(({ label }) => dateTime.appendChild(label));
+    textareaLabel.append(textareaCaption, textarea);
+    actions.append(cancelButton, uploadButton, status);
+    footer.append(dateTime, actions);
+    body.append(grid, notesLabel, textareaLabel, footer);
+    form.append(closeButton, title, body);
+    overlay.appendChild(form);
+
+    closeButton.addEventListener("click", () => this.closeModelUploadOverlay());
+    cancelButton.addEventListener("click", () => this.closeModelUploadOverlay());
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      this.uploadModelPacket(uploadButton);
+    });
+
+    this.modelUploadOverlay = overlay;
+    this.modelUploadStatus = status;
+    this.modelUploadTextarea = textarea;
+    this.modelUploadFields = Object.fromEntries(
+      Object.entries(fields).map(([key, field]) => [key, field.input]),
+    );
+
+    (this.root ?? document.body).appendChild(overlay);
+
+    return overlay;
+  }
+
+  updateModelUploadPacketPreview() {
+    if (!this.modelUploadTextarea || !this.modelUploadFields) {
+      return;
+    }
+
+    const packet = this.createModelUploadPacket({
+      component: this.modelUploadFields.component.value,
+      date: this.modelUploadFields.date.value,
+      model: this.modelUploadFields.model.value,
+      name: this.modelUploadFields.name.value,
+      notes: this.modelUploadFields.notes.value,
+      process: this.modelUploadFields.process.value,
+      researcher: this.modelUploadFields.researcher.value,
+      revision: this.modelUploadFields.revision.value,
+      time: this.modelUploadFields.time.value,
+    });
+
+    this.modelUploadTextarea.value = formatModelUploadPacketPreview(packet);
+  }
+
+  getCurrentModelSnapshotForUpload() {
+    const plottableSamples = this.dataset.getAnalysisSamples().filter((sample) => sample.isPlottable);
+
+    if (plottableSamples.length) {
+      return this.model.getModel(plottableSamples);
+    }
+
+    return this.formulaTester.getModel();
+  }
+
+  async uploadModelPacket(uploadButton) {
+    if (!this.firebaseStore || !this.modelUploadTextarea) {
+      return;
+    }
+
+    if (this.modelUploadState === MODEL_UPLOAD_STATE_UPLOADING
+      || this.modelUploadState === MODEL_UPLOAD_STATE_UPLOADED) {
+      return;
+    }
+
+    let packet = null;
+
+    try {
+      packet = JSON.parse(this.modelUploadTextarea.value);
+    } catch (error) {
+      this.modelUploadStatus.textContent = "invalid JSON";
+      return;
+    }
+
+    uploadButton.disabled = true;
+    this.modelUploadState = MODEL_UPLOAD_STATE_UPLOADING;
+    this.modelUploadStatus.textContent = "uploading";
+    this.closeModelUploadOverlay();
+    this.updateModelUploadButton();
+
+    try {
+      const result = await this.firebaseStore.saveModelRun(packet);
+      const uploadId = result?.id ?? "uploaded";
+
+      this.uploadedModelRunId = uploadId;
+      this.modelUploadState = MODEL_UPLOAD_STATE_UPLOADED;
+      this.modelUploadStatus.textContent = uploadId;
+      this.setStatusBarText(uploadId);
+      this.setBadge("model uploaded");
+    } catch (error) {
+      this.modelUploadState = MODEL_UPLOAD_STATE_IDLE;
+      this.modelUploadStatus.textContent = "upload failed";
+      this.setStatusBarText("upload failed");
+      console.error("Firebase model upload failed", error);
+    } finally {
+      uploadButton.disabled = this.modelUploadState === MODEL_UPLOAD_STATE_UPLOADED;
+      this.updateModelUploadButton();
+    }
+  }
+
+  createModelUploadPacket({
+    component = null,
+    createdAt = null,
+    date = null,
+    model = null,
+    name = null,
+    notes = null,
+    process = null,
+    researcher = null,
+    revision = 1,
+    time = null,
+  } = {}) {
+    const sourceFilename = this.sourceCsvFilename ?? this.dataset.getCsvFilename();
+    const metadata = this.dataset.metadata ?? {};
+    const activeModelType = this.activeStageTrack || "unknown";
+    const timestamp = getUploadTimestamp({ createdAt, date, time });
+    const modelSnapshot = this.getCurrentModelSnapshotForUpload();
+    const derivedPhysicsModel = modelSnapshot?.ready
+      ? this.physicsModel.deriveFromMathModel(modelSnapshot)
+      : null;
+    const diffAmpModelPayload = createDifferentialAmpModelPayload(derivedPhysicsModel);
+    return {
+      schemaVersion: 1,
+      createdAt: timestamp.createdAt,
+      kind: "caldera.modelRun",
+      dataset: {
+        category: metadata.category ?? "",
+        component: metadata.name ?? "",
+        sampleCount: this.dataset.getAnalysisSamples().length,
+        source: metadata.source ?? "",
+        sourceFilename,
+      },
+      details: {
+        component: normaliseText(component) ?? metadata.name ?? "",
+        model: normaliseText(model) ?? formatModelType(activeModelType),
+        modelType: activeModelType,
+        name: normaliseText(name) ?? getDefaultUploadName(sourceFilename, metadata.name),
+        notes: normaliseText(notes) ?? "",
+        process: normaliseText(process) ?? metadata.category ?? "",
+        researcher: normaliseText(researcher) ?? "",
+        revision: getPositiveInteger(revision, 1),
+      },
+      payload: diffAmpModelPayload,
+    };
   }
 
   showModelComparator() {
@@ -1740,6 +2247,8 @@ export class AnalysisPanel {
     if (this.formulaTestButton) {
       this.formulaTestButton.hidden = !visible;
     }
+
+    this.updateModelUploadButton(visible);
 
     if (!canTestFormulae && this.isFormulaTesting) {
       this.isFormulaTesting = false;
@@ -2367,6 +2876,340 @@ function formatSampleIndex(sample) {
   return Number.isFinite(sample.sampleCount)
     ? `${sample.sampleIndex}/${sample.sampleCount}`
     : String(sample.sampleIndex);
+}
+
+function createModelUploadInput({
+  label,
+  multiline = false,
+  name,
+  readOnly = false,
+  type = "text",
+}) {
+  const labelElement = document.createElement("label");
+  const caption = document.createElement("span");
+  const input = document.createElement(multiline ? "textarea" : "input");
+
+  caption.textContent = label;
+  input.name = name;
+  if (!multiline) {
+    input.type = type;
+  }
+  input.readOnly = readOnly;
+
+  labelElement.append(caption, input);
+
+  return {
+    input,
+    label: labelElement,
+  };
+}
+
+function createButtonLine(text) {
+  const line = document.createElement("span");
+
+  line.textContent = text;
+  return line;
+}
+
+function getModelUploadButtonText({
+  canUpload,
+  firebaseStore,
+  state,
+}) {
+  if (state === MODEL_UPLOAD_STATE_UPLOADING) {
+    return "Uploading...";
+  }
+
+  if (state === MODEL_UPLOAD_STATE_UPLOADED) {
+    return "Uploaded";
+  }
+
+  if (canUpload) {
+    return "Upload Ready";
+  }
+
+  return firebaseStore ? "Preparing upload..." : "Firebase unavailable";
+}
+
+const MODEL_UPLOAD_ALIGNED_OBJECT_PATHS = new Set([
+  "payload.constants.calibrated",
+  "payload.constants.circuit",
+  "payload.schema.inputs",
+  "payload.schema.outputs",
+  "payload.schema.requiredConstants.calibrated",
+  "payload.schema.requiredConstants.circuit",
+]);
+
+function formatModelUploadPacketPreview(packet) {
+  return formatUploadJsonValue(packet, 0, []);
+}
+
+function formatUploadJsonValue(value, level, path) {
+  if (Array.isArray(value)) {
+    return formatUploadJsonArray(value, level, path);
+  }
+
+  if (isPlainObject(value)) {
+    return shouldFormatAsAlignedUploadObject(path)
+      ? formatAlignedUploadJsonObject(value, level, path)
+      : formatUploadJsonObject(value, level, path);
+  }
+
+  return formatUploadJsonPrimitive(value);
+}
+
+function formatUploadJsonArray(values, level, path) {
+  if (!values.length) {
+    return "[]";
+  }
+
+  const childIndent = getJsonIndent(level + 1);
+  const closingIndent = getJsonIndent(level);
+  const lines = values.map((value, index) => {
+    const suffix = index < values.length - 1 ? "," : "";
+
+    return `${childIndent}${formatUploadJsonValue(value, level + 1, path.concat(String(index)))}${suffix}`;
+  });
+
+  return `[\n${lines.join("\n")}\n${closingIndent}]`;
+}
+
+function formatUploadJsonObject(value, level, path) {
+  const entries = Object.entries(value);
+
+  if (!entries.length) {
+    return "{}";
+  }
+
+  const childIndent = getJsonIndent(level + 1);
+  const closingIndent = getJsonIndent(level);
+  const lines = entries.map(([key, childValue], index) => {
+    const suffix = index < entries.length - 1 ? "," : "";
+    const childPath = path.concat(key);
+
+    return `${childIndent}${JSON.stringify(key)}: ${formatUploadJsonValue(childValue, level + 1, childPath)}${suffix}`;
+  });
+
+  return `{\n${lines.join("\n")}\n${closingIndent}}`;
+}
+
+function formatAlignedUploadJsonObject(value, level, path) {
+  const entries = Object.entries(value);
+
+  if (!entries.length) {
+    return "{}";
+  }
+
+  const inlineObjectColumns = getInlineUploadObjectColumns(entries);
+  const childIndent = getJsonIndent(level + 1);
+  const closingIndent = getJsonIndent(level);
+  const keyWidth = Math.max(...entries.map(([key]) => JSON.stringify(key).length));
+  const lines = entries.map(([key, childValue], index) => {
+    const suffix = index < entries.length - 1 ? "," : "";
+    const keyText = JSON.stringify(key).padEnd(keyWidth, " ");
+    const childPath = path.concat(key);
+
+    return `${childIndent}${keyText}: ${formatUploadJsonInlineValue(childValue, level + 1, childPath, inlineObjectColumns)}${suffix}`;
+  });
+
+  return `{\n${lines.join("\n")}\n${closingIndent}}`;
+}
+
+function formatUploadJsonInlineValue(value, level, path, inlineObjectColumns = null) {
+  if (isPlainObject(value) && Object.values(value).every((childValue) => !isObjectLike(childValue))) {
+    return formatInlineUploadJsonObject(value, inlineObjectColumns);
+  }
+
+  return formatUploadJsonValue(value, level, path);
+}
+
+function formatInlineUploadJsonObject(value, columns = null) {
+  const entries = Object.entries(value);
+
+  if (!entries.length) {
+    return "{}";
+  }
+
+  if (!columns) {
+    return `{ ${entries
+      .map(([key, childValue]) => `${JSON.stringify(key)}: ${formatUploadJsonPrimitive(childValue)}`)
+      .join(", ")} }`;
+  }
+
+  const fields = columns.keys.map((key) => {
+    const spec = columns.fields.get(key);
+    const keyText = JSON.stringify(key).padEnd(columns.keyWidth, " ");
+    const valueText = formatUploadJsonPrimitive(value[key] ?? null).padEnd(spec.valueWidth, " ");
+
+    return `${keyText}: ${valueText}`;
+  });
+
+  return `{ ${fields.join(", ")} }`;
+}
+
+function formatUploadJsonPrimitive(value) {
+  return JSON.stringify(value) ?? "null";
+}
+
+function getInlineUploadObjectColumns(entries) {
+  if (!entries.length || !entries.every(([, value]) => isScalarObject(value))) {
+    return null;
+  }
+
+  const keys = [];
+
+  entries.forEach(([, value]) => {
+    Object.keys(value).forEach((key) => {
+      if (!keys.includes(key)) {
+        keys.push(key);
+      }
+    });
+  });
+
+  const keyWidth = Math.max(...keys.map((key) => JSON.stringify(key).length));
+  const fields = new Map(keys.map((key) => [
+    key,
+    {
+      valueWidth: Math.max(...entries.map(([, value]) => formatUploadJsonPrimitive(value[key] ?? null).length)),
+    },
+  ]));
+
+  return {
+    fields,
+    keys,
+    keyWidth,
+  };
+}
+
+function isScalarObject(value) {
+  return isPlainObject(value)
+    && Object.values(value).every((childValue) => !isObjectLike(childValue));
+}
+
+function shouldFormatAsAlignedUploadObject(path) {
+  return MODEL_UPLOAD_ALIGNED_OBJECT_PATHS.has(path.join("."));
+}
+
+function isPlainObject(value) {
+  return Boolean(value)
+    && typeof value === "object"
+    && !Array.isArray(value);
+}
+
+function isObjectLike(value) {
+  return Boolean(value) && typeof value === "object";
+}
+
+function getJsonIndent(level) {
+  return "  ".repeat(level);
+}
+
+function getDefaultUploadName(filename, fallbackName) {
+  const description = getFilenameDescription(filename);
+
+  return description ?? normaliseText(fallbackName) ?? "model";
+}
+
+function formatModelType(modelType) {
+  return getDisplayModelType(modelType) || "Unknown";
+}
+
+function getDisplayModelType(modelType) {
+  const normalised = String(modelType ?? "").trim().toLowerCase();
+
+  if (normalised === STAGE_TRACK_PHYSICS) {
+    return "Physics";
+  }
+
+  if (normalised === STAGE_TRACK_MATH) {
+    return "Math";
+  }
+
+  return "";
+}
+
+function getFilenameDescription(filename) {
+  const stem = String(filename ?? "")
+    .split(/[\\/]/u)
+    .pop()
+    ?.replace(/\.[^.]+$/u, "")
+    .trim() ?? "";
+  const separatorIndex = stem.indexOf("-");
+
+  return separatorIndex >= 0
+    ? normaliseText(stem.slice(separatorIndex + 1))
+    : null;
+}
+
+function getUploadTimestamp({
+  createdAt = null,
+  date = null,
+  time = null,
+} = {}) {
+  const parsedDate = parseDisplayDateTime(date, time);
+  const fallbackDate = createdAt ? new Date(createdAt) : new Date();
+  const knownDate = parsedDate
+    ?? (Number.isNaN(fallbackDate.getTime()) ? new Date() : fallbackDate);
+
+  return {
+    createdAt: knownDate.toISOString(),
+    date: normaliseText(date) ?? formatDisplayDate(knownDate),
+    time: normaliseText(time) ?? formatDisplayTime(knownDate),
+  };
+}
+
+function parseDisplayDateTime(date, time) {
+  const dateMatch = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/u.exec(String(date ?? "").trim());
+  const timeMatch = /^(\d{1,2}):(\d{1,2}):(\d{1,2})$/u.exec(String(time ?? "").trim());
+
+  if (!dateMatch || !timeMatch) {
+    return null;
+  }
+
+  const [, dayText, monthText, yearText] = dateMatch;
+  const [, hourText, minuteText, secondText] = timeMatch;
+  const parsedDate = new Date(
+    Number(yearText),
+    Number(monthText) - 1,
+    Number(dayText),
+    Number(hourText),
+    Number(minuteText),
+    Number(secondText),
+  );
+
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+}
+
+function formatDisplayDate(date) {
+  return [
+    pad2(date.getDate()),
+    pad2(date.getMonth() + 1),
+    date.getFullYear(),
+  ].join("/");
+}
+
+function formatDisplayTime(date) {
+  return [
+    pad2(date.getHours()),
+    pad2(date.getMinutes()),
+    pad2(date.getSeconds()),
+  ].join(":");
+}
+
+function pad2(value) {
+  return String(value).padStart(2, "0");
+}
+
+function getPositiveInteger(value, fallback) {
+  const number = Number.parseInt(value, 10);
+
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+function normaliseText(value) {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+
+  return text || null;
 }
 
 async function copyText(text) {

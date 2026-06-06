@@ -67,10 +67,11 @@ export class WebView {
     });
   }
 
-  postOpenView(view) {
+  postOpenView(view, options = {}) {
     return this.postMessage({
       type: "openView",
       view,
+      ...getOpenViewOptions(options),
     });
   }
 
@@ -222,6 +223,28 @@ function withCommandFlags(message, cmdFlags) {
     ...message,
     cmdFlags: cmdFlags,
   };
+}
+
+function getOpenViewOptions(options) {
+  if (!options || typeof options !== "object") {
+    return {};
+  }
+
+  const viewOptions = {};
+
+  if (typeof options.loadFile === "string" && options.loadFile.trim()) {
+    viewOptions.loadFile = options.loadFile;
+  }
+
+  if (typeof options.modelType === "string" && options.modelType.trim()) {
+    viewOptions.modelType = options.modelType;
+  }
+
+  if (options.compare === true) {
+    viewOptions.compare = true;
+  }
+
+  return viewOptions;
 }
 
 function parseMessage(data) {

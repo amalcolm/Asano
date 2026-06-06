@@ -12,22 +12,22 @@ import { DEFAULT_MODEL_MAPPING } from "./ModelMapping.js";
 const TEST_PANEL_MODEL_MAPPING = DEFAULT_MODEL_MAPPING;
 
 export const TEST_PANEL_HTML = `
-  <div class="test-panel" data-test-panel>
-    <div class="test-panel__header">
+  <div class="analyses-test-panel" data-test-panel>
+    <div class="analyses-test-panel__header">
       <span>Analyses</span>
     </div>
-    <table class="test-panel__matrix" aria-label="Test selection">
+    <table class="analyses-test-panel__matrix" aria-label="Test selection">
       <tbody>
-        <tr class="test-panel__matrix-row test-panel__matrix-row--heading">
+        <tr class="analyses-test-panel__matrix-row analyses-test-panel__matrix-row--heading">
           <th scope="col">Single</th>
           <th scope="col">Stacked</th>
           <th scope="col">Custom</th>
         </tr>
-        <tr class="test-panel__matrix-row test-panel__matrix-row--buttons">
+        <tr class="analyses-test-panel__matrix-row analyses-test-panel__matrix-row--buttons">
           <td>
-            <div class="test-panel__actions">
+            <div class="analyses-test-panel__actions">
               <button
-                class="test-panel__button"
+                class="analyses-test-panel__button"
                 type="button"
                 data-mid-sweep-button
                 data-test-id="mid"
@@ -39,9 +39,9 @@ export const TEST_PANEL_HTML = `
             </div>
           </td>
           <td>
-            <div class="test-panel__actions">
+            <div class="analyses-test-panel__actions">
               <button
-                class="test-panel__button"
+                class="analyses-test-panel__button"
                 type="button"
                 data-offset-sweep-button
                 data-test-id="offset"
@@ -51,7 +51,7 @@ export const TEST_PANEL_HTML = `
                 Sweep offset
               </button>
               <button
-                class="test-panel__button"
+                class="analyses-test-panel__button"
                 type="button"
                 data-gain-sweep-button
                 data-test-id="gain"
@@ -63,9 +63,9 @@ export const TEST_PANEL_HTML = `
             </div>
           </td>
           <td>
-            <div class="test-panel__actions">
+            <div class="analyses-test-panel__actions">
               <button
-                class="test-panel__button"
+                class="analyses-test-panel__button"
                 type="button"
                 data-test2-button
                 data-test-id="test2"
@@ -75,7 +75,7 @@ export const TEST_PANEL_HTML = `
                 Test2
               </button>
               <button
-                class="test-panel__button"
+                class="analyses-test-panel__button"
                 type="button"
                 data-test3-button
                 data-test-id="test3"
@@ -87,16 +87,16 @@ export const TEST_PANEL_HTML = `
             </div>
           </td>
         </tr>
-        <tr class="test-panel__matrix-row test-panel__matrix-row--heading test-panel__matrix-row--spaced">
+        <tr class="analyses-test-panel__matrix-row analyses-test-panel__matrix-row--heading analyses-test-panel__matrix-row--spaced">
           <th scope="row">Calibration</th>
           <th aria-hidden="true"></th>
           <th aria-hidden="true"></th>
         </tr>
-        <tr class="test-panel__matrix-row test-panel__matrix-row--buttons">
+        <tr class="analyses-test-panel__matrix-row analyses-test-panel__matrix-row--buttons">
           <td>
-            <div class="test-panel__actions">
+            <div class="analyses-test-panel__actions">
               <button
-                class="test-panel__button"
+                class="analyses-test-panel__button"
                 type="button"
                 data-test1-button
                 data-test-id="test1"
@@ -106,7 +106,7 @@ export const TEST_PANEL_HTML = `
                 Diff.Amp.
               </button>
               <button
-                class="test-panel__button"
+                class="analyses-test-panel__button"
                 type="button"
                 data-test4-button
                 data-test-id="test4"
@@ -122,7 +122,7 @@ export const TEST_PANEL_HTML = `
         </tr>
       </tbody>
     </table>
-    <div class="test-panel__footer">
+    <div class="analyses-test-panel__footer">
       <span data-test-status>idle</span>
     </div>
   </div>

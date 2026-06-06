@@ -9,12 +9,17 @@ namespace Asano.Caldera
 
         public CalderaView View { get; }
 
-        public MyCalderaForm(CalderaView view = CalderaView.Analysis)
+        public MyCalderaForm(
+            CalderaView view = CalderaView.Analysis,
+            IReadOnlyDictionary<string, string?>? queryParameters = null)
         {
             InitializeComponent();
 
             View = view;
             calderaControl.View = view;
+            if (queryParameters != null)
+                calderaControl.QueryParameters = new Dictionary<string, string?>(queryParameters);
+
             Text = CalderaViewNames.ToTitle(view);
 
             switch (Environment.MachineName)
@@ -37,6 +42,9 @@ namespace Asano.Caldera
         }
 
         public Task ShutdownCalderaAsync() => _shutdownTask ??= ShutdownCalderaCoreAsync();
+
+        public void NavigateCaldera(IReadOnlyDictionary<string, string?>? queryParameters = null)
+            => calderaControl.Navigate(queryParameters);
 
         protected override async void OnFormClosing(FormClosingEventArgs e)
         {

@@ -1,12 +1,21 @@
 import { getApps, initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously } from "firebase/auth";
-import { addDoc, collection, getFirestore, serverTimestamp } from "firebase/firestore/lite";
-import { getAI, getGenerativeModel, VertexAIBackend, GoogleAIBackend } from "firebase/ai";
-
+import {
+  addDoc,
+  collection,
+  getDocs,
+  getFirestore,
+  limit,
+  orderBy,
+  query,
+  serverTimestamp,
+} from "firebase/firestore/lite";
+import { getAI, getGenerativeModel, GoogleAIBackend } from "firebase/ai";
+import { FB_Panel } from "./FB_Panel.js";
 
 const DEFAULT_APP_NAME = "[DEFAULT]";
 const DEFAULT_COLLECTION_NAME = "modelRuns";
-const DEFAULT_SCHEMA_VERSION = 1;
+const DEFAULT_RECENT_MODEL_LIMIT = 50;
 
 const firebaseConfig = {
   apiKey: "AIzaSyDDSldQJS7SbUyIXh9r3TZNE5bxZ_P_iOk",
@@ -27,8 +36,12 @@ export class FB_Store {
     this.appName = options.appName ?? DEFAULT_APP_NAME;
     this.collectionName = options.collectionName ?? DEFAULT_COLLECTION_NAME;
     this.config = options.config ?? firebaseConfig;
-    this.schemaVersion = options.schemaVersion ?? DEFAULT_SCHEMA_VERSION;
     this.signInPromise = null;
+    this.testAIStartPromise = null;
+    this.panel = options.panel ?? new FB_Panel(this);
+    this.onPreviewModel = typeof options.onPreviewModel === "function"
+      ? options.onPreviewModel
+      : null;
 
     this.app = getOrCreateApp(this.config, this.appName);
     this.auth = getAuth(this.app);
@@ -37,7 +50,12 @@ export class FB_Store {
     this.ai = getAI(this.app, { backend: new GoogleAIBackend() });
 
     // Create a `GenerativeModel` instance with a model that supports your use case
-    this.model = getGenerativeModel(this.ai, { model: "gemini-3.5-flash" });
+    this.ai_textModel = getGenerativeModel(this.ai, { model: "gemini-3.5-flash" });
+
+    const autoTest = options.autoTest ?? this.testConnection;
+    if (autoTest) {
+      this.runWhenStable(autoTest);
+    }
   }
 
   async signIn() {
@@ -60,51 +78,118 @@ export class FB_Store {
 
     return addDoc(collection(this.db, this.collectionName), {
       createdAt: serverTimestamp(),
-      modelType: safePayload.modelType ?? "",
       ownerUid: user.uid,
       payload: safePayload,
-      schemaVersion: this.schemaVersion,
-      sourceCsvName: safePayload.sourceCsvName ?? "",
     });
   }
 
-async testAI() {
-  let output = document.querySelector("#aiOutput");
 
-  if (!output) {
-    output = document.createElement("div");
-    output.id = "aiOutput";
-    output.className = "ai-output";
-    document.body.appendChild(output);
+  async testConnection() {
+    this.panel.clear();
+    this.panel.appendText("Testing Firebase connection...\n");
+    try {
+      await this.signIn();
+      this.panel.appendText("Firebase connection successful!\n");
+
+      const lastUpdateMillis = getStoredModelUpdateMillis();
+      const latestModelRun = await this.getLatestModelRun({ component: "Diff.Amp." });
+
+      if (!latestModelRun) {
+        this.panel.appendText("No Diff.Amp. model runs found in Firestore.\n");
+        return;
+      }
+
+      const createdAtMillis = getTimestampMillis(latestModelRun.createdAt);
+
+      if (createdAtMillis !== null && createdAtMillis <= lastUpdateMillis) {
+        this.panel.appendText(`Up to date\n`);
+        return;
+      }
+
+      this.panel.clear();
+      this.panel.setBrightText();
+      this.panel.appendText("New Diff.Amp. model run found:\n");
+      this.panel.appendText(`- Created At: ${formatTimestamp(latestModelRun.createdAt)}\n`);
+      this.panel.appendText(`- Source Filename:\n ${trimFilename(getModelRunSourceFilename(latestModelRun))}\n`);
+
+      this.panel.showModelPreviewButton(
+        () => {
+          if (!this.onPreviewModel) {
+            this.panel.appendText("Preview unavailable in this view.\n");
+            return;
+          }
+
+          if (!this.onPreviewModel(latestModelRun)) {
+            this.panel.appendText("Preview unavailable: no local source filename found.\n");
+          }
+        },
+        {
+          componentType: getModelRunComponent(latestModelRun),
+          modelType: getModelRunModelType(latestModelRun),
+        },
+      );
+
+    } catch (error) {
+      this.panel.appendText(`Firebase connection failed: ${error?.message || "Unknown error"}\n`);
+    }
   }
 
-  const prompt = "Write a short paragraph about a magic backpack.";
 
-  // Clear previous output.
-  output.replaceChildren();
+  async getLatestModelRun({
+    component = null,
+    limitCount = DEFAULT_RECENT_MODEL_LIMIT,
+    source = null,
+  } = {}) {
+    await this.signIn();
 
-  // One text node, updated as chunks arrive.
-  const textNode = document.createTextNode("");
-  output.appendChild(textNode);
+    const modelRunsQuery = query(
+      collection(this.db, this.collectionName),
+      orderBy("createdAt", "desc"),
+      limit(limitCount),
+    );
+    const snapshot = await getDocs(modelRunsQuery);
+    const runs = snapshot.docs.map((doc) => doc.data());
 
-  const result = await this.model.generateContentStream(prompt);
-
-  for await (const chunk of result.stream) {
-    const chunkText = chunk.text();
-
-    if (!chunkText)
-      continue;
-
-    textNode.appendData(chunkText);
-
-    // Optional: keep scrolled to bottom if the div is scrollable.
-    output.scrollTop = output.scrollHeight;
+    return runs.find((run) => matchesModelRun(run, { component, source })) ?? null;
   }
 
-  // Optional final aggregated response.
-  const finalResponse = await result.response;
-  console.log("Complete:", finalResponse.text());
-} 
+  runWhenStable(method) {
+    this.testAIStartPromise ??= waitForStableBrowserFrame()
+      .then(() => this.auth.authStateReady?.())
+      .then(() => method.call(this))
+      .catch((error) => this.panel.showError(`Firebase action failed: ${error?.message || "Unknown error"}`));
+
+    return this.testAIStartPromise;
+  }
+
+  async testAI() {
+    const prompt = "Write a short paragraph about a magic backpack.";
+
+    try {
+      await this.signIn();
+    } catch (error) {
+      console.warn("Firebase anonymous sign-in failed before AI test; trying AI anyway.", error);
+    }
+
+    // Clear previous output.
+    this.panel.clear();
+
+    const result = await this.ai_textModel.generateContentStream(prompt);
+
+    for await (const chunk of result.stream) {
+      const chunkText = chunk.text();
+
+      if (!chunkText) {
+        continue;
+      }
+
+      this.panel.appendText(chunkText);
+    }
+
+    // Optional final aggregated response.
+    const finalResponse = await result.response;
+    console.log("Complete:", finalResponse.text());
+  }
 }
 
 function getOrCreateApp(config, appName) {
@@ -115,6 +200,108 @@ function getOrCreateApp(config, appName) {
       ? initializeApp(config)
       : initializeApp(config, appName)
   );
+}
+
+function waitForStableBrowserFrame() {
+  if (typeof window === "undefined") {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    const resolveAfterFrame = () => window.setTimeout(resolve, 0);
+
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(resolveAfterFrame);
+      return;
+    }
+
+    resolveAfterFrame();
+  });
+}
+
+function matchesModelRun(run, {
+  component = null,
+  source = null,
+} = {}) {
+  if (component && !matchesLookupText(getModelRunComponent(run), component)) {
+    return false;
+  }
+
+  if (source && !matchesLookupText(getModelRunSource(run), source)) {
+    return false;
+  }
+
+  return true;
+}
+
+function getModelRunDataset(run) {
+  return run?.payload?.dataset ?? {};
+}
+
+function getModelRunDetails(run) {
+  return run?.payload?.details ?? {};
+}
+
+function getModelRunComponent(run) {
+  const dataset = getModelRunDataset(run);
+  const details = getModelRunDetails(run);
+
+  return dataset.component ?? details.component ?? "";
+}
+
+function getModelRunModelType(run) {
+  return getModelRunDetails(run).modelType ?? "";
+}
+
+function getModelRunSource(run) {
+  return getModelRunDataset(run).source ?? "";
+}
+
+function getModelRunSourceFilename(run) {
+  return getModelRunDataset(run).sourceFilename ?? "";
+}
+
+function matchesLookupText(value, expected) {
+  return getLookupText(value) === getLookupText(expected);
+}
+
+function getLookupText(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function formatTimestamp(timestamp) {
+  const date = timestamp?.toDate?.() ?? (
+    timestamp instanceof Date ? timestamp : null
+  );
+
+  return date ? date.toLocaleString() : "-";
+}
+
+function trimFilename(filename) {
+  if (typeof filename !== "string") {
+    return "";
+  }
+
+  const parts = filename.split(/[/\\]/);
+  return parts[parts.length - 1] ?? filename;
+}
+
+function getTimestampMillis(timestamp) {
+  if (typeof timestamp?.toMillis === "function") {
+    return timestamp.toMillis();
+  }
+
+  if (timestamp instanceof Date) {
+    return timestamp.getTime();
+  }
+
+  return null;
+}
+
+function getStoredModelUpdateMillis() {
+  const value = Number(localStorage.getItem("caldera:lastModelUpdateDate") ?? 0);
+
+  return Number.isFinite(value) ? value : 0;
 }
 
 function cleanFirestoreValue(value) {

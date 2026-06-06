@@ -16,6 +16,6 @@ struct HWParams {
   static constexpr double  SENSOR2_FILTER_T = 0.002;
 
   static constexpr int     SAMPLES_IN_SENSOR1_LONGREAD = 20;
-  static constexpr int     SAMPLES_IN_SENSOR2_LONGREAD = 50;
+  static constexpr int     SAMPLES_IN_SENSOR2_LONGREAD = 96;
 
 };  

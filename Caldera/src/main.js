@@ -35,7 +35,10 @@ function mountAnalysisView() {
   const model = new Model();
   const webView = new WebView(model);
   const analysisChannel = createAnalysisChannel();
+  const firebaseStore = new FB_Store({ autoTest: false });
   const seenAnalysisMessageIds = new Set();
+  const startupOptions = getAnalysisStartupOptions();
+  let compareAfterNextLoad = startupOptions.compare === true;
 
   document.querySelector("#app").innerHTML = `
     <div class="app-layout app-layout--analysis">
@@ -46,7 +49,13 @@ function mountAnalysisView() {
   document.addEventListener("click", handleButtonTickSound, true);
 
   const analysisRoot = document.querySelector("[data-analysis-div]");
-  const analysisPanel = new AnalysisPanel({ root: analysisRoot, webView });
+  const analysisPanel = new AnalysisPanel({
+    firebaseStore,
+    previewCompareMode: startupOptions.compare === true,
+    previewModelType: startupOptions.modelType,
+    root: analysisRoot,
+    webView,
+  });
 
   const handleAnalysisMessage = (message) => {
     if (!claimAnalysisMessage(message, seenAnalysisMessageIds)) {
@@ -61,6 +70,10 @@ function mountAnalysisView() {
         });
         if (message.filename) {
           localStorage.setItem("caldera:lastCsv", message.filename);
+        }
+        if (compareAfterNextLoad) {
+          compareAfterNextLoad = false;
+          startPreviewModelComparison(analysisPanel);
         }
       } catch (error) {
         analysisPanel.setBadge(error?.message || "load failed");
@@ -100,11 +113,43 @@ function mountAnalysisView() {
 
   webView.postReady();
 
-  const lastCsv = localStorage.getItem("caldera:lastCsv");
-  if (lastCsv) {
-    webView.postRequestLoadCsv(lastCsv);
+  if (startupOptions.loadFile) {
+    if (!webView.postRequestLoadCsv(startupOptions.loadFile)) {
+      compareAfterNextLoad = false;
+      analysisPanel.setBadge("host load unavailable");
+    }
+  } else {
+    const lastCsv = localStorage.getItem("caldera:lastCsv");
+    if (lastCsv) {
+      webView.postRequestLoadCsv(lastCsv);
+    }
   }
 }
+
+function startPreviewModelComparison(analysisPanel) {
+  analysisPanel.previewModelComparison()
+    .catch((error) => {
+      analysisPanel.setBadge(error?.message || "model preview failed");
+    });
+}
+
+function getAnalysisStartupOptions() {
+  const params = new URLSearchParams(window.location.search);
+  const loadFile = params.get("loadFile")?.trim() ?? "";
+  const compare = isTruthyQueryValue(params.get("compare"));
+  const modelType = params.get("modelType")?.trim() ?? "";
+
+  return {
+    compare,
+    loadFile,
+    modelType,
+  };
+}
+
+function isTruthyQueryValue(value) {
+  return value === "1" || value?.toLowerCase() === "true";
+}
+
 
 function mountCircuitView() {
   const model = new Model();
@@ -116,6 +161,9 @@ function mountCircuitView() {
   webView.setCommandFlags(initialCommandFlags);
 
   document.querySelector("#app").innerHTML = `
+    <div class="firebase-panel">
+      <div class="firebase-panel-text"></div>
+    </div>
     <div class="app-layout app-layout--circuit">
       <section class="circuit-div" data-circuit-div>
         <button class="view-launch-button" type="button" data-open-analysis-view>
@@ -265,7 +313,14 @@ function mountCircuitView() {
   const analysisChannel = createAnalysisChannel();
   const headlessAnalysisPanel = new AnalysisPanel({ root: null, webView });
   const analysisBridge = createAnalysisBridge(headlessAnalysisPanel, webView, analysisChannel);
-  const firebaseStore = new FB_Store();
+  const firebaseStore = new FB_Store({
+    onPreviewModel: (modelRun) => previewModelRun({
+      activeViews,
+      button: openAnalysisButton,
+      modelRun,
+      webView,
+    }),
+  });
   const circuitScene = new CircuitScene(sceneRoot, model, {
     onManualWiperInput: handleManualWiperInput,
     onPointerMoveRequest: (pointer) => webView.postMoveMousePointer(pointer),
@@ -563,6 +618,7 @@ function getAnalysisSectionHtml() {
             >
               range check
             </span>
+            <span class="analysis-panel__badge" data-analysis-badge>empty dataset</span>
             <input
               type="file"
               accept=".csv,text/csv"
@@ -597,7 +653,6 @@ function getAnalysisSectionHtml() {
             >
               Run next stage
             </button>
-            <span class="analysis-panel__badge" data-analysis-badge>empty dataset</span>
           </div>
         </div>
         <div class="analysis-panel__body">
@@ -632,7 +687,7 @@ function getAnalysisSectionHtml() {
                   <div class="analysis-control-panel__controls" data-analysis-model-controls></div>
                 </section>
                 <section class="analysis-control-panel__column">
-                  <h2 class="analysis-control-panel__heading">Comparitors</h2>
+                  <h2 class="analysis-control-panel__heading">Tools</h2>
                   <div class="analysis-control-panel__controls" data-analysis-comparator-controls></div>
                 </section>
                 <section class="analysis-control-panel__column analysis-control-panel__column--wide">
@@ -749,22 +804,42 @@ function toggleAnalysisView(webView, activeViews, button) {
   openAnalysisView(webView, activeViews, button);
 }
 
-function openAnalysisViewIfNeeded(webView, activeViews, button) {
+function openAnalysisViewIfNeeded(webView, activeViews, button, options = {}) {
   if (isViewActive(activeViews, VIEW_ANALYSIS)) {
     return false;
   }
 
-  return openAnalysisView(webView, activeViews, button);
+  return openAnalysisView(webView, activeViews, button, options);
 }
 
-function openAnalysisView(webView, activeViews = null, button = null) {
-  if (webView.postOpenView(VIEW_ANALYSIS)) {
+function previewModelRun({
+  activeViews,
+  button,
+  modelRun,
+  webView,
+} = {}) {
+  const loadFile = modelRun?.payload?.dataset?.sourceFilename;
+  const modelType = modelRun?.payload?.details?.modelType;
+
+  if (typeof loadFile !== "string" || !loadFile.trim()) {
+    return false;
+  }
+
+  return openAnalysisView(webView, activeViews, button, {
+    compare: true,
+    loadFile,
+    modelType: typeof modelType === "string" ? modelType : "",
+  });
+}
+
+function openAnalysisView(webView, activeViews = null, button = null, options = {}) {
+  if (webView.postOpenView(VIEW_ANALYSIS, options)) {
     setActiveView(activeViews, VIEW_ANALYSIS, true);
     updateAnalysisButton(button, activeViews);
     return true;
   }
 
-  const openedWindow = window.open(`${window.location.pathname}?view=${VIEW_ANALYSIS}`, "_blank", "popup");
+  const openedWindow = window.open(getViewUrl(VIEW_ANALYSIS, options), "_blank", "popup");
 
   if (!openedWindow) {
     return false;
@@ -784,6 +859,24 @@ function openAnalysisView(webView, activeViews = null, button = null) {
   }, 500);
 
   return true;
+}
+
+function getViewUrl(view, options = {}) {
+  const params = new URLSearchParams({ view });
+
+  if (typeof options.loadFile === "string" && options.loadFile.trim()) {
+    params.set("loadFile", options.loadFile);
+  }
+
+  if (typeof options.modelType === "string" && options.modelType.trim()) {
+    params.set("modelType", options.modelType);
+  }
+
+  if (options.compare === true) {
+    params.set("compare", "1");
+  }
+
+  return `${window.location.pathname}?${params.toString()}`;
 }
 
 function closeAnalysisView(webView, activeViews = null, button = null) {

@@ -9,6 +9,8 @@ namespace Asano.Caldera
 
         public CoreWebView2 CoreWebView2 => web.CoreWebView2;
         public CalderaView View { get; set; } = CalderaView.Circuit;
+        public IReadOnlyDictionary<string, string?> QueryParameters { get; set; } =
+            new Dictionary<string, string?>();
 
         public Caldera? Caldera { get => _caldera; }
         private bool _webInitStarted = false;
@@ -42,7 +44,7 @@ namespace Asano.Caldera
             _caldera?.FlushPendingMessages();
         }
 
-       
+
         private void SerialPort_ConnectionChanged(TheLib.ConnectionState state)
         {
             if (_disposedOrClosing)
@@ -76,7 +78,7 @@ namespace Asano.Caldera
 
                 _caldera = new Caldera(this);
                 _messageFlushTimer.Start();
-                web.CoreWebView2.Navigate(DevServer.GetUrl(View));
+                web.CoreWebView2.Navigate(DevServer.GetUrl(View, QueryParameters));
 
             }
             catch (Exception ex)
@@ -174,7 +176,7 @@ namespace Asano.Caldera
 
         private async Task InitWebView()
         {
-            
+
             var userDataFolder = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "Asano",
@@ -199,14 +201,16 @@ namespace Asano.Caldera
             await web.EnsureCoreWebView2Async(_webViewEnvironment);
         }
 
-        internal void OpenView(CalderaView view)
+        internal void OpenView(
+            CalderaView view,
+            IReadOnlyDictionary<string, string?>? queryParameters = null)
         {
             if (_disposedOrClosing || IsDisposed)
                 return;
 
             if (InvokeRequired)
             {
-                BeginInvoke(new MethodInvoker(() => OpenView(view)));
+                BeginInvoke(new MethodInvoker(() => OpenView(view, queryParameters)));
                 return;
             }
 
@@ -214,6 +218,9 @@ namespace Asano.Caldera
             {
                 if (!existingForm.IsDisposed)
                 {
+                    if (queryParameters?.Count > 0)
+                        existingForm.NavigateCaldera(queryParameters);
+
                     ShowExistingForm(existingForm);
                     NotifySpawnedViewsChanged();
                     return;
@@ -222,11 +229,30 @@ namespace Asano.Caldera
                 _spawnedForms.Remove(view);
             }
 
-            var form = new MyCalderaForm(view);
+            var form = new MyCalderaForm(view, queryParameters);
             form.FormClosed += SpawnedForm_FormClosed;
             _spawnedForms[view] = form;
             NotifySpawnedViewsChanged();
             form.Show(FindForm());
+        }
+
+        internal void Navigate(IReadOnlyDictionary<string, string?>? queryParameters = null)
+        {
+            if (_disposedOrClosing || IsDisposed)
+                return;
+
+            if (InvokeRequired)
+            {
+                BeginInvoke(new MethodInvoker(() => Navigate(queryParameters)));
+                return;
+            }
+
+            QueryParameters = queryParameters != null
+                ? new Dictionary<string, string?>(queryParameters)
+                : new Dictionary<string, string?>();
+
+            if (web.CoreWebView2 != null)
+                web.CoreWebView2.Navigate(DevServer.GetUrl(View, QueryParameters));
         }
 
         internal void CloseView(CalderaView view)

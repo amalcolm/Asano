@@ -1,0 +1,120 @@
+.firebase-panel {
+  position: fixed;
+  bottom: 10%;
+  left: 33%;
+  width: 380px;
+  height: 250px;
+  padding: 20px;
+  transform: translateX(-50%);
+  background-color: rgba(14, 36, 13, 0.2);
+  padding: 10px;
+  border-radius: 20px;
+  border: 2px solid rgba(7, 49, 5, 0.747);
+  box-shadow: 5px 10px 10px rgba(0,0,0, 0.5);
+  z-index: 1000; 
+  color: rgba(255, 255, 255, 0.7);
+  font: 14pt "Swis721 LtEx BT", sans-serif;
+}
+
+.firebase-panel-text {
+  white-space: pre-wrap;
+}
+
+.firebase-panel-button-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.firebase-panel-button {
+  min-width: 220px;
+  min-height: 54px;
+  border: 2px solid rgba(255, 242, 145, 0.9);
+  border-radius: 14px;
+  padding: 12px 22px;
+  color: #2d1a00;
+  background:
+    linear-gradient(180deg, #fff4a8 0%, #ffc83d 48%, #d99100 100%);
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.firebase-panel-button:hover,
+.firebase-panel-button:focus-visible {
+  border-color: rgba(255, 255, 210, 1);
+  background:
+    linear-gradient(180deg, #fff9c9 0%, #ffd85d 48%, #eaa309 100%);
+  box-shadow:
+    0 12px 26px rgba(0, 0, 0, 0.34),
+    0 0 18px rgba(255, 210, 80, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  outline: none;
+}
+
+.firebase-panel-button:active {
+  transform: translateY(1px);
+  box-shadow:
+    0 6px 14px rgba(0, 0, 0, 0.28),
+    inset 0 2px 6px rgba(84, 46, 0, 0.18);
+}
+
+.analysis-install-model-button.firebase-panel-button {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: min(100%, 220px);
+  min-height: 64px;
+  border: 2px solid rgba(255, 242, 145, 0.9);
+  border-radius: 14px;
+  padding: 12px 22px;
+  color: #2d1a00;
+  background:
+    linear-gradient(180deg, #fff4a8 0%, #ffc83d 48%, #d99100 100%);
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  font-family: "Swis721 LtEx BT", sans-serif;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.05;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: normal;
+}
+
+.analysis-install-model-button.firebase-panel-button:hover,
+.analysis-install-model-button.firebase-panel-button:focus-visible {
+  border-color: rgba(255, 255, 210, 1);
+  color: #2d1a00;
+  background:
+    linear-gradient(180deg, #fff9c9 0%, #ffd85d 48%, #eaa309 100%);
+  box-shadow:
+    0 12px 26px rgba(0, 0, 0, 0.34),
+    0 0 18px rgba(255, 210, 80, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  outline: none;
+}
+
+.analysis-install-model-button.firebase-panel-button:active {
+  transform: translateY(1px);
+  box-shadow:
+    0 6px 14px rgba(0, 0, 0, 0.28),
+    inset 0 2px 6px rgba(84, 46, 0, 0.18);
+}
+
+.analysis-install-model-button.firebase-panel-button:disabled,
+.analysis-install-model-button.firebase-panel-button:disabled:hover {
+  opacity: 0.58;
+  cursor: default;
+  filter: grayscale(0.25);
+}

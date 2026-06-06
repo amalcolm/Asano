@@ -112,7 +112,7 @@ namespace Asano.Caldera
                     break;
             }
         }
-        
+
         protected void SP_ConnectionChanged(ConnectionState state)
         {
             switch (state)
@@ -365,7 +365,26 @@ namespace Asano.Caldera
             if (!CalderaViewNames.TryParse(viewName, out var view))
                 view = CalderaView.Analysis;
 
-            Control.OpenView(view);
+            Control.OpenView(view, GetOpenViewQueryParameters(root));
+        }
+
+        private static Dictionary<string, string?> GetOpenViewQueryParameters(JsonElement root)
+        {
+            var queryParameters = new Dictionary<string, string?>();
+            string? loadFile = GetStringProperty(root, "loadFile");
+
+            if (!string.IsNullOrWhiteSpace(loadFile))
+                queryParameters["loadFile"] = loadFile;
+
+            string? modelType = GetStringProperty(root, "modelType");
+
+            if (!string.IsNullOrWhiteSpace(modelType))
+                queryParameters["modelType"] = modelType;
+
+            if (GetBooleanishProperty(root, "compare"))
+                queryParameters["compare"] = "1";
+
+            return queryParameters;
         }
 
         private void HandleCloseViewMessage(JsonElement root)
@@ -606,6 +625,26 @@ namespace Asano.Caldera
             => root.TryGetProperty(propertyName, out var element) && element.ValueKind == JsonValueKind.String
                 ? element.GetString()
                 : null;
+
+        private static bool GetBooleanishProperty(JsonElement root, string propertyName)
+        {
+            if (!root.TryGetProperty(propertyName, out var element))
+                return false;
+
+            return element.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.Number => element.TryGetInt32(out var value) && value != 0,
+                JsonValueKind.String => IsTruthyString(element.GetString()),
+                _ => false,
+            };
+        }
+
+        private static bool IsTruthyString(string? value)
+            => string.Equals(value, "1", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase);
 
         private static bool TryGetFiniteDoubleProperty(JsonElement root, string propertyName, out double value)
         {

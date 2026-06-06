@@ -11,8 +11,28 @@ namespace Asano.Caldera
 
         public static string URL { get; private set; } = $"http://{Host}:{Port}";
 
-        public static string GetUrl(CalderaView view)
-            => $"{URL}?view={CalderaViewNames.ToQueryValue(view)}";
+        public static string GetUrl(
+            CalderaView view,
+            IReadOnlyDictionary<string, string?>? queryParameters = null)
+        {
+            var parameters = new List<string>
+            {
+                $"view={Uri.EscapeDataString(CalderaViewNames.ToQueryValue(view))}"
+            };
+
+            if (queryParameters != null)
+            {
+                foreach (var (key, value) in queryParameters)
+                {
+                    if (string.IsNullOrWhiteSpace(key) || string.IsNullOrEmpty(value))
+                        continue;
+
+                    parameters.Add($"{Uri.EscapeDataString(key)}={Uri.EscapeDataString(value)}");
+                }
+            }
+
+            return $"{URL}?{string.Join("&", parameters)}";
+        }
 
         private void ViteOutputDataReceived(object sender, DataReceivedEventArgs e)
         {
