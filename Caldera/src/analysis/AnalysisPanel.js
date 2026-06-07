@@ -14,6 +14,9 @@ import {
   getPhysicsStages,
 } from "./modelling/phys_DiffAmp.js";
 import { DifferentialAmpFormulaTester } from "./testing/math_DiffAmp.js";
+import { DifferentialAmpSensorModel } from "../helpers/DifferentialAmpSensorModel.js";
+import { DIFF_AMP_COMPONENT, createDifferentialAmpModelAdapter } from "../model/DifferentialAmpModelAdapter.js";
+import { ModelStorage } from "../model/ModelStorage.js";
 
 const EMPTY_AXIS_RANGE = [0, 3.3];
 const STAGE_TRACK_MATH = MODEL_TRACKS.MATH;
@@ -38,14 +41,20 @@ export class AnalysisPanel {
   constructor({
     dataset = new AnalysisDataset(),
     firebaseStore = null,
+    modelStorage = new ModelStorage(),
     previewCompareMode = false,
+    previewModelOwnerUid = "",
+    previewModelRunId = "",
     previewModelType = "",
     root,
     webView = null,
   } = {}) {
     this.dataset = dataset;
     this.firebaseStore = firebaseStore;
+    this.modelStorage = modelStorage;
     this.previewCompareMode = previewCompareMode === true;
+    this.previewModelOwnerUid = previewModelOwnerUid;
+    this.previewModelRunId = previewModelRunId;
     this.previewModelType = previewModelType;
     this.root = root;
     this.webView = webView;
@@ -97,8 +106,8 @@ export class AnalysisPanel {
     this.completedAnalysisStages = new Set();
     this.completedPhysicsStages = new Set();
     this.compareModelsButton = null;
-    this.compareModelsDetail = null;
-    this.compareModelsValue = null;
+    this.compareCsvButton = null;
+    this.compareCurrentButton = null;
     this.modelUploadButton = null;
     this.modelUploadDetail = null;
     this.modelUploadOverlay = null;
@@ -107,6 +116,7 @@ export class AnalysisPanel {
     this.modelUploadValue = null;
     this.modelUploadFields = null;
     this.installModelButton = null;
+    this.installedModelStorageKey = null;
     this.modelUploadState = MODEL_UPLOAD_STATE_IDLE;
     this.uploadedModelRunId = null;
     this.sourceCsvFilename = null;
@@ -571,7 +581,7 @@ export class AnalysisPanel {
       return false;
     }
 
-    this.showModelComparator();
+    this.showModelComparator(this.getInstalledDiffAmpSensorModel() ? "current" : "csv");
     return true;
   }
 
@@ -1272,8 +1282,8 @@ export class AnalysisPanel {
     this.physicsStageValues.clear();
     this.physicsStageDetails.clear();
     this.compareModelsButton = null;
-    this.compareModelsDetail = null;
-    this.compareModelsValue = null;
+    this.compareCsvButton = null;
+    this.compareCurrentButton = null;
     this.modelUploadButton = null;
     this.modelUploadDetail = null;
     this.modelUploadValue = null;
@@ -1347,36 +1357,24 @@ export class AnalysisPanel {
     this.physicsModelButton.textContent = "Physics Model";
     this.physicsModelButton.addEventListener("click", () => this.activatePhysicsModelTrack());
 
-    this.compareModelsButton = document.createElement("button");
-    this.compareModelsButton.className = "analysis-stage-button analysis-stage-button--comparator";
-    this.compareModelsButton.disabled = true;
-    this.compareModelsButton.type = "button";
-
-    const compareLabel = document.createElement("span");
-    compareLabel.className = "analysis-stage-button__label";
-    compareLabel.textContent = "Compare Models";
-
-    this.compareModelsValue = document.createElement("strong");
-    this.compareModelsValue.textContent = "-";
-
-    this.compareModelsDetail = document.createElement("span");
-    this.compareModelsDetail.dataset.analysisStageDetail = "comparator";
-    this.compareModelsDetail.textContent = "finish both validations";
-
-    this.compareModelsButton.append(
-      compareLabel,
-      this.compareModelsValue,
-      this.compareModelsDetail,
-    );
-    this.compareModelsButton.addEventListener("click", () => {
-      if (this.canCompareModels()) {
-        this.showModelComparator();
+    this.compareCurrentButton = createCompactComparatorButton("Compare Current");
+    this.compareCurrentButton.addEventListener("click", () => {
+      if (!this.compareCurrentButton.disabled) {
+        this.showModelComparator("current");
       }
     });
+    this.compareCsvButton = createCompactComparatorButton("Compare .CSV");
+    this.compareCsvButton.addEventListener("click", () => {
+      if (!this.compareCsvButton.disabled) {
+        this.showModelComparator("csv");
+      }
+    });
+    this.compareModelsButton = this.compareCurrentButton;
 
     this.modelUploadButton = document.createElement("button");
     this.modelUploadButton.className = "analysis-stage-button analysis-stage-button--upload-model";
     this.modelUploadButton.disabled = true;
+    this.modelUploadButton.hidden = this.previewCompareMode;
     this.modelUploadButton.type = "button";
 
     this.modelUploadValue = document.createElement("strong");
@@ -1424,7 +1422,8 @@ export class AnalysisPanel {
       this.physicsModelButton,
     );
     (this.comparatorControls ?? this.modelControls ?? this.stagesContainer).append(
-      this.compareModelsButton,
+      this.compareCurrentButton,
+      this.compareCsvButton,
       this.modelUploadButton,
       this.installModelButton,
     );
@@ -1648,32 +1647,32 @@ export class AnalysisPanel {
   }
 
   updateComparatorControls() {
-    if (!this.compareModelsButton) {
+    if (!this.compareCurrentButton || !this.compareCsvButton) {
       return;
     }
 
     const hasBothTracks = this.hasComparableModelTracks();
     const canCompare = hasBothTracks && this.canCompareModels();
     const showInstallModel = this.previewCompareMode && hasBothTracks;
+    const canCompareCurrent = canCompare && Boolean(this.getInstalledDiffAmpSensorModel());
 
-    this.compareModelsButton.hidden = showInstallModel || !hasBothTracks;
-    this.compareModelsButton.disabled = !canCompare;
-    this.compareModelsButton.dataset.active = String(canCompare);
+    this.compareCurrentButton.hidden = showInstallModel || !hasBothTracks;
+    this.compareCurrentButton.disabled = !canCompareCurrent;
+    this.compareCurrentButton.dataset.active = String(canCompareCurrent);
+    this.compareCsvButton.hidden = showInstallModel || !hasBothTracks;
+    this.compareCsvButton.disabled = !canCompare;
+    this.compareCsvButton.dataset.active = String(canCompare);
 
     if (this.installModelButton) {
+      const isInstalled = Boolean(this.installedModelStorageKey);
+
       this.installModelButton.hidden = !showInstallModel;
-      this.installModelButton.disabled = !canCompare;
-      this.updateInstallModelButtonLabel();
-    }
-
-    if (this.compareModelsValue) {
-      this.compareModelsValue.textContent = canCompare ? "Ready" : "-";
-    }
-
-    if (this.compareModelsDetail) {
-      this.compareModelsDetail.textContent = canCompare
-        ? "both validations complete"
-        : "finish both validations";
+      this.installModelButton.disabled = !canCompare || isInstalled;
+      if (isInstalled) {
+        this.setInstallModelButtonText("Installed", this.getInstallModelButtonModelText());
+      } else {
+        this.updateInstallModelButtonLabel();
+      }
     }
 
     this.updateModelUploadButton();
@@ -1694,15 +1693,17 @@ export class AnalysisPanel {
     const hasModelTools = this.hasComparableModelTracks();
     const isUploading = this.modelUploadState === MODEL_UPLOAD_STATE_UPLOADING;
     const isUploaded = this.modelUploadState === MODEL_UPLOAD_STATE_UPLOADED;
+    const isInstalledForLoadedCsv = this.isLoadedCsvModelInstalled();
     const canUpload = Boolean(
       hasModelTools
         && formulaeVisible
         && this.firebaseStore
         && !isUploading
-        && !isUploaded,
+        && !isUploaded
+        && !isInstalledForLoadedCsv,
     );
 
-    this.modelUploadButton.hidden = !hasModelTools;
+    this.modelUploadButton.hidden = !hasModelTools || isInstalledForLoadedCsv;
     this.modelUploadButton.disabled = !canUpload;
     this.modelUploadButton.dataset.active = String(canUpload || isUploading);
 
@@ -1717,6 +1718,7 @@ export class AnalysisPanel {
 
   resetModelUploadState({ closeOverlay = false } = {}) {
     this.modelUploadState = MODEL_UPLOAD_STATE_IDLE;
+    this.installedModelStorageKey = null;
     this.uploadedModelRunId = null;
 
     if (closeOverlay) {
@@ -1730,13 +1732,66 @@ export class AnalysisPanel {
     this.updateModelUploadButton();
   }
 
+  isLoadedCsvModelInstalled() {
+    const modelType = this.activeStageTrack;
+
+    if (modelType !== STAGE_TRACK_MATH && modelType !== STAGE_TRACK_PHYSICS) {
+      return false;
+    }
+
+    const component = normaliseText(this.dataset.metadata?.name) ?? DIFF_AMP_COMPONENT;
+    const installedModel = this.modelStorage?.getActiveModel?.(component, modelType);
+    const installedSourceFilename = installedModel?.summary?.datasetSourceFilename
+      ?? installedModel?.packet?.dataset?.sourceFilename
+      ?? "";
+    const loadedSourceFilename = this.sourceCsvFilename
+      ?? this.dataset.metadata?.filename
+      ?? this.dataset.getCsvFilename();
+
+    return filenamesMatch(installedSourceFilename, loadedSourceFilename);
+  }
+
   hasComparableModelTracks() {
     return this.hasModelTrack(STAGE_TRACK_MATH)
       && this.hasModelTrack(STAGE_TRACK_PHYSICS);
   }
 
   handleInstallModelClick() {
-    this.setBadge("model install pending");
+    if (!this.canCompareModels()) {
+      this.setBadge("finish validation before installing");
+      return;
+    }
+
+    try {
+      const modelType = this.getPreviewModelTrack();
+      const packet = this.createModelUploadPacket({
+        model: formatModelType(modelType),
+        modelType,
+      });
+      const result = this.modelStorage.installModelPacket(packet, {
+        modelRunId: this.previewModelRunId,
+        ownerUid: this.previewModelOwnerUid,
+      });
+
+      this.installedModelStorageKey = result.summary.storageKey;
+      this.webView?.postInstallModel?.({
+        component: result.summary.component,
+        installedAt: result.summary.installedAt,
+        modelRunId: result.summary.modelRunId,
+        modelType: result.summary.modelType,
+        ownerUid: result.summary.ownerUid,
+        storageKey: result.summary.storageKey,
+      });
+
+      this.installModelButton.disabled = true;
+      this.installModelButton.dataset.active = "false";
+      this.setInstallModelButtonText("Installed", this.getInstallModelButtonModelText());
+      this.setStatusBarText(`installed ${result.summary.modelType} model`);
+      this.setBadge("model installed; refresh circuit view to apply");
+    } catch (error) {
+      this.setBadge(error?.message || "model install failed");
+      console.error("Model install failed", error);
+    }
   }
 
   getInstallModelButtonModelText() {
@@ -1750,14 +1805,22 @@ export class AnalysisPanel {
       return;
     }
 
+    this.setInstallModelButtonText("Install new", this.getInstallModelButtonModelText());
+  }
+
+  setInstallModelButtonText(first, second) {
+    if (!this.installModelButton) {
+      return;
+    }
+
     const [firstLine, secondLine] = this.installModelButton.querySelectorAll("span");
 
     if (firstLine) {
-      firstLine.textContent = "Install new";
+      firstLine.textContent = first;
     }
 
     if (secondLine) {
-      secondLine.textContent = this.getInstallModelButtonModelText();
+      secondLine.textContent = second;
     }
   }
 
@@ -1985,6 +2048,7 @@ export class AnalysisPanel {
     createdAt = null,
     date = null,
     model = null,
+    modelType = null,
     name = null,
     notes = null,
     process = null,
@@ -1994,7 +2058,7 @@ export class AnalysisPanel {
   } = {}) {
     const sourceFilename = this.sourceCsvFilename ?? this.dataset.getCsvFilename();
     const metadata = this.dataset.metadata ?? {};
-    const activeModelType = this.activeStageTrack || "unknown";
+    const activeModelType = normaliseText(modelType) ?? this.activeStageTrack ?? "unknown";
     const timestamp = getUploadTimestamp({ createdAt, date, time });
     const modelSnapshot = this.getCurrentModelSnapshotForUpload();
     const derivedPhysicsModel = modelSnapshot?.ready
@@ -2026,11 +2090,13 @@ export class AnalysisPanel {
     };
   }
 
-  showModelComparator() {
-    const chartData = this.getCircuitFormulaComparisonChart();
+  showModelComparator(mode = "current") {
+    const chartData = this.getCircuitFormulaComparisonChart({ mode });
 
     if (!chartData?.traces?.length) {
-      this.setBadge("no circuit formula estimates to compare");
+      this.setBadge(mode === "csv"
+        ? "no CSV formula estimates to compare"
+        : "no installed Diff.Amp. model to compare");
       return;
     }
 
@@ -2040,32 +2106,34 @@ export class AnalysisPanel {
     }
 
     this.renderStageChart(chartData);
-    this.setBadge("circuit formula comparison ready");
+    this.setBadge(`${chartData.baselineLabel} comparison ready`);
   }
 
-  getCircuitFormulaComparisonChart() {
-    const rows = this.getCircuitFormulaComparisonRows();
+  getCircuitFormulaComparisonChart({ mode = "current" } = {}) {
+    const baselineLabel = mode === "csv" ? ".CSV Formula" : "Current Installed Model";
+    const rows = this.getCircuitFormulaComparisonRows({ mode });
 
     if (!rows.length) {
       return null;
     }
 
     const axisRange = getAbsoluteErrorComparisonRange(rows);
-    const oldWins = rows.filter((row) => row.oldAbsErrorMv < row.derivedAbsErrorMv).length;
-    const derivedWins = rows.filter((row) => row.derivedAbsErrorMv < row.oldAbsErrorMv).length;
+    const baselineWins = rows.filter((row) => row.baselineAbsErrorMv < row.derivedAbsErrorMv).length;
+    const derivedWins = rows.filter((row) => row.derivedAbsErrorMv < row.baselineAbsErrorMv).length;
     const meanImprovementMv = getMean(rows.map((row) => row.improvementMv));
 
     return {
+      baselineLabel,
       description: `
-        <p><strong>Circuit Formula vs Derived Model</strong></p>
-        <p>Compares the old circuit-view Sensor1 estimate from the source data with the newly derived Sensor1 estimate.</p>
+        <p><strong>${baselineLabel} vs Derived Model</strong></p>
+        <p>Compares the ${mode === "csv" ? "Sensor1 estimate stored in the source CSV" : "currently installed localStorage Diff.Amp. model"} with the newly derived Sensor1 estimate.</p>
         <ul>
-          <li><strong>X:</strong> old circuit formula absolute Sensor1 error.</li>
+          <li><strong>X:</strong> ${baselineLabel} absolute Sensor1 error.</li>
           <li><strong>Y:</strong> derived model absolute Sensor1 error.</li>
           <li>Points below the diagonal favour the derived model.</li>
         </ul>
       `,
-      title: "Circuit formula vs derived model Sensor1 error",
+      title: `${baselineLabel} vs derived model Sensor1 error`,
       traces: [
         {
           hoverinfo: "skip",
@@ -2083,18 +2151,18 @@ export class AnalysisPanel {
             formatHoverValue(row.offset, 0),
             formatHoverVoltage(row.measuredSensor1),
             formatHoverVoltage(row.measuredSensor2),
-            formatHoverVoltage(row.oldEstimate),
+            formatHoverVoltage(row.baselineEstimate),
             formatHoverVoltage(row.derivedEstimate),
-            formatSignedMillivolts(row.oldError),
+            formatSignedMillivolts(row.baselineError),
             formatSignedMillivolts(row.derivedError),
             formatSignedMillivoltValue(row.improvementMv),
           ]),
           hovertemplate: [
-            "old abs error %{x:.3f} mV",
+            `${baselineLabel} abs error %{x:.3f} mV`,
             "derived abs error %{y:.3f} mV",
-            "old estimate %{customdata[4]}",
+            `${baselineLabel} estimate %{customdata[4]}`,
             "derived estimate %{customdata[5]}",
-            "old residual %{customdata[6]}",
+            `${baselineLabel} residual %{customdata[6]}`,
             "derived residual %{customdata[7]}",
             "improvement %{customdata[8]}",
             "measured Sensor1 %{customdata[2]}",
@@ -2112,30 +2180,35 @@ export class AnalysisPanel {
           mode: "markers",
           name: "Sensor1 estimate comparison",
           type: "scatter",
-          x: rows.map((row) => row.oldAbsErrorMv),
+          x: rows.map((row) => row.baselineAbsErrorMv),
           y: rows.map((row) => row.derivedAbsErrorMv),
         },
       ],
       value: formatSignedMillivolts(meanImprovementMv / 1000),
       xRange: axisRange,
-      xTitle: "Old Circuit Formula |Sensor1 Error| (mV)",
+      xTitle: `${baselineLabel} |Sensor1 Error| (mV)`,
       yRange: axisRange,
       yTitle: "Derived Model |Sensor1 Error| (mV)",
-      detail: `${derivedWins} improved, ${oldWins} worse`,
+      detail: `${derivedWins} improved, ${baselineWins} worse`,
     };
   }
 
-  getCircuitFormulaComparisonRows() {
+  getCircuitFormulaComparisonRows({ mode = "current" } = {}) {
     const samples = this.dataset.getAnalysisSamples().filter((sample) => sample.isPlottable);
     const derivedModel = this.model.getModel(samples);
+    const installedSensorModel = mode === "current"
+      ? this.getInstalledDiffAmpSensorModel()
+      : null;
 
-    if (!derivedModel.ready) {
+    if (!derivedModel.ready || (mode === "current" && !installedSensorModel)) {
       return [];
     }
 
     return samples
       .map((sample) => {
-        const oldEstimate = sample.sensorEstimated?.sensor1;
+        const baselineEstimate = mode === "csv"
+          ? sample.sensorEstimated?.sensor1
+          : installedSensorModel.sensor1FromSensor2(sample.sensorActual?.sensor2, sample.wipers?.gain, sample.wipers?.offset);
         const measuredSensor1 = sample.sensorActual?.sensor1;
         const measuredSensor2 = sample.sensorActual?.sensor2;
         const gain = sample.wipers?.gain;
@@ -2147,7 +2220,7 @@ export class AnalysisPanel {
           sensor2: measuredSensor2,
         });
 
-        if (!Number.isFinite(oldEstimate)
+        if (!Number.isFinite(baselineEstimate)
           || !Number.isFinite(derivedEstimate)
           || !Number.isFinite(measuredSensor1)
           || !Number.isFinite(measuredSensor2)
@@ -2156,21 +2229,21 @@ export class AnalysisPanel {
           return null;
         }
 
-        const oldError = oldEstimate - measuredSensor1;
+        const baselineError = baselineEstimate - measuredSensor1;
         const derivedError = derivedEstimate - measuredSensor1;
 
         return {
+          baselineAbsErrorMv: Math.abs(baselineError * 1000),
+          baselineError,
+          baselineEstimate,
           derivedAbsErrorMv: Math.abs(derivedError * 1000),
           derivedError,
           derivedEstimate,
           gain,
-          improvementMv: Math.abs(oldError * 1000) - Math.abs(derivedError * 1000),
+          improvementMv: Math.abs(baselineError * 1000) - Math.abs(derivedError * 1000),
           measuredSensor1,
           measuredSensor2,
           offset,
-          oldAbsErrorMv: Math.abs(oldError * 1000),
-          oldError,
-          oldEstimate,
           sample,
         };
       })
@@ -2180,6 +2253,15 @@ export class AnalysisPanel {
           || left.offset - right.offset
           || left.measuredSensor1 - right.measuredSensor1
       ));
+  }
+
+  getInstalledDiffAmpSensorModel() {
+    const installedModel = this.modelStorage?.getActiveModel?.(DIFF_AMP_COMPONENT);
+    const adapter = createDifferentialAmpModelAdapter(installedModel);
+
+    return adapter
+      ? new DifferentialAmpSensorModel(adapter.getSensorModelOptions())
+      : null;
   }
 
   updateActiveModelIndicator() {
@@ -2801,7 +2883,7 @@ function getDerivedSensor1Estimate({
 function getAbsoluteErrorComparisonRange(rows) {
   const maxErrorMv = Math.max(
     0,
-    ...rows.map((row) => row.oldAbsErrorMv),
+    ...rows.map((row) => row.baselineAbsErrorMv),
     ...rows.map((row) => row.derivedAbsErrorMv),
   );
   const extent = maxErrorMv > 0 ? maxErrorMv * 1.08 : 1;
@@ -2909,6 +2991,20 @@ function createButtonLine(text) {
 
   line.textContent = text;
   return line;
+}
+
+function createCompactComparatorButton(label) {
+  const button = document.createElement("button");
+  const labelSpan = document.createElement("span");
+
+  button.className = "analysis-stage-button analysis-stage-button--comparator analysis-stage-button--compact-comparator";
+  button.disabled = true;
+  button.type = "button";
+  labelSpan.className = "analysis-stage-button__label";
+  labelSpan.textContent = label;
+  button.append(labelSpan);
+
+  return button;
 }
 
 function getModelUploadButtonText({
@@ -3139,6 +3235,19 @@ function getFilenameDescription(filename) {
   return separatorIndex >= 0
     ? normaliseText(stem.slice(separatorIndex + 1))
     : null;
+}
+
+function filenamesMatch(left, right) {
+  const normalisedLeft = normaliseFilenameForComparison(left);
+  const normalisedRight = normaliseFilenameForComparison(right);
+
+  return Boolean(normalisedLeft && normalisedRight && normalisedLeft === normalisedRight);
+}
+
+function normaliseFilenameForComparison(filename) {
+  return normaliseText(String(filename ?? "").split(/[\\/]/u).pop())
+    ?.toLowerCase()
+    ?? "";
 }
 
 function getUploadTimestamp({

@@ -11,15 +11,16 @@ import { STANDARD_OUTPUT_LEAD_LENGTH, Wire } from "./Wire.js";
 export class DifferentialAmp extends Shape {
   constructor({
     color = COMPONENT_BLUE,
-    feedbackResistance = 100000,
+    feedbackResistance = null,
     feedbackSecondaryLabel = null,
-    fixedFeedbackResistance = 1200,
+    fixedFeedbackResistance = null,
     fixedFeedbackSecondaryLabel = null,
+    gainZeroResidualResistance = 0,
     hasMultiplierInput = false,
     multiplier = 1,
     position = [0, 0, 0],
     scale = 1,
-    sourceResistance = 1000,
+    sourceResistance = null,
     sourceSecondaryLabel = null,
   } = {}) {
     super({ name: "DifferentialAmp", position, scale });
@@ -45,6 +46,9 @@ export class DifferentialAmp extends Shape {
     const horizontalThenVerticalRoute = ({ end, start }) => [start, [end.x, start.y, 0], end];
 
     this.hasMultiplierInput = hasMultiplierInput;
+    this.gainZeroResidualResistance = Number.isFinite(Number(gainZeroResidualResistance))
+      ? Number(gainZeroResidualResistance)
+      : 0;
     this.multiplier = multiplier;
     this.opAmpInvertingPort = this.addPort("opAmpInverting", [leftX - leadLength/2, inputY], {
       kind: "input",
@@ -296,11 +300,15 @@ export class DifferentialAmp extends Shape {
     const fixedFeedbackResistance = this.feedbackResistor.ohms;
     const variableFeedbackResistance = this.variableResistor.ohms;
 
-    if (!Number.isFinite(fixedFeedbackResistance) || !Number.isFinite(variableFeedbackResistance)) {
+    if (
+      !Number.isFinite(fixedFeedbackResistance)
+      || !Number.isFinite(variableFeedbackResistance)
+      || !Number.isFinite(this.gainZeroResidualResistance)
+    ) {
       return null;
     }
 
-    return fixedFeedbackResistance + variableFeedbackResistance;
+    return fixedFeedbackResistance + this.gainZeroResidualResistance + variableFeedbackResistance;
   }
 
   formatMultiplierLabel(value) {

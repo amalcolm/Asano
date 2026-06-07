@@ -1,14 +1,18 @@
 import { DigiPot, Slider, getPoweredDigipotTerminalVoltages } from "./components/DigiPot.js";
 import { Constants } from "./Constants.js";
 import { DifferentialAmp } from "./components/DifferentialAmp.js";
+import { createDifferentialAmpModelAdapter } from "./DifferentialAmpModelAdapter.js";
 import { isValidSensorVoltage } from "./voltage.js";
 
 const THREE_POT_RAILS = Constants.THREE_POT_RAILS;
-export const OFFSET_RAILS = Constants.OFFSET_RAILS;
 
 export class Model {
-  constructor({ onChange = null } = {}) {
+  constructor({
+    componentModels = {},
+    onChange = null,
+  } = {}) {
     this.onChange = onChange;
+    this.diffAmpModel = createDifferentialAmpModelAdapter(componentModels.diffAmp);
 
     this.top = this.makeDigiPot("top");
     this.bot = this.makeDigiPot("bot");
@@ -22,12 +26,16 @@ export class Model {
     this.sensor1Voltage = null;
     this.sensor2Voltage = null;
     this.diffAmp = new DifferentialAmp({
+      ...this.diffAmpModel?.getDifferentialAmpOptions(),
       gain: this.gain,
       offset: this.offset,
     });
 
     const threePotTerminals = getPoweredDigipotTerminalVoltages(THREE_POT_RAILS);
-    const offsetTerminals = getPoweredDigipotTerminalVoltages(OFFSET_RAILS);
+    const offsetRails = this.diffAmpModel?.getOffsetRails();
+    const offsetTerminals = offsetRails
+      ? getPoweredDigipotTerminalVoltages(offsetRails)
+      : { bottom: null, top: null };
 
     this.top.setInputVoltages(threePotTerminals);
     this.bot.setInputVoltages(threePotTerminals);

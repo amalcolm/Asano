@@ -113,6 +113,13 @@ export class WebView {
     });
   }
 
+  postInstallModel(model) {
+    return this.postMessage({
+      type: "installModel",
+      model,
+    });
+  }
+
   postAnalysisClear(options = {}) {
     return this.postMessage({
       type: "analysisClear",
@@ -238,6 +245,14 @@ function getOpenViewOptions(options) {
 
   if (typeof options.modelType === "string" && options.modelType.trim()) {
     viewOptions.modelType = options.modelType;
+  }
+
+  if (typeof options.modelOwnerUid === "string" && options.modelOwnerUid.trim()) {
+    viewOptions.modelOwnerUid = options.modelOwnerUid;
+  }
+
+  if (typeof options.modelRunId === "string" && options.modelRunId.trim()) {
+    viewOptions.modelRunId = options.modelRunId;
   }
 
   if (options.compare === true) {

@@ -1,27 +1,25 @@
 import { Constants } from "../Constants.js";
 import { isKnownVoltage } from "../voltage.js";
 
-export const DEFAULT_SOURCE_RESISTANCE_OHMS = Constants.DIFFERENTIAL_AMP.sourceResistanceOhms;
-export const DEFAULT_FIXED_FEEDBACK_RESISTANCE_OHMS =
-  Constants.DIFFERENTIAL_AMP.fixedFeedbackResistanceOhms;
-export const DEFAULT_VARIABLE_FEEDBACK_RESISTANCE_OHMS =
-  Constants.DIFFERENTIAL_AMP.variableFeedbackResistanceOhms;
-
 export class DifferentialAmp {
   constructor({
-    fixedFeedbackResistanceOhms = DEFAULT_FIXED_FEEDBACK_RESISTANCE_OHMS,
+    fixedFeedbackResistanceOhms = null,
     gain,
+    gainZeroResidualResistanceOhms = 0,
     offset,
-    sourceResistanceOhms = DEFAULT_SOURCE_RESISTANCE_OHMS,
-    variableFeedbackResistanceOhms = DEFAULT_VARIABLE_FEEDBACK_RESISTANCE_OHMS,
+    sourceResistanceOhms = null,
+    variableFeedbackResistanceOhms = null,
+    wiperMax = null,
   } = {}) {
     this.fixedFeedbackResistanceOhms = fixedFeedbackResistanceOhms;
     this.gain = gain;
+    this.gainZeroResidualResistanceOhms = gainZeroResidualResistanceOhms;
     this.offset = offset;
     this.outputVoltage = null;
     this.sourceInputVoltage = null;
     this.sourceResistanceOhms = sourceResistanceOhms;
     this.variableFeedbackResistanceOhms = variableFeedbackResistanceOhms;
+    this.wiperMax = wiperMax;
 
     this.evaluate();
   }
@@ -39,7 +37,7 @@ export class DifferentialAmp {
   evaluate() {
     this.nonInvertingVoltage = this.offset?.wiperVoltage ?? null;
     this.variableResistanceOhms = this.getVariableResistance();
-    this.feedbackResistanceOhms = this.fixedFeedbackResistanceOhms + this.variableResistanceOhms;
+    this.feedbackResistanceOhms = this.getFeedbackResistance();
     this.effectiveMultiplier = this.getEffectiveMultiplier();
     this.summingNodeVoltage = this.estimateSummingNodeVoltage();
     this.differentialInputErrorVoltage = this.getDifferentialInputErrorVoltage();
@@ -55,10 +53,15 @@ export class DifferentialAmp {
 
   getVariableResistance() {
     const wiper = this.gain?.wiper;
-    const max = this.gain?.max ?? Constants.DIGIPOT_MAX;
+    const max = this.wiperMax ?? this.gain?.max ?? Constants.DIGIPOT_MAX;
 
-    if (!Number.isFinite(wiper) || !Number.isFinite(max) || max <= 0) {
-      return 0;
+    if (
+      !Number.isFinite(wiper)
+      || !Number.isFinite(max)
+      || max <= 0
+      || !Number.isFinite(this.variableFeedbackResistanceOhms)
+    ) {
+      return null;
     }
 
     return this.variableFeedbackResistanceOhms * (wiper / max);
@@ -196,6 +199,7 @@ export class DifferentialAmp {
       feedbackJoinVoltage: this.feedbackJoinVoltage,
       feedbackResistanceOhms: this.feedbackResistanceOhms,
       fixedFeedbackResistanceOhms: this.fixedFeedbackResistanceOhms,
+      gainZeroResidualResistanceOhms: this.gainZeroResidualResistanceOhms,
       nonInvertingVoltage: this.nonInvertingVoltage,
       outputErrorVoltage: this.outputErrorVoltage,
       outputVoltage: this.outputVoltage,
@@ -205,5 +209,19 @@ export class DifferentialAmp {
       summingNodeVoltage: this.summingNodeVoltage,
       variableResistanceOhms: this.variableResistanceOhms,
     };
+  }
+
+  getFeedbackResistance() {
+    if (
+      !Number.isFinite(this.fixedFeedbackResistanceOhms)
+      || !Number.isFinite(this.gainZeroResidualResistanceOhms)
+      || !Number.isFinite(this.variableResistanceOhms)
+    ) {
+      return null;
+    }
+
+    return this.fixedFeedbackResistanceOhms
+      + this.gainZeroResidualResistanceOhms
+      + this.variableResistanceOhms;
   }
 }

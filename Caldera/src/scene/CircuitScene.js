@@ -1,7 +1,7 @@
 import { DifferentialAmpSensorModel } from "../helpers/DifferentialAmpSensorModel.js";
 import { SensorErrorReadouts } from "../helpers/SensorErrorReadouts.js";
 import { TickSound } from "../helpers/TickSound.js";
-import { Constants } from "../model/Constants.js";
+import { createDifferentialAmpModelAdapter } from "../model/DifferentialAmpModelAdapter.js";
 import { DifferentialAmp } from "./shapes/DifferentialAmp.js";
 import { TIA } from "./shapes/TIA.js";
 import { PhotoDiode } from "./shapes/PhotoDiode.js";
@@ -15,6 +15,7 @@ import { clampVoltage } from "./voltage.js";
 
 export class CircuitScene {
   constructor(mount, model, {
+    componentModels = {},
     onManualWiperInput = null,
     onPointerMoveRequest = null,
     onSettingsChange = null,
@@ -24,13 +25,16 @@ export class CircuitScene {
     this.onManualWiperInput = onManualWiperInput;
     this.onPointerMoveRequest = onPointerMoveRequest;
     this.onSettingsChange = onSettingsChange;
+    this.diffAmpModel = createDifferentialAmpModelAdapter(componentModels.diffAmp);
     this.renderer = new Renderer(mount, { onResize: () => this.render() });
     this.shapes = [];
     this.dragControls = [];
     this.controlById = new Map();
     this.differentialAmp = null;
     this.photoDiode = null;
-    this.sensorModel = new DifferentialAmpSensorModel();
+    this.sensorModel = new DifferentialAmpSensorModel(
+      this.diffAmpModel?.getSensorModelOptions() ?? { disabled: true },
+    );
     this.sensorErrorReadouts = new SensorErrorReadouts();
     this.wiperTickSound = new TickSound();
     this.voltageReadoutById = new Map();
@@ -466,43 +470,26 @@ export class CircuitScene {
     
     const tia = this.add(new TIA({ multiplier: 200, position: [-1.6, 0.605, 0] }));
 
-    const offsetRails = Constants.OFFSET_RAILS;
-    const calibratedOffsetRails = Constants.DIFFERENTIAL_AMP.calibratedOffsetRails;
-    const differentialAmpValues = Constants.DIFFERENTIAL_AMP;
+    const offsetRails = this.diffAmpModel?.getOffsetRails() ?? null;
+    const differentialAmpValues = this.diffAmpModel?.getDifferentialAmpOptions() ?? null;
     const offsetPot = this.add(new PoweredDigipot({
-      digipotResistance: offsetRails.digipotResistanceOhms,
-      groundSecondaryLabel: getSecondaryResistanceLabel(
-        offsetRails.groundResistanceOhms,
-        calibratedOffsetRails.groundResistanceOhms,
-      ),
-      groundResistance: offsetRails.groundResistanceOhms,
+      digipotResistance: offsetRails?.digipotResistanceOhms ?? null,
+      groundResistance: offsetRails?.groundResistanceOhms ?? null,
       label: "offset",
       model: this.model.offset,
       position: [0.5, -2.1, 0],
-      supplySecondaryLabel: getSecondaryResistanceLabel(
-        offsetRails.supplyResistanceOhms,
-        calibratedOffsetRails.supplyResistanceOhms,
-      ),
-      supplyResistance: offsetRails.supplyResistanceOhms,
+      supplyResistance: offsetRails?.supplyResistanceOhms ?? null,
     }));
     const differentialAmp = this.add(new DifferentialAmp({
-      feedbackResistance: differentialAmpValues.variableFeedbackResistanceOhms,
-      feedbackSecondaryLabel: getSecondaryResistanceLabel(
-        differentialAmpValues.variableFeedbackResistanceOhms,
-        differentialAmpValues.calibratedVariableFeedbackResistanceOhms,
+      feedbackResistance: differentialAmpValues?.variableFeedbackResistanceOhms ?? null,
+      feedbackSecondaryLabel: getSignedResistanceLabel(
+        differentialAmpValues?.gainZeroResidualResistanceOhms,
       ),
-      fixedFeedbackResistance: differentialAmpValues.fixedFeedbackResistanceOhms,
-      fixedFeedbackSecondaryLabel: getSecondaryResistanceLabel(
-        differentialAmpValues.fixedFeedbackResistanceOhms,
-        differentialAmpValues.calibratedFixedFeedbackResistanceOhms,
-      ),
+      fixedFeedbackResistance: differentialAmpValues?.fixedFeedbackResistanceOhms ?? null,
+      gainZeroResidualResistance: differentialAmpValues?.gainZeroResidualResistanceOhms ?? 0,
       multiplier: 1,
       position: [3.0, 0.0, 0],
-      sourceSecondaryLabel: getSecondaryResistanceLabel(
-        differentialAmpValues.sourceResistanceOhms,
-        differentialAmpValues.calibratedSourceResistanceOhms,
-      ),
-      sourceResistance: differentialAmpValues.sourceResistanceOhms,
+      sourceResistance: differentialAmpValues?.sourceResistanceOhms ?? null,
     }));
     this.differentialAmp = differentialAmp;
     this.model.gain?.connectShape?.(differentialAmp.gainSlider);
@@ -591,10 +578,14 @@ export class CircuitScene {
   }
 }
 
-function getSecondaryResistanceLabel(primaryOhms, secondaryOhms) {
-  return Number(secondaryOhms) === Number(primaryOhms)
-    ? null
-    : formatResistance(secondaryOhms);
+function getSignedResistanceLabel(value) {
+  const ohms = Number(value);
+
+  if (!Number.isFinite(ohms) || ohms === 0) {
+    return null;
+  }
+
+  return `${ohms > 0 ? "+" : "-"}${formatResistance(Math.abs(ohms))}`;
 }
 
 function getScreenPointForClientPoint(clientPoint, event) {

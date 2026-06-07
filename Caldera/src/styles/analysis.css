@@ -601,6 +601,20 @@
     rgba(43, 49, 45, 0.32);
 }
 
+.analysis-stage-button--compact-comparator {
+  min-height: 52px;
+  padding: 10px 12px;
+}
+
+.analysis-stage-button--compact-comparator .analysis-stage-button__label {
+  align-self: center;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.05;
+  text-align: center;
+}
+
 .analysis-stage-button--upload-model {
   min-height: 76px;
   border-color: rgb(255 45 85 / 38%);

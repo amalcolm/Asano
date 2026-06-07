@@ -15,22 +15,26 @@ const DEFAULT_VARIABLE_GAIN_RATIO = Constants.DIFFERENTIAL_AMP.sensorVariableGai
 
 export class DifferentialAmpSensorModel {
   constructor({
+    disabled = false,
     fixedGainRatio = DEFAULT_FIXED_GAIN_RATIO,
     offsetHighCorrectionV = DEFAULT_OFFSET_HIGH_CORRECTION_V,
     offsetHighV = DEFAULT_OFFSET_HIGH_V,
     offsetLowCorrectionV = DEFAULT_OFFSET_LOW_CORRECTION_V,
     offsetLowV = DEFAULT_OFFSET_LOW_V,
     offsetTrimV = DEFAULT_OFFSET_TRIM_V,
+    physicsConstants = null,
     variableGainRatio = DEFAULT_VARIABLE_GAIN_RATIO,
     wiperMax = DEFAULT_WIPER_MAX,
     wiperMin = DEFAULT_WIPER_MIN,
   } = {}) {
+    this.disabled = disabled === true;
     this.fixedGainRatio = fixedGainRatio;
     this.offsetHighCorrectionV = offsetHighCorrectionV;
     this.offsetHighV = offsetHighV;
     this.offsetLowCorrectionV = offsetLowCorrectionV;
     this.offsetLowV = offsetLowV;
     this.offsetTrimV = offsetTrimV;
+    this.physicsConstants = normalisePhysicsConstants(physicsConstants);
     this.variableGainRatio = variableGainRatio;
     this.wiperMax = wiperMax;
     this.wiperMin = wiperMin;
@@ -89,7 +93,27 @@ export class DifferentialAmpSensorModel {
   }
 
   offsetVoltageFromWiper(offsetWiper) {
+    if (this.disabled) {
+      return null;
+    }
+
     offsetWiper = this.clampWiper(Number(offsetWiper));
+
+    if (this.physicsConstants) {
+      const {
+        digipotResistanceOhms,
+        offsetBottomResistanceOhms,
+        offsetTopResistanceOhms,
+        supplyVoltage,
+        wiperMax,
+      } = this.physicsConstants;
+      const offsetResistance = digipotResistanceOhms * offsetWiper / wiperMax;
+      const totalResistance = offsetTopResistanceOhms
+        + digipotResistanceOhms
+        + offsetBottomResistanceOhms;
+
+      return supplyVoltage * (offsetBottomResistanceOhms + offsetResistance) / totalResistance;
+    }
 
     return this.offsetLowV
       + offsetWiper * (this.offsetHighV - this.offsetLowV) / this.wiperMax
@@ -98,6 +122,10 @@ export class DifferentialAmpSensorModel {
   }
 
   offsetCorrectionFromWiper(offsetWiper) {
+    if (this.disabled) {
+      return null;
+    }
+
     offsetWiper = this.clampWiper(Number(offsetWiper));
 
     return this.offsetLowCorrectionV
@@ -105,7 +133,26 @@ export class DifferentialAmpSensorModel {
   }
 
   gainRatioFromWiper(gainWiper) {
+    if (this.disabled) {
+      return null;
+    }
+
     gainWiper = this.clampWiper(Number(gainWiper));
+
+    if (this.physicsConstants) {
+      const {
+        fixedFeedbackResistanceOhms,
+        gainZeroResidualResistanceOhms,
+        sourceResistanceOhms,
+        variableFeedbackResistanceOhms,
+        wiperMax,
+      } = this.physicsConstants;
+      const feedbackResistance = fixedFeedbackResistanceOhms
+        + gainZeroResidualResistanceOhms
+        + variableFeedbackResistanceOhms * gainWiper / wiperMax;
+
+      return feedbackResistance / sourceResistanceOhms;
+    }
 
     return this.fixedGainRatio + gainWiper * this.variableGainRatio / this.wiperMax;
   }
@@ -118,6 +165,10 @@ export class DifferentialAmpSensorModel {
     const offsetV = this.offsetVoltageFromWiper(offsetWiper);
     const gainRatio = this.gainRatioFromWiper(gainWiper);
 
+    if (!isKnownVoltage(offsetV) || !isKnownVoltage(gainRatio)) {
+      return null;
+    }
+
     return offsetV + gainRatio * (offsetV - sensor1V);
   }
 
@@ -129,10 +180,46 @@ export class DifferentialAmpSensorModel {
     const offsetV = this.offsetVoltageFromWiper(offsetWiper);
     const gainRatio = this.gainRatioFromWiper(gainWiper);
 
+    if (!isKnownVoltage(offsetV) || !isKnownVoltage(gainRatio) || gainRatio === 0) {
+      return null;
+    }
+
     return offsetV - (sensor2V - offsetV) / gainRatio;
   }
 
   clampWiper(value) {
     return Math.max(this.wiperMin, Math.min(this.wiperMax, value));
   }
+}
+
+function normalisePhysicsConstants(value) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const constants = {
+    digipotResistanceOhms: getPositiveNumber(value.digipotResistanceOhms),
+    fixedFeedbackResistanceOhms: getPositiveNumber(value.fixedFeedbackResistanceOhms),
+    gainZeroResidualResistanceOhms: getKnownNumber(value.gainZeroResidualResistanceOhms),
+    offsetBottomResistanceOhms: getPositiveNumber(value.offsetBottomResistanceOhms),
+    offsetTopResistanceOhms: getPositiveNumber(value.offsetTopResistanceOhms),
+    sourceResistanceOhms: getPositiveNumber(value.sourceResistanceOhms),
+    supplyVoltage: getPositiveNumber(value.supplyVoltage),
+    variableFeedbackResistanceOhms: getPositiveNumber(value.variableFeedbackResistanceOhms),
+    wiperMax: getPositiveNumber(value.wiperMax),
+  };
+
+  return Object.values(constants).every(Number.isFinite) ? constants : null;
+}
+
+function getKnownNumber(value) {
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : null;
+}
+
+function getPositiveNumber(value) {
+  const number = getKnownNumber(value);
+
+  return Number.isFinite(number) && number > 0 ? number : null;
 }

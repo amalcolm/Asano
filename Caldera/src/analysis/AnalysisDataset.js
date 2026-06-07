@@ -72,19 +72,9 @@ export class AnalysisDataset {
       wipers.gain,
       wipers.offset,
     ));
-    const sensor1Estimated = getKnownVoltage(this.sensorModel.circuitSensor1FromSensor2(
-      sensor2Actual,
-      wipers.gain,
-      wipers.offset,
-    ));
-    const sensor2Estimated = getKnownVoltage(this.sensorModel.circuitSensor2FromSensor1(
-      sensor1Actual,
-      wipers.gain,
-      wipers.offset,
-    ));
-    const diffAmpEffectiveMultiplier = getKnownNumber(
-      this.sensorModel.circuitGainRatioFromWiper(wipers.gain),
-    );
+    const sensor1Estimated = sensor1Predicted;
+    const sensor2Estimated = sensor2Predicted;
+    const diffAmpEffectiveMultiplier = getKnownNumber(this.sensorModel.gainRatioFromWiper(wipers.gain));
     const midOutputVoltage = getKnownVoltage(model?.mid?.wiperVoltage);
     const offsetOutputVoltage = getKnownVoltage(model?.offset?.wiperVoltage);
     const sample = {

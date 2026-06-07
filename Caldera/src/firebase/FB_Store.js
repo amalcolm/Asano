@@ -12,10 +12,12 @@ import {
 } from "firebase/firestore/lite";
 import { getAI, getGenerativeModel, GoogleAIBackend } from "firebase/ai";
 import { FB_Panel } from "./FB_Panel.js";
+import { ModelStorage } from "../model/ModelStorage.js";
 
 const DEFAULT_APP_NAME = "[DEFAULT]";
 const DEFAULT_COLLECTION_NAME = "modelRuns";
 const DEFAULT_RECENT_MODEL_LIMIT = 50;
+const DIFF_AMP_COMPONENT = "Diff.Amp.";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDDSldQJS7SbUyIXh9r3TZNE5bxZ_P_iOk",
@@ -39,6 +41,7 @@ export class FB_Store {
     this.signInPromise = null;
     this.testAIStartPromise = null;
     this.panel = options.panel ?? new FB_Panel(this);
+    this.modelStorage = options.modelStorage ?? new ModelStorage();
     this.onPreviewModel = typeof options.onPreviewModel === "function"
       ? options.onPreviewModel
       : null;
@@ -91,17 +94,14 @@ export class FB_Store {
       await this.signIn();
       this.panel.appendText("Firebase connection successful!\n");
 
-      const lastUpdateMillis = getStoredModelUpdateMillis();
-      const latestModelRun = await this.getLatestModelRun({ component: "Diff.Amp." });
+      const latestModelRun = await this.getLatestModelRun({ component: DIFF_AMP_COMPONENT });
 
       if (!latestModelRun) {
         this.panel.appendText("No Diff.Amp. model runs found in Firestore.\n");
         return;
       }
 
-      const createdAtMillis = getTimestampMillis(latestModelRun.createdAt);
-
-      if (createdAtMillis !== null && createdAtMillis <= lastUpdateMillis) {
+      if (isLatestModelRunInstalled(this.modelStorage, latestModelRun)) {
         this.panel.appendText(`Up to date\n`);
         return;
       }
@@ -149,7 +149,10 @@ export class FB_Store {
       limit(limitCount),
     );
     const snapshot = await getDocs(modelRunsQuery);
-    const runs = snapshot.docs.map((doc) => doc.data());
+    const runs = snapshot.docs.map((doc) => ({
+      ...doc.data(),
+      id: doc.id,
+    }));
 
     return runs.find((run) => matchesModelRun(run, { component, source })) ?? null;
   }
@@ -299,10 +302,60 @@ function getTimestampMillis(timestamp) {
   return null;
 }
 
-function getStoredModelUpdateMillis() {
-  const value = Number(localStorage.getItem("caldera:lastModelUpdateDate") ?? 0);
+function isLatestModelRunInstalled(modelStorage, modelRun) {
+  const summary = getInstalledModelSummary(modelStorage, modelRun);
 
-  return Number.isFinite(value) ? value : 0;
+  if (!summary) {
+    return false;
+  }
+
+  if (modelRun?.id && summary.modelRunId) {
+    return summary.modelRunId === modelRun.id;
+  }
+
+  const modelRunCreatedAtMillis = getTimestampMillis(modelRun?.createdAt);
+  const summaryCreatedAtMillis = getDateMillis(summary.createdAt);
+  const summaryInstalledAtMillis = getDateMillis(summary.installedAt);
+  const summaryLatestMillis = Math.max(
+    summaryCreatedAtMillis ?? 0,
+    summaryInstalledAtMillis ?? 0,
+  );
+
+  return modelRunCreatedAtMillis !== null
+    && summaryLatestMillis > 0
+    && modelRunCreatedAtMillis <= summaryLatestMillis;
+}
+
+function getInstalledModelSummary(modelStorage, modelRun) {
+  const component = getModelRunComponent(modelRun) || DIFF_AMP_COMPONENT;
+  const modelType = getModelRunModelType(modelRun) || null;
+
+  try {
+    const knownModels = modelStorage?.getKnownModels?.();
+    const componentEntry = knownModels?.components?.[component];
+
+    if (!componentEntry) {
+      return null;
+    }
+
+    const activeType = modelType || componentEntry.activeModelType;
+
+    return activeType
+      ? componentEntry.models?.[activeType] ?? null
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function getDateMillis(value) {
+  if (!value) {
+    return null;
+  }
+
+  const millis = Date.parse(value);
+
+  return Number.isFinite(millis) ? millis : null;
 }
 
 function cleanFirestoreValue(value) {

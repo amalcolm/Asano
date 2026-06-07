@@ -1,15 +1,19 @@
 import { AnalysisPanel } from "./analysis/AnalysisPanel.js";
+import { AnalysisDataset } from "./analysis/AnalysisDataset.js";
 import { CircuitScene } from "./scene/CircuitScene.js";
 import { COMMAND_FLAGS, normaliseCommandFlags } from "./helpers/CommandFlags.js";
 import { DebugFlagsControl } from "./helpers/DebugFlagsControl.js";
 import { DebugSettingsControl } from "./helpers/DebugSettingsControl.js";
 import { FB_Store } from "./firebase/FB_Store.js";
+import { DIFF_AMP_COMPONENT, createDifferentialAmpModelAdapter } from "./model/DifferentialAmpModelAdapter.js";
 import { Model } from "./model/Model.js";
+import { ModelStore } from "./model/ModelStorage.js";
 import { STATE_LED_ROWS, StateControl } from "./helpers/StateControl.js";
 import { TEST_PANEL_HTML, TestPanel } from "./analysis/TestPanel.js";
 import { TickSound } from "./helpers/TickSound.js";
 import { WebView } from "./WebView.js";
 import { WIPER_IDS, getModelWipers, normaliseWipers } from "./helpers/Wipers.js";
+import { DifferentialAmpSensorModel } from "./helpers/DifferentialAmpSensorModel.js";
 
 const BUTTON_TICK_FREQUENCY = 4096;
 const LED_BUTTON_OFF_TICK_FREQUENCY = 1024;
@@ -52,6 +56,8 @@ function mountAnalysisView() {
   const analysisPanel = new AnalysisPanel({
     firebaseStore,
     previewCompareMode: startupOptions.compare === true,
+    previewModelOwnerUid: startupOptions.modelOwnerUid,
+    previewModelRunId: startupOptions.modelRunId,
     previewModelType: startupOptions.modelType,
     root: analysisRoot,
     webView,
@@ -138,10 +144,14 @@ function getAnalysisStartupOptions() {
   const loadFile = params.get("loadFile")?.trim() ?? "";
   const compare = isTruthyQueryValue(params.get("compare"));
   const modelType = params.get("modelType")?.trim() ?? "";
+  const modelOwnerUid = params.get("modelOwnerUid")?.trim() ?? "";
+  const modelRunId = params.get("modelRunId")?.trim() ?? "";
 
   return {
     compare,
     loadFile,
+    modelOwnerUid,
+    modelRunId,
     modelType,
   };
 }
@@ -152,7 +162,10 @@ function isTruthyQueryValue(value) {
 
 
 function mountCircuitView() {
-  const model = new Model();
+  const modelStore = new ModelStore();
+  const componentModels = modelStore.getComponentModels();
+  const diffAmpModel = createDifferentialAmpModelAdapter(componentModels.diffAmp);
+  const model = new Model({ componentModels });
   const webView = new WebView(model);
   const storedSettings = readStoredSettings();
   const initialCommandFlags = getInitialCommandFlags(storedSettings);
@@ -311,7 +324,15 @@ function mountCircuitView() {
   let formulaTelemetrySettleRevision = 0;
   const hasHostTelemetry = Boolean(window.chrome?.webview);
   const analysisChannel = createAnalysisChannel();
-  const headlessAnalysisPanel = new AnalysisPanel({ root: null, webView });
+  const headlessAnalysisPanel = new AnalysisPanel({
+    dataset: new AnalysisDataset({
+      sensorModel: new DifferentialAmpSensorModel(
+        diffAmpModel?.getSensorModelOptions() ?? { disabled: true },
+      ),
+    }),
+    root: null,
+    webView,
+  });
   const analysisBridge = createAnalysisBridge(headlessAnalysisPanel, webView, analysisChannel);
   const firebaseStore = new FB_Store({
     onPreviewModel: (modelRun) => previewModelRun({
@@ -321,7 +342,13 @@ function mountCircuitView() {
       webView,
     }),
   });
+
+  if (!diffAmpModel) {
+    firebaseStore.panel.appendText(`Please install model for ${DIFF_AMP_COMPONENT}.\n`);
+  }
+
   const circuitScene = new CircuitScene(sceneRoot, model, {
+    componentModels,
     onManualWiperInput: handleManualWiperInput,
     onPointerMoveRequest: (pointer) => webView.postMoveMousePointer(pointer),
     onSettingsChange: saveStoredSettings,
@@ -807,6 +834,8 @@ function previewModelRun({
   return openAnalysisView(webView, activeViews, button, {
     compare: true,
     loadFile,
+    modelOwnerUid: typeof modelRun.ownerUid === "string" ? modelRun.ownerUid : "",
+    modelRunId: typeof modelRun.id === "string" ? modelRun.id : "",
     modelType: typeof modelType === "string" ? modelType : "",
   });
 }
@@ -849,6 +878,14 @@ function getViewUrl(view, options = {}) {
 
   if (typeof options.modelType === "string" && options.modelType.trim()) {
     params.set("modelType", options.modelType);
+  }
+
+  if (typeof options.modelOwnerUid === "string" && options.modelOwnerUid.trim()) {
+    params.set("modelOwnerUid", options.modelOwnerUid);
+  }
+
+  if (typeof options.modelRunId === "string" && options.modelRunId.trim()) {
+    params.set("modelRunId", options.modelRunId);
   }
 
   if (options.compare === true) {

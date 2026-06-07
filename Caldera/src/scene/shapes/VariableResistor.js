@@ -8,9 +8,11 @@ export class VariableResistor extends Resistor {
     inputSide = "left",
     maxWiperValue = 255,
     position = [0, 0, 0],
+    secondaryLabel = null,
+    secondaryLabelColor = undefined,
     value = 1000,
   } = {}) {
-    super({ color, inputSide, position, value });
+    super({ color, inputSide, position, secondaryLabel, secondaryLabelColor, value });
 
     const controlTopY = 0.40;
     const controlBodyY = 0.12;
