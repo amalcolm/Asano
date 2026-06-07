@@ -122,6 +122,7 @@ export class FB_Store {
           if (!this.onPreviewModel(latestModelRun)) {
             this.panel.appendText("Preview unavailable: no local source filename found.\n");
           }
+          this.panel.clear();
         },
         {
           componentType: getModelRunComponent(latestModelRun),

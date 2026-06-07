@@ -378,28 +378,7 @@ function mountCircuitView() {
   openAnalysisButton?.addEventListener("click", () => {
     toggleAnalysisView(webView, activeViews, openAnalysisButton);
   });
-/*
-  debugFirebaseTestButton?.addEventListener("click", async () => {
-    debugFirebaseTestButton.disabled = true;
-    debugSettingsStatus.textContent = "firebase saving";
 
-    try {
-      const result = await firebaseStore.saveModelRun({
-        clientTime: new Date().toISOString(),
-        message: "hello world",
-        modelType: "smoke-test",
-        sourceCsvName: "firebase-smoke-test.csv",
-      });
-
-      debugSettingsStatus.textContent = `firebase ${result.id}`;
-    } catch (error) {
-      debugSettingsStatus.textContent = "firebase failed";
-      console.error("Firebase smoke-test write failed", error);
-    } finally {
-      debugFirebaseTestButton.disabled = false;
-    }
-  });
-*/
   circuitScene.applySettings(storedSettings);
   circuitScene.start();
 
