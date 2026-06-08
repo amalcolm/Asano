@@ -124,7 +124,7 @@ function mountAnalysisView() {
       compareAfterNextLoad = false;
       analysisPanel.setBadge("host load unavailable");
     }
-  } else {
+  } else if (!startupOptions.liveTest) {
     const lastCsv = localStorage.getItem("caldera:lastCsv");
     if (lastCsv) {
       webView.postRequestLoadCsv(lastCsv);
@@ -143,12 +143,14 @@ function getAnalysisStartupOptions() {
   const params = new URLSearchParams(window.location.search);
   const loadFile = params.get("loadFile")?.trim() ?? "";
   const compare = isTruthyQueryValue(params.get("compare"));
+  const liveTest = isTruthyQueryValue(params.get("liveTest"));
   const modelType = params.get("modelType")?.trim() ?? "";
   const modelOwnerUid = params.get("modelOwnerUid")?.trim() ?? "";
   const modelRunId = params.get("modelRunId")?.trim() ?? "";
 
   return {
     compare,
+    liveTest,
     loadFile,
     modelOwnerUid,
     modelRunId,
@@ -392,7 +394,10 @@ function mountCircuitView() {
     getHardwareWipers: () => liveWipers,
     model,
     onStatus: (status) => analysisBridge.postTestStatus(status),
-    onTestStart: () => openAnalysisViewIfNeeded(webView, activeViews, openAnalysisButton),
+    onTestStart: ({ test } = {}) => openAnalysisViewIfNeeded(webView, activeViews, openAnalysisButton, {
+      liveTest: true,
+      test,
+    }),
     requireWiperAck: hasHostTelemetry,
     root: testPanelRoot,
     setLedState: (activeIds) => stateControl.setActiveIds(activeIds),
@@ -617,13 +622,6 @@ function getAnalysisSectionHtml() {
             <h1>Data analysis</h1>
           </div>
           <div class="analysis-panel__header-actions">
-            <span
-              class="analysis-panel__range-check"
-              data-analysis-range-check
-              hidden
-            >
-              range check
-            </span>
             <span class="analysis-panel__badge" data-analysis-badge>empty dataset</span>
             <input
               type="file"
@@ -682,6 +680,13 @@ function getAnalysisSectionHtml() {
               </div>
             </aside>
             <div class="analysis-chart" data-analysis-chart></div>
+            <span
+              class="analysis-panel__range-check"
+              data-analysis-range-check
+              hidden
+            >
+              range check
+            </span>
             <div class="analysis-stage-formulae" data-analysis-stage-formulae hidden></div>
             <div class="analysis-stage-constants" data-analysis-stage-constants hidden></div>
           </section>
@@ -824,8 +829,8 @@ function previewModelRun({
   modelRun,
   webView,
 } = {}) {
-  const loadFile = modelRun?.payload?.dataset?.sourceFilename;
-  const modelType = modelRun?.payload?.details?.modelType;
+  const loadFile = getPreviewModelRunSourceFilename(modelRun);
+  const modelType = getPreviewModelRunModelType(modelRun);
 
   if (typeof loadFile !== "string" || !loadFile.trim()) {
     return false;
@@ -838,6 +843,44 @@ function previewModelRun({
     modelRunId: typeof modelRun.id === "string" ? modelRun.id : "",
     modelType: typeof modelType === "string" ? modelType : "",
   });
+}
+
+function getPreviewModelRunDataset(modelRun) {
+  return getFirstPreviewObjectWith(["sourceFilename", "component"],
+    modelRun?.payload?.dataset,
+    modelRun?.payload?.packet?.dataset,
+    modelRun?.packet?.dataset,
+    modelRun?.dataset,
+  );
+}
+
+function getPreviewModelRunDetails(modelRun) {
+  return getFirstPreviewObjectWith(["modelType", "model", "component"],
+    modelRun?.payload?.details,
+    modelRun?.payload?.packet?.details,
+    modelRun?.packet?.details,
+    modelRun?.details,
+  );
+}
+
+function getPreviewModelRunSourceFilename(modelRun) {
+  return getPreviewModelRunDataset(modelRun).sourceFilename
+    ?? modelRun?.sourceFilename
+    ?? "";
+}
+
+function getPreviewModelRunModelType(modelRun) {
+  return getPreviewModelRunDetails(modelRun).modelType
+    ?? modelRun?.modelType
+    ?? "";
+}
+
+function getFirstPreviewObjectWith(keys, ...values) {
+  const objects = values.filter((value) => value && typeof value === "object" && !Array.isArray(value));
+
+  return objects.find((value) => keys.some((key) => value[key] !== undefined && value[key] !== null))
+    ?? objects[0]
+    ?? {};
 }
 
 function openAnalysisView(webView, activeViews = null, button = null, options = {}) {
@@ -874,6 +917,14 @@ function getViewUrl(view, options = {}) {
 
   if (typeof options.loadFile === "string" && options.loadFile.trim()) {
     params.set("loadFile", options.loadFile);
+  }
+
+  if (options.liveTest === true) {
+    params.set("liveTest", "1");
+  }
+
+  if (typeof options.test === "string" && options.test.trim()) {
+    params.set("test", options.test);
   }
 
   if (typeof options.modelType === "string" && options.modelType.trim()) {

@@ -5,9 +5,6 @@ import {
   collection,
   getDocs,
   getFirestore,
-  limit,
-  orderBy,
-  query,
   serverTimestamp,
 } from "firebase/firestore/lite";
 import { getAI, getGenerativeModel, GoogleAIBackend } from "firebase/ai";
@@ -16,11 +13,10 @@ import { ModelStorage } from "../model/ModelStorage.js";
 
 const DEFAULT_APP_NAME = "[DEFAULT]";
 const DEFAULT_COLLECTION_NAME = "modelRuns";
-const DEFAULT_RECENT_MODEL_LIMIT = 50;
 const DIFF_AMP_COMPONENT = "Diff.Amp.";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDDSldQJS7SbUyIXh9r3TZNE5bxZ_P_iOk",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: "uow-fnirs.firebaseapp.com",
   projectId: "uow-fnirs",
   storageBucket: "uow-fnirs.firebasestorage.app",
@@ -109,7 +105,7 @@ export class FB_Store {
       this.panel.clear();
       this.panel.setBrightText();
       this.panel.appendText("New Diff.Amp. model run found:\n");
-      this.panel.appendText(`- Created At: ${formatTimestamp(latestModelRun.createdAt)}\n`);
+      this.panel.appendText(`- Created At: ${formatTimestamp(getModelRunCreatedAt(latestModelRun))}\n`);
       this.panel.appendText(`- Source Filename:\n ${trimFilename(getModelRunSourceFilename(latestModelRun))}\n`);
 
       this.panel.showModelPreviewButton(
@@ -138,25 +134,21 @@ export class FB_Store {
 
   async getLatestModelRun({
     component = null,
-    limitCount = DEFAULT_RECENT_MODEL_LIMIT,
-    source = null,
+    modelType = null,
   } = {}) {
     await this.signIn();
 
-    const modelRunsQuery = query(
-      collection(this.db, this.collectionName),
-      orderBy("createdAt", "desc"),
-      limit(limitCount),
-    );
-    const snapshot = await getDocs(modelRunsQuery);
+    const snapshot = await getDocs(collection(this.db, this.collectionName));
     const runs = snapshot.docs.map((doc) => ({
       ...doc.data(),
       id: doc.id,
     }));
 
-    return runs.find((run) => matchesModelRun(run, { component, source })) ?? null;
+    return runs
+      .filter((run) => matchesModelRun(run, { component, modelType }))
+      .sort(compareModelRunsByCreatedAtDesc)[0]
+      ?? null;
   }
-
   runWhenStable(method) {
     this.testAIStartPromise ??= waitForStableBrowserFrame()
       .then(() => this.auth.authStateReady?.())
@@ -225,13 +217,13 @@ function waitForStableBrowserFrame() {
 
 function matchesModelRun(run, {
   component = null,
-  source = null,
+  modelType = null,
 } = {}) {
-  if (component && !matchesLookupText(getModelRunComponent(run), component)) {
+  if (component && !matchesComponentText(getModelRunComponent(run), component)) {
     return false;
   }
 
-  if (source && !matchesLookupText(getModelRunSource(run), source)) {
+  if (modelType && !matchesLookupText(getModelRunModelType(run), modelType)) {
     return false;
   }
 
@@ -239,46 +231,141 @@ function matchesModelRun(run, {
 }
 
 function getModelRunDataset(run) {
-  return run?.payload?.dataset ?? {};
+  return getFirstObjectWith(["component", "source", "sourceFilename"],
+    run?.payload?.dataset,
+    run?.payload?.packet?.dataset,
+    run?.packet?.dataset,
+    run?.dataset,
+  );
 }
 
 function getModelRunDetails(run) {
-  return run?.payload?.details ?? {};
+  return getFirstObjectWith(["component", "model", "modelType"],
+    run?.payload?.details,
+    run?.payload?.packet?.details,
+    run?.packet?.details,
+    run?.details,
+  );
 }
 
 function getModelRunComponent(run) {
   const dataset = getModelRunDataset(run);
   const details = getModelRunDetails(run);
 
-  return dataset.component ?? details.component ?? "";
+  const component = getFirstText(
+    dataset.component,
+    details.component,
+    run?.component,
+  );
+
+  if (component) {
+    return component;
+  }
+
+  return getModelRunSchemaId(run).includes("differentialamp")
+    ? DIFF_AMP_COMPONENT
+    : "";
 }
 
 function getModelRunModelType(run) {
-  return getModelRunDetails(run).modelType ?? "";
+  const modelType = getFirstText(
+    getModelRunDetails(run).modelType,
+    getModelRunDetails(run).model,
+    run?.modelType,
+  );
+
+  if (modelType) {
+    return modelType;
+  }
+
+  const schemaId = getModelRunSchemaId(run);
+
+  if (schemaId.includes("physics")) {
+    return "physics";
+  }
+
+  if (schemaId.includes("math")) {
+    return "math";
+  }
+
+  return "";
 }
 
 function getModelRunSource(run) {
-  return getModelRunDataset(run).source ?? "";
+  return getFirstText(getModelRunDataset(run).source, run?.source);
 }
 
 function getModelRunSourceFilename(run) {
-  return getModelRunDataset(run).sourceFilename ?? "";
+  return getFirstText(getModelRunDataset(run).sourceFilename, run?.sourceFilename);
+}
+
+function getModelRunCreatedAt(run) {
+  return run?.createdAt
+    ?? run?.payload?.createdAt
+    ?? run?.payload?.packet?.createdAt
+    ?? run?.packet?.createdAt
+    ?? null;
+}
+
+function compareModelRunsByCreatedAtDesc(left, right) {
+  return (getTimestampMillis(getModelRunCreatedAt(right)) ?? 0)
+    - (getTimestampMillis(getModelRunCreatedAt(left)) ?? 0);
 }
 
 function matchesLookupText(value, expected) {
   return getLookupText(value) === getLookupText(expected);
 }
 
+function matchesComponentText(value, expected) {
+  return getComponentLookupText(value) === getComponentLookupText(expected);
+}
+
 function getLookupText(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
+function getComponentLookupText(value) {
+  return getLookupText(value).replace(/[^a-z0-9]/g, "");
+}
+
+function getModelRunSchemaId(run) {
+  return getLookupText(getFirstText(
+    run?.payload?.payload?.schema?.id,
+    run?.payload?.packet?.payload?.schema?.id,
+    run?.packet?.payload?.schema?.id,
+    run?.payload?.schema?.id,
+    run?.schema?.id,
+  )).replace(/[^a-z0-9]/g, "");
+}
+
+function getFirstObject(...values) {
+  return values.find((value) => value && typeof value === "object" && !Array.isArray(value)) ?? {};
+}
+
+function getFirstObjectWith(keys, ...values) {
+  const objects = values.filter((value) => value && typeof value === "object" && !Array.isArray(value));
+
+  return objects.find((value) => keys.some((key) => value[key] !== undefined && value[key] !== null))
+    ?? objects[0]
+    ?? {};
+}
+
+function getFirstText(...values) {
+  const value = values.find((candidate) => (
+    typeof candidate === "string" && candidate.trim()
+  ));
+
+  return value?.trim() ?? "";
+}
+
 function formatTimestamp(timestamp) {
   const date = timestamp?.toDate?.() ?? (
-    timestamp instanceof Date ? timestamp : null
+    timestamp instanceof Date ? timestamp : (
+      typeof timestamp === "string" ? new Date(timestamp) : null
+    )
   );
 
-  return date ? date.toLocaleString() : "-";
+  return date && Number.isFinite(date.getTime()) ? date.toLocaleString() : "-";
 }
 
 function trimFilename(filename) {
@@ -291,15 +378,7 @@ function trimFilename(filename) {
 }
 
 function getTimestampMillis(timestamp) {
-  if (typeof timestamp?.toMillis === "function") {
-    return timestamp.toMillis();
-  }
-
-  if (timestamp instanceof Date) {
-    return timestamp.getTime();
-  }
-
-  return null;
+  return getDateMillis(timestamp);
 }
 
 function isLatestModelRunInstalled(modelStorage, modelRun) {
@@ -313,17 +392,12 @@ function isLatestModelRunInstalled(modelStorage, modelRun) {
     return summary.modelRunId === modelRun.id;
   }
 
-  const modelRunCreatedAtMillis = getTimestampMillis(modelRun?.createdAt);
-  const summaryCreatedAtMillis = getDateMillis(summary.createdAt);
-  const summaryInstalledAtMillis = getDateMillis(summary.installedAt);
-  const summaryLatestMillis = Math.max(
-    summaryCreatedAtMillis ?? 0,
-    summaryInstalledAtMillis ?? 0,
-  );
+  const modelRunCreatedAtMillis = getTimestampMillis(getModelRunCreatedAt(modelRun));
+  const summaryCreatedAtMillis = getInstalledModelCreatedAtMillis(modelStorage, summary);
 
   return modelRunCreatedAtMillis !== null
-    && summaryLatestMillis > 0
-    && modelRunCreatedAtMillis <= summaryLatestMillis;
+    && summaryCreatedAtMillis !== null
+    && modelRunCreatedAtMillis <= summaryCreatedAtMillis;
 }
 
 function getInstalledModelSummary(modelStorage, modelRun) {
@@ -353,9 +427,34 @@ function getDateMillis(value) {
     return null;
   }
 
+  if (typeof value?.toMillis === "function") {
+    return value.toMillis();
+  }
+
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
   const millis = Date.parse(value);
 
   return Number.isFinite(millis) ? millis : null;
+}
+
+function getInstalledModelCreatedAtMillis(modelStorage, summary) {
+  const summaryCreatedAtMillis = getDateMillis(summary?.createdAt);
+
+  if (summaryCreatedAtMillis !== null) {
+    return summaryCreatedAtMillis;
+  }
+
+  const installedModel = modelStorage?.readInstalledModel?.(summary?.storageKey, summary);
+  const packetCreatedAtMillis = getDateMillis(installedModel?.packet?.createdAt);
+
+  if (packetCreatedAtMillis !== null) {
+    return packetCreatedAtMillis;
+  }
+
+  return getDateMillis(summary?.installedAt);
 }
 
 function cleanFirestoreValue(value) {

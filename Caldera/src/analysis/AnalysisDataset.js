@@ -332,6 +332,7 @@ function createCsvMetadata({
 
   return {
     category: mappedDataset.category,
+    component: mappedDataset.component,
     label: mappedDataset.label,
     modelTracks: mappedDataset.modelTracks,
     name: mappedDataset.name,

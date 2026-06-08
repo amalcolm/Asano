@@ -46,6 +46,7 @@ const TEST_DEFINITIONS = Object.freeze([
     category: "Calibration",
     id: "test4",
     legacyNames: ["test4"],
+    modelTracks: [MODEL_TRACKS.MATH],
     name: "Mid Step",
     source: "test4",
   },
@@ -54,6 +55,7 @@ const TEST_DEFINITIONS = Object.freeze([
 // Dataset naming convention:
 // - Test-panel headers provide the Category.
 // - Button labels provide the Name.
+// - Definitions may provide a Component; otherwise the Name is used for now.
 // - Saved files use "[Category]; [Name] - descriptive notes.csv".
 // - Only Category and Name are used to choose model tracks.
 export class ModelMapping {
@@ -185,6 +187,7 @@ export class ModelMapping {
       ?? definition?.name
       ?? normaliseLabelPart(label)
       ?? null;
+    const resolvedComponent = normaliseLabelPart(definition?.component) ?? resolvedName;
     const labelText = this.formatCsvLabel({
       category: resolvedCategory,
       name: resolvedName,
@@ -192,6 +195,7 @@ export class ModelMapping {
 
     return {
       category: resolvedCategory,
+      component: resolvedComponent,
       label: labelText,
       modelTracks: [...(definition?.modelTracks ?? [])],
       name: resolvedName,

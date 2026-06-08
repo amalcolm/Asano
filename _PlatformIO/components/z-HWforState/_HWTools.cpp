@@ -1,12 +1,12 @@
 #include "HWforState.h"
 #include "_HWTools.h"
-#include "CDiffAmp.h"
+#include "CCircuit.h"
 #include "CMasterTimer.h"
 #include <tuple>
 
 C32bitTimer HWTools::measureTimer = C32bitTimer::From_S(1.1).setPeriodic(true); 
 
-HWTools::HWTools( HWforState& hw) : hw(hw), _ptr_DiffAmp(new CDiffAmp()), diffAmp(*_ptr_DiffAmp) {
+HWTools::HWTools(HWforState& hw) : hw(hw), _ptr_Circuit(new CCircuit()), circuit(*_ptr_Circuit) {
 
   static std::tuple<int, int> knownGaps[] = { {2, 107}, {4, 70}, {8, 40}, {12, 28}, {16, 22}, {24, 17} };
 
@@ -18,5 +18,5 @@ HWTools::HWTools( HWforState& hw) : hw(hw), _ptr_DiffAmp(new CDiffAmp()), diffAm
 }
 
 HWTools::~HWTools() {
-  delete _ptr_DiffAmp; _ptr_DiffAmp = nullptr;
+  delete _ptr_Circuit; _ptr_Circuit = nullptr;
 }

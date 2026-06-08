@@ -1,4 +1,4 @@
-.analyses-test-panel {
+.test-panel {
   position: absolute;
   z-index: 10;
   top: 12px;
@@ -20,7 +20,7 @@
   overflow: auto;
 }
 
-.analyses-test-panel__header {
+.test-panel__header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -29,7 +29,7 @@
   font-weight: 700;
 }
 
-.analyses-test-panel__footer {
+.test-panel__footer {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -41,18 +41,18 @@
   font-weight: 700;
 }
 
-.analyses-test-panel__header [data-test-status],
-.analyses-test-panel__footer [data-test-status] {
+.test-panel__header [data-test-status],
+.test-panel__footer [data-test-status] {
   color: rgba(226, 242, 205, 0.72);
   font-weight: 600;
 }
 
-.analyses-test-panel__actions {
+.test-panel__actions {
   display: grid;
   gap: 6px;
 }
 
-.analyses-test-panel__matrix {
+.test-panel__matrix {
   flex: 0 0 auto;
   box-sizing: border-box;
   width: 100%;
@@ -68,28 +68,28 @@
   border-spacing: 8px 0;
 }
 
-.analyses-test-panel__matrix th,
-.analyses-test-panel__matrix td {
+.test-panel__matrix th,
+.test-panel__matrix td {
   padding: 0;
   vertical-align: top;
 }
 
-.analyses-test-panel__matrix th {
+.test-panel__matrix th {
   color: rgba(226, 242, 205, 0.72);
   font: inherit;
   font-weight: 700;
   text-align: left;
 }
 
-.analyses-test-panel__matrix-row--heading th {
+.test-panel__matrix-row--heading th {
   padding-bottom: 6px;
 }
 
-.analyses-test-panel__matrix-row--spaced th {
+.test-panel__matrix-row--spaced th {
   padding-top: 24px;
 }
 
-.analyses-test-panel__button {
+.test-panel__button {
   width: 100%;
   min-height: 34px;
   border: 1px solid rgba(255, 242, 145, 0.26);
@@ -108,8 +108,8 @@
   cursor: pointer;
 }
 
-.analyses-test-panel__button:hover,
-.analyses-test-panel__button:focus-visible {
+.test-panel__button:hover,
+.test-panel__button:focus-visible {
   border-color: rgba(255, 242, 145, 0.48);
   color: #fff8c7;
   background:
@@ -122,14 +122,14 @@
   outline: none;
 }
 
-.analyses-test-panel__button:active {
+.test-panel__button:active {
   transform: translateY(1px);
   box-shadow:
     0 5px 12px rgba(0, 0, 0, 0.28),
     inset 0 2px 6px rgba(0, 0, 0, 0.18);
 }
 
-.analyses-test-panel__button[data-running="true"] {
+.test-panel__button[data-running="true"] {
   border-color: var(--control-warning);
   color: #ffe1e2;
   background:

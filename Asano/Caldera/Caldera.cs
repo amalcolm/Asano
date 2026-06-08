@@ -376,6 +376,14 @@ namespace Asano.Caldera
             if (!string.IsNullOrWhiteSpace(loadFile))
                 queryParameters["loadFile"] = loadFile;
 
+            if (GetBooleanishProperty(root, "liveTest"))
+                queryParameters["liveTest"] = "1";
+
+            string? test = GetStringProperty(root, "test");
+
+            if (!string.IsNullOrWhiteSpace(test))
+                queryParameters["test"] = test;
+
             string? modelType = GetStringProperty(root, "modelType");
 
             if (!string.IsNullOrWhiteSpace(modelType))

@@ -17,6 +17,22 @@ C3Pot::C3Pot(int csPinTop, int csPinBot, int csPinMid, int sensorPin)
   phase = Phase::SEARCH;
 }
 
+double C3Pot::midVoltage(int topLevel, int botLevel, int midLevel) {
+  const double totalResistance = POWERED_DIGIPOT_SUPPLY_RESISTANCE
+    + POWERED_DIGIPOT_RESISTANCE
+    + POWERED_DIGIPOT_GROUND_RESISTANCE;
+  const double current = POWERED_DIGIPOT_SUPPLY_VOLTAGE / totalResistance;
+  const double poweredBottomVoltage = current * POWERED_DIGIPOT_GROUND_RESISTANCE;
+  const double poweredTopVoltage = poweredBottomVoltage + current * POWERED_DIGIPOT_RESISTANCE;
+  const double poweredVoltageRange = poweredTopVoltage - poweredBottomVoltage;
+  const double topVoltage = poweredBottomVoltage
+    + (topLevel / POWERED_DIGIPOT_WIPER_MAX) * poweredVoltageRange;
+  const double botVoltage = poweredBottomVoltage
+    + (botLevel / POWERED_DIGIPOT_WIPER_MAX) * poweredVoltageRange;
+
+  return botVoltage
+    + (midLevel / POWERED_DIGIPOT_WIPER_MAX) * (topVoltage - botVoltage);
+}
 
 void C3Pot::update() {
 

@@ -12,6 +12,7 @@ namespace Asano
         readonly TeensySerial? SP = Program.serialPort;
         readonly CancellationTokenSource cts = new();
         private bool _closeStarted;
+        private bool _closeRequestedFromTallForm;
         private bool _shutdownComplete;
 
 
@@ -86,9 +87,26 @@ namespace Asano
             base.OnFormClosing(e);
         }
 
+        private void CalderaForm_FormClosing(object? sender, FormClosingEventArgs e)
+        {
+            RequestCloseFromTallForm();
+        }
+
         private void CalderaForm_FormClosed(object? sender, FormClosedEventArgs e)
         {
-            if (!_closeStarted)
+            RequestCloseFromTallForm();
+        }
+
+        private void RequestCloseFromTallForm()
+        {
+            if (_closeStarted || _closeRequestedFromTallForm || IsDisposed)
+                return;
+
+            _closeRequestedFromTallForm = true;
+
+            if (IsHandleCreated)
+                BeginInvoke(new MethodInvoker(Close));
+            else
                 Close();
         }
 
@@ -124,6 +142,7 @@ namespace Asano
                 return;
 
             tallForm = null;
+            form.FormClosing -= CalderaForm_FormClosing;
             form.FormClosed -= CalderaForm_FormClosed;
 
             if (form.IsDisposed)
@@ -305,6 +324,7 @@ namespace Asano
                 if (firstLoad)
                 {
                     tallForm = new DataForm();
+                    tallForm.FormClosing += CalderaForm_FormClosing;
                     tallForm.FormClosed += CalderaForm_FormClosed;
                     tallForm.Show();
                 }

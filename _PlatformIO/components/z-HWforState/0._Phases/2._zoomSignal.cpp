@@ -22,14 +22,9 @@ void HWforState::_zoomSignal() {
     // starting point with stability, 
   }
 
-  // early exit for debugging
-  flags.zoomLevel = -1; phase = Phase::MEASURE;  return;
-  
+
   
   while (phase == Phase::ZOOM) {
-  USB.printf("Zooming... Gain: %d, mid: %d, offset: %d, Sensor1: %f, Sensor2: %f\n",
-      gain.getLevel(), mid.getLevel(), offset.getLevel(), sensor1.lastV(), sensor2.lastV()
-    );
     flags.zoomLevel += 8;
     gain.setLevel(flags.zoomLevel);
     delayMicroseconds(10);
@@ -41,24 +36,14 @@ void HWforState::_zoomSignal() {
       USB.printf("Noise failed found... reverting to gain: %d\n", gain.getLevel());
     }
 
-    if (abs(sensor1.lastV() - HWParams::SENSOR1_TARGET) > 20) {
-      USB.printf("Sensor1 out of range... centering...\n");
-      tools.centreMid(sensor1);  
-      
-      USB.printf("After mid-centering Sensor1: %d/%f\n", mid.getLevel(), sensor1.lastV());
-      if (phase != Phase::ZOOM) goto exit;
-    }
+    tools.centreMid(sensor1);       if (phase != Phase::ZOOM) goto exit;
 
-    USB.printf("Centering Sensor2...\n");
-    tools.centreOffset(sensor2);
-    USB.printf("After offset centering Sensor2: %d/%f\n", offset.getLevel(), sensor2.lastV());
-    if (phase != Phase::ZOOM) goto exit;
+    tools.centreOffset(sensor2);    if (phase != Phase::ZOOM) goto exit;
 
     if (gain.getLevel() == CDigiPot::WIPER_MAX) phase = Phase::MEASURE;
   }
 
 exit:
-  USB.printf("Exited Zoom phase with gain: %d\n", gain.getLevel());
   flags.zoomLevel = -1; // reset zoom level if we are leaving zoom phase
 
 }

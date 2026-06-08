@@ -17,7 +17,7 @@ struct C3Pot {
 
   // all math is done at compile time
 
-  double getMidVoltage(uint8_t mid, uint8_t top, uint8_t bot) {
+  double getMidVoltage(uint8_t mid, uint8_t top, uint8_t bot) const {
     static constexpr double inv255 = 1.0 / 255.0;
 
     const double botVoltage = DIGIPOT_BOT_VOLTAGE + (bot * inv255) * DIGIPOT_VOLTAGE_RANGE;

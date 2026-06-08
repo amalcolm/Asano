@@ -28,7 +28,9 @@ struct HWforState {
     CFilteredSensor sensor2{SP.Sensor2, HWParams::SENSOR2_FILTER_T};
     
     private:
+      // this must be before tools in order to be instantiated in the constructor
       std::unique_ptr<HWTools> ownedTools; // Pimpl to avoid including HWTools in this header
+
     public:
       HWTools& tools; // the reference to use
 

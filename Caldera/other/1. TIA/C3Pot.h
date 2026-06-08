@@ -11,7 +11,15 @@ class C3Pot : public CDigiPot {
     static constexpr int HISTORY_SIZE = 4;
     static constexpr int GAP_NORMAL   = 4;
 
+    static constexpr double POWERED_DIGIPOT_SUPPLY_VOLTAGE = 3.3;
+    static constexpr double POWERED_DIGIPOT_SUPPLY_RESISTANCE = 22000.0;
+    static constexpr double POWERED_DIGIPOT_RESISTANCE = 5000.0;
+    static constexpr double POWERED_DIGIPOT_GROUND_RESISTANCE = 0.0;
+    static constexpr double POWERED_DIGIPOT_WIPER_MAX = 255.0;
+
     C3Pot(int csPinTop, int csPinBot, int csPinMid, int sensorPin);
+
+    static double midVoltage(int topLevel, int botLevel, int midLevel);
 
     CDigiPot  top;
     CDigiPot  bot;

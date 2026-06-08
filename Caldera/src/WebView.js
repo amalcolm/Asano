@@ -243,6 +243,14 @@ function getOpenViewOptions(options) {
     viewOptions.loadFile = options.loadFile;
   }
 
+  if (options.liveTest === true) {
+    viewOptions.liveTest = true;
+  }
+
+  if (typeof options.test === "string" && options.test.trim()) {
+    viewOptions.test = options.test;
+  }
+
   if (typeof options.modelType === "string" && options.modelType.trim()) {
     viewOptions.modelType = options.modelType;
   }

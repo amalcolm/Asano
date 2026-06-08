@@ -4,6 +4,7 @@ import { AnalysisDataset } from "./AnalysisDataset.js";
 import { RAINBOW_COLORSCALE, formatMillivolts, getLinearFit } from "./AnalysisMath.js";
 import { MODEL_TRACKS } from "./ModelMapping.js";
 import { DifferentialAmp as MathDifferentialAmp } from "./modelling/math_DiffAmp.js";
+import { MidStep as MathMidStep } from "./modelling/math_MidStep.js";
 import {
   DifferentialAmpPhysicsModel,
   PHYSICS_STAGE_FIVE_ID,
@@ -35,6 +36,18 @@ const GAIN_MARKER_COLORS = Object.freeze([
   "#af52de",
   "#ff2d55",
   "#ffffff",
+  "#c6f6ff",
+  "#d9d2ff",
+  "#ffc7e7",
+  "#ffffff",
+]);
+const STANDARD_GAIN_COLOR_DOMAIN = Object.freeze([0, 1, 2, 4, 8, 16, 24, 32, 48, 64]);
+const EXTENDED_GAIN_COLOR_DOMAIN = Object.freeze([
+  ...STANDARD_GAIN_COLOR_DOMAIN,
+  96,
+  128,
+  192,
+  255,
 ]);
 
 export class AnalysisPanel {
@@ -94,7 +107,11 @@ export class AnalysisPanel {
     this.slopeMetric = root?.querySelector("[data-analysis-slope]");
     this.slopeRatioMetric = root?.querySelector("[data-analysis-slope-ratio]");
 
-    this.model = new MathDifferentialAmp();
+    this.mathModels = {
+      diffAmp: new MathDifferentialAmp(),
+      midStep: new MathMidStep(),
+    };
+    this.model = this.mathModels.diffAmp;
     this.physicsModel = new DifferentialAmpPhysicsModel();
     this.formulaTester = new DifferentialAmpFormulaTester();
     this.resizeObserver = null;
@@ -150,7 +167,7 @@ export class AnalysisPanel {
 
     this.resetModelUploadState({ closeOverlay: true });
     this.cancelBackgroundMathValidation();
-    this.model.clearCache();
+    this.clearMathModelCaches();
     this.completedStageData.clear();
     this.hasRenderedTopFitLines = false;
     this.render();
@@ -164,7 +181,7 @@ export class AnalysisPanel {
     if (addedSample) {
       this.resetModelUploadState({ closeOverlay: true });
       this.cancelBackgroundMathValidation();
-      this.model.clearCache();
+      this.clearMathModelCaches();
       this.completedStageData.clear();
       this.hasRenderedTopFitLines = false;
       this.render();
@@ -176,7 +193,9 @@ export class AnalysisPanel {
   clear(options = {}) {
     this.dataset.clear(options);
     this.sourceCsvFilename = null;
+    this.updateMathModelForDataset();
     this.resetAnalysisState();
+    this.renderStageButtons();
     this.render();
   }
 
@@ -187,7 +206,9 @@ export class AnalysisPanel {
     const result = this.dataset.loadCsv({ content, filename });
 
     this.sourceCsvFilename = filename;
+    this.updateMathModelForDataset();
     this.resetAnalysisState();
+    this.renderStageButtons();
     this.clearTopChart();
     this.render({ updateTopChart: false });
     this.queueTopFitLineRender();
@@ -200,7 +221,7 @@ export class AnalysisPanel {
   resetAnalysisState() {
     this.cancelAutoModelRun();
     this.cancelBackgroundMathValidation();
-    this.model.clearCache();
+    this.clearMathModelCaches();
     this.completedStageData.clear();
     this.activeStageTrack = null;
     this.activePhysicsStage = null;
@@ -224,6 +245,32 @@ export class AnalysisPanel {
 
   hasModelTrack(track) {
     return this.dataset.hasModelTrack?.(track) === true;
+  }
+
+  clearMathModelCaches() {
+    Object.values(this.mathModels ?? {}).forEach((model) => model?.clearCache?.());
+  }
+
+  updateMathModelForDataset() {
+    const nextModel = this.getMathModelForDataset();
+
+    if (nextModel && nextModel !== this.model) {
+      this.model = nextModel;
+      return true;
+    }
+
+    return false;
+  }
+
+  getMathModelForDataset() {
+    const source = String(this.dataset.metadata?.source ?? "").toLowerCase();
+    const component = String(this.dataset.metadata?.component ?? this.dataset.metadata?.name ?? "")
+      .trim()
+      .toLowerCase();
+
+    return source === "test4" || component === "mid step"
+      ? this.mathModels.midStep
+      : this.mathModels.diffAmp;
   }
 
   resetStageButtonSummaries() {
@@ -289,6 +336,11 @@ export class AnalysisPanel {
 
     if (!this.updateFormulaModelIfReady()) {
       this.setBadge("run stages before testing formulae");
+      return;
+    }
+
+    if (!this.formulaTester.canTestModel()) {
+      this.setBadge("live testing is not available for this model yet");
       return;
     }
 
@@ -912,6 +964,7 @@ export class AnalysisPanel {
     const hasFormulaModel = this.updateFormulaModelIfReady(plottableSamples);
     const fit = getLinearFit(plottableSamples);
     const axisRanges = getAxisRanges({ fitLines: analysis.fitLines, plottableSamples, predictedSamples });
+    const liveStageData = getLiveMidSweepResidualStageData(plottableSamples, axisRanges);
 
     if (!hasFormulaModel && this.isFormulaTesting) {
       this.isFormulaTesting = false;
@@ -941,7 +994,7 @@ export class AnalysisPanel {
       ? this.renderStageChart(
         this.isFormulaTesting
           ? this.formulaTester.getChartData()
-          : (physicsStageData ?? analysis.stage),
+          : (physicsStageData ?? liveStageData ?? analysis.stage),
       )
       : null;
     this.updateFormulaTestButton();
@@ -1739,7 +1792,9 @@ export class AnalysisPanel {
       return false;
     }
 
-    const component = normaliseText(this.dataset.metadata?.name) ?? DIFF_AMP_COMPONENT;
+    const component = normaliseText(this.dataset.metadata?.component)
+      ?? normaliseText(this.dataset.metadata?.name)
+      ?? DIFF_AMP_COMPONENT;
     const installedModel = this.modelStorage?.getActiveModel?.(component, modelType);
     const installedSourceFilename = installedModel?.summary?.datasetSourceFilename
       ?? installedModel?.packet?.dataset?.sourceFilename
@@ -2058,6 +2113,7 @@ export class AnalysisPanel {
   } = {}) {
     const sourceFilename = this.sourceCsvFilename ?? this.dataset.getCsvFilename();
     const metadata = this.dataset.metadata ?? {};
+    const datasetComponent = metadata.component ?? metadata.name ?? "";
     const activeModelType = normaliseText(modelType) ?? this.activeStageTrack ?? "unknown";
     const timestamp = getUploadTimestamp({ createdAt, date, time });
     const modelSnapshot = this.getCurrentModelSnapshotForUpload();
@@ -2071,16 +2127,16 @@ export class AnalysisPanel {
       kind: "caldera.modelRun",
       dataset: {
         category: metadata.category ?? "",
-        component: metadata.name ?? "",
+        component: datasetComponent,
         sampleCount: this.dataset.getAnalysisSamples().length,
         source: metadata.source ?? "",
         sourceFilename,
       },
       details: {
-        component: normaliseText(component) ?? metadata.name ?? "",
+        component: normaliseText(component) ?? datasetComponent,
         model: normaliseText(model) ?? formatModelType(activeModelType),
         modelType: activeModelType,
-        name: normaliseText(name) ?? getDefaultUploadName(sourceFilename, metadata.name),
+        name: normaliseText(name) ?? getDefaultUploadName(sourceFilename, datasetComponent),
         notes: normaliseText(notes) ?? "",
         process: normaliseText(process) ?? metadata.category ?? "",
         researcher: normaliseText(researcher) ?? "",
@@ -2324,10 +2380,11 @@ export class AnalysisPanel {
     const visible = Boolean(formulae);
     const canTestFormulae = visible
       && this.isFormulaTestReady()
+      && this.formulaTester.canTestModel()
       && this.updateFormulaModelIfReady();
 
     if (this.formulaTestButton) {
-      this.formulaTestButton.hidden = !visible;
+      this.formulaTestButton.hidden = !visible || !this.formulaTester.canTestModel();
     }
 
     this.updateModelUploadButton(visible);
@@ -2388,7 +2445,7 @@ export class AnalysisPanel {
     }
 
     const hasModel = Boolean(this.formulaTester.getModel());
-    const canTestFormulae = hasModel && this.isFormulaTestReady();
+    const canTestFormulae = hasModel && this.formulaTester.canTestModel() && this.isFormulaTestReady();
     const sampleCount = this.formulaTester.samples.length;
 
     this.formulaTestButton.disabled = !canTestFormulae;
@@ -2532,6 +2589,120 @@ function getAxisRanges({ fitLines, plottableSamples, predictedSamples }) {
   };
 }
 
+function getLiveMidSweepResidualStageData(samples, topAxisRanges) {
+  const rows = samples
+    .filter((sample) => sample.source === "mid-sweep")
+    .map((sample) => {
+      const sensor1 = sample.sensorActual?.sensor1;
+      const sensor2 = sample.sensorActual?.sensor2;
+      const sensor1Estimate = sample.sensorPredicted?.sensor1 ?? sample.sensorEstimated?.sensor1;
+      const error = Number.isFinite(sensor1Estimate) && Number.isFinite(sensor1)
+        ? sensor1Estimate - sensor1
+        : null;
+
+      return {
+        error,
+        gain: sample.wipers?.gain,
+        mid: sample.wipers?.mid,
+        offset: sample.wipers?.offset,
+        sensor1,
+        sensor1Estimate,
+        sensor2,
+      };
+    })
+    .filter((row) => Number.isFinite(row.sensor1) && Number.isFinite(row.error));
+
+  if (!rows.length || rows.length !== samples.length) {
+    return null;
+  }
+
+  const errors = rows.map((row) => row.error);
+  const maxAbsError = Math.max(...errors.map((error) => Math.abs(error)));
+  const xRange = Array.isArray(topAxisRanges?.x)
+    ? topAxisRanges.x
+    : getPaddedRange(rows.map((row) => row.sensor1));
+  const yRange = getSymmetricPaddedRange(errors, Math.max(maxAbsError * 0.16, 0.001));
+
+  return {
+    showLegend: false,
+    title: "Live Mid Sweep Sensor1 Estimate Error",
+    traces: [
+      {
+        hoverinfo: "skip",
+        line: {
+          color: "rgba(255, 255, 255, 0.38)",
+          dash: "dot",
+          width: 1.5,
+        },
+        mode: "lines",
+        name: "zero error",
+        type: "scatter",
+        x: xRange,
+        y: [0, 0],
+      },
+      {
+        customdata: rows.map((row) => [
+          row.sensor1Estimate,
+          row.error * 1000,
+          row.mid,
+          row.sensor2,
+          row.gain,
+          row.offset,
+        ]),
+        hovertemplate: [
+          "Sensor1 %{x:.6f} V",
+          "Sensor1 error %{y:.6f} V",
+          "sensor1_est %{customdata[0]:.6f} V",
+          "error %{customdata[1]:.3f} mV",
+          "mid %{customdata[2]}",
+          "sensor2 %{customdata[3]:.6f} V",
+          "gain %{customdata[4]}",
+          "offset %{customdata[5]}",
+          "<extra></extra>",
+        ].join("<br>"),
+        marker: {
+          color: rows.map((row) => row.mid),
+          colorbar: {
+            len: 0.64,
+            outlinewidth: 0,
+            thickness: 10,
+            title: { side: "right", text: "mid" },
+          },
+          colorscale: RAINBOW_COLORSCALE,
+          line: {
+            color: "rgba(255, 255, 255, 0.5)",
+            width: 0.6,
+          },
+          showscale: true,
+          size: 8,
+        },
+        mode: "markers",
+        name: "sensor1_est - sensor1",
+        type: "scatter",
+        x: rows.map((row) => row.sensor1),
+        y: errors,
+      },
+    ],
+    xRange,
+    xTitle: "Measured Sensor1 (V)",
+    yRange,
+    yTitle: "sensor1_est - sensor1 (V)",
+  };
+}
+
+function getSymmetricPaddedRange(values, minimumPadding = 0.001) {
+  const knownValues = values.filter(Number.isFinite);
+
+  if (!knownValues.length) {
+    return [-1, 1];
+  }
+
+  const maxAbs = Math.max(...knownValues.map((value) => Math.abs(value)));
+  const padded = maxAbs + minimumPadding;
+
+  return [-padded, padded];
+}
+
 function getPaddedRange(values) {
   const knownValues = values.filter(Number.isFinite);
   const min = Math.min(...knownValues);
@@ -2552,24 +2723,23 @@ function getMarkerColorSettings(samples, useSampleOrderColors) {
   const hasGainColors = gainColors.some(Number.isFinite);
 
   if (hasGainColors) {
-    const gains = getSortedUniqueNumbers(gainColors);
-    const gainIndexByValue = new Map(gains.map((gain, index) => [gain, index]));
-    const colors = gains.map((_, index) => GAIN_MARKER_COLORS[index % GAIN_MARKER_COLORS.length]);
+    const visibleGains = getSortedUniqueNumbers(gainColors);
+    const gainScale = getGainMarkerScale(visibleGains);
 
     return {
-      cmax: gains.length - 0.5,
+      cmax: gainScale.domain.length - 0.5,
       cmin: -0.5,
-      color: gainColors.map((value) => gainIndexByValue.get(value) ?? null),
+      color: gainColors.map((value) => gainScale.indexByValue.get(value) ?? null),
       colorbar: {
         len: 0.64,
         outlinewidth: 0,
         thickness: 10,
         tickmode: "array",
-        ticktext: gains.map(formatColorbarTick),
-        tickvals: gains.map((_, index) => index),
+        ticktext: visibleGains.map(formatColorbarTick),
+        tickvals: visibleGains.map((gain) => gainScale.indexByValue.get(gain)),
         title: { side: "right", text: "gain" },
       },
-      colorscale: getSteppedColorscale(colors),
+      colorscale: getSteppedColorscale(gainScale.colors),
       showscale: true,
     };
   }
@@ -2658,9 +2828,9 @@ function getTopFitLineTraces(fitLines) {
 function getGainLineColors(fitLines) {
   const gains = getSortedUniqueNumbers(fitLines.map((fitLine) => Number(fitLine.gain)));
 
-  return new Map(gains.map((gain, index) => [
+  return new Map(gains.map((gain) => [
     gain,
-    withAlpha(GAIN_MARKER_COLORS[index % GAIN_MARKER_COLORS.length], 0.10),
+    withAlpha(getGainMarkerColor(gain), 0.10),
   ]));
 }
 
@@ -2687,6 +2857,93 @@ function withAlpha(color, alpha) {
 function getSortedUniqueNumbers(values) {
   return Array.from(new Set(values.filter(Number.isFinite)))
     .sort((left, right) => left - right);
+}
+
+function getGainMarkerScale(gains) {
+  const domain = getGainColorDomain(gains);
+
+  return {
+    colors: domain.map(getGainMarkerColor),
+    domain,
+    indexByValue: new Map(domain.map((gain, index) => [gain, index])),
+  };
+}
+
+function getGainColorDomain(gains) {
+  const knownGains = getSortedUniqueNumbers(gains);
+  const maxGain = Math.max(0, ...knownGains);
+  const baseDomain = maxGain > 64
+    ? EXTENDED_GAIN_COLOR_DOMAIN
+    : STANDARD_GAIN_COLOR_DOMAIN;
+
+  return getSortedUniqueNumbers([
+    ...baseDomain,
+    ...knownGains,
+  ]);
+}
+
+function getGainMarkerColor(gain) {
+  const domain = EXTENDED_GAIN_COLOR_DOMAIN;
+  const exactIndex = domain.indexOf(gain);
+
+  if (exactIndex >= 0) {
+    return GAIN_MARKER_COLORS[exactIndex] ?? GAIN_MARKER_COLORS[GAIN_MARKER_COLORS.length - 1];
+  }
+
+  const knownGain = Number(gain);
+
+  if (!Number.isFinite(knownGain)) {
+    return "#ffffff";
+  }
+
+  const lowerIndex = findLowerGainDomainIndex(knownGain, domain);
+  const upperIndex = Math.min(lowerIndex + 1, domain.length - 1);
+  const lowerGain = domain[lowerIndex];
+  const upperGain = domain[upperIndex];
+  const lowerColor = GAIN_MARKER_COLORS[lowerIndex] ?? GAIN_MARKER_COLORS[0];
+  const upperColor = GAIN_MARKER_COLORS[upperIndex] ?? GAIN_MARKER_COLORS[GAIN_MARKER_COLORS.length - 1];
+  const ratio = upperGain === lowerGain
+    ? 0
+    : (knownGain - lowerGain) / (upperGain - lowerGain);
+
+  return mixHexColors(lowerColor, upperColor, Math.max(0, Math.min(1, ratio)));
+}
+
+function findLowerGainDomainIndex(gain, domain) {
+  if (gain <= domain[0]) {
+    return 0;
+  }
+
+  for (let index = 0; index < domain.length - 1; index += 1) {
+    if (gain >= domain[index] && gain <= domain[index + 1]) {
+      return index;
+    }
+  }
+
+  return domain.length - 1;
+}
+
+function mixHexColors(left, right, ratio) {
+  const leftRgb = parseHexColor(left);
+  const rightRgb = parseHexColor(right);
+
+  if (!leftRgb || !rightRgb) {
+    return ratio < 0.5 ? left : right;
+  }
+
+  return `#${leftRgb.map((leftChannel, index) => (
+    Math.round(leftChannel + (rightRgb[index] - leftChannel) * ratio)
+      .toString(16)
+      .padStart(2, "0")
+  )).join("")}`;
+}
+
+function parseHexColor(color) {
+  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(color);
+
+  return match
+    ? match.slice(1).map((channel) => parseInt(channel, 16))
+    : null;
 }
 
 function getSteppedColorscale(colors) {
@@ -2781,7 +3038,7 @@ function getChartLayout(axisRanges, annotations = [], plotLabels = getPlotLabels
   return {
     annotations,
     autosize: true,
-    margin: { b: 54, l: 64, r: 58, t: 26 },
+    margin: { b: 60, l: 64, r: 58, t: 26 },
     paper_bgcolor: "rgba(0, 0, 0, 0)",
     plot_bgcolor: "rgba(8, 20, 28, 0.72)",
     showlegend: false,
@@ -2807,7 +3064,7 @@ function getStageChartLayout(stage) {
 
   return {
     autosize: true,
-    margin: { b: 54, l: 64, r: 58, t: 48 },
+    margin: { b: 60, l: 64, r: 58, t: 48 },
     paper_bgcolor: "rgba(0, 0, 0, 0)",
     plot_bgcolor: "rgba(8, 20, 28, 0.72)",
     legend: {

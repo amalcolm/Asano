@@ -104,13 +104,24 @@
 }
 
 .analysis-panel__range-check {
-  flex: 0 0 auto;
-  border: 1px solid var(--analysis-panel-gold-soft);
+  position: absolute;
+  top: 40px;
+  left: 59%;
+  z-index: 30;
+  border: 1px solid var(--control-active-red);
   border-radius: 999px;
   padding: 7px 11px;
+  color: #ffffff;
+  background: var(--control-active-red);
   font-size: 12px;
   font-weight: 800;
   line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.analysis-panel__range-check[hidden] {
+  display: none;
 }
 
 .analysis-panel__test-status {
@@ -125,16 +136,6 @@
 
 .analysis-panel__test-status[data-running="true"] {
   color: #ffffff;
-}
-
-.analysis-panel__range-check {
-  border-color: var(--control-active-red);
-  color: #ffffff;
-  background: var(--control-active-red);
-}
-
-.analysis-panel__range-check[hidden] {
-  display: none;
 }
 
 .analysis-panel__header-actions {
@@ -803,10 +804,10 @@
 }
 
 .analysis-stage-formulae {
-  --analysis-stage-formulae-top: 44.5vh;
-  --analysis-stage-formulae-right: 13vw;
+  --analysis-stage-formulae-top: 45vh;
+  --analysis-stage-formulae-right: auto;
   --analysis-stage-formulae-bottom: auto;
-  --analysis-stage-formulae-left: auto;
+  --analysis-stage-formulae-left: 330px;
   --analysis-stage-formulae-font-size: 1em;
 
   position: absolute;

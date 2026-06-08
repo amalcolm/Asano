@@ -20,8 +20,8 @@ public:
 
   void dbg();
 
-  class CDiffAmp* _ptr_DiffAmp; // Pimpl to avoid including CDiffAmp in the header
-  class CDiffAmp& diffAmp;
+  class CCircuit* _ptr_Circuit; // Pimpl to avoid including CCircuit in the header
+  class CCircuit& circuit; 
 
   // tests
   void testMidOffset();

@@ -49,6 +49,15 @@ export class DifferentialAmpFormulaTester {
     return Boolean(this.model);
   }
 
+  canTestModel() {
+    return Boolean(
+      this.model
+        && this.model.formulaTestable !== false
+        && this.model.multiplier
+        && this.model.centre,
+    );
+  }
+
   getModel() {
     return this.model;
   }
@@ -96,7 +105,7 @@ export class DifferentialAmpFormulaTester {
       this.latestVoltages = normaliseVoltages(voltages);
     }
 
-    if (!this.enabled || !this.model || !this.pendingWiperKey || !settled) {
+    if (!this.enabled || !this.canTestModel() || !this.pendingWiperKey || !settled) {
       return null;
     }
 
