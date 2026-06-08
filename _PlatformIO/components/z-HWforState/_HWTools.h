@@ -16,6 +16,9 @@ public:
     int  zoomLevel = -1;
 
     bool inZone = false;
+
+    double s2Delta_mid = 0.0;
+    double s2Delta_offset = 0.0;
   } flags;
 
   void dbg();

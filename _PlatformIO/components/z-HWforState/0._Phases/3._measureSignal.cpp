@@ -1,41 +1,28 @@
 #include "HWforState.h"
 #include "_HWTools.h"
+#include "CCircuit.h"
 #include "HWforState.h"
 #include "C32bitTimer.h"
 #include "CA2D.h"
-static constexpr int    primeSamples = 20;
-static constexpr int    fineSamples  = 800;
-static const     double primeT = 1.0 - pow(0.05, 1.0 / primeSamples); // 95% settled
-static const     double fineT  = 1.0 - pow(0.05, 1.0 / fineSamples); 
+
+namespace {
+  constexpr int SAMPLES_IN_TESTREAD = 20;
+}
 
 void HWforState::_measureSignal() {
-//  auto& flags = tools.flags;
+  auto&   flags = tools.flags;
+  auto& circuit = tools.circuit;
+  
   tools.readCheck(); if (phase != Phase::MEASURE) return; // check if signal is lost before attempting to measure
-/*
-//  if (tools.measureTimer.waiting()) return;
 
-  uint16_t v = sensor2.read();
-//  float vMid = sensor2.filter(SAMEPLE_SIZE, FILTER_T);
+  double oldT_Sensor2 = sensor2.getT();
+  double newT_Sensor2 = sensor2.getTfromSamples(SAMPLES_IN_TESTREAD);
 
-  int direction = (v < HWParams::SENSOR2_TARGET) ? +5 : -5;
+  sensor2.setT(newT_Sensor2); 
 
-  mid.offsetLevel(direction);
-  delayMicroseconds(50);
+  flags.s2Delta_offset = circuit.sensor2DeltaFromOffsetDelta(1);
+  flags.s2Delta_mid = circuit.sensor2DeltaFromMidDelta(HWParams::MID_STEP, sensor2.read(SAMPLES_IN_TESTREAD));  // 95% settled after read
 
-  sensor2.resetFilter();
-
-  for (int i = 1; i < primeSamples; i++) {
-    delayMicroseconds(CFG::A2D_READING_PERIOD_uS);
-    sensor2.filter(1);
-  }
-
-  float vFinal = sensor2.filter(fineSamples);
-
-  mid.offsetLevel(-direction);
-  delayMicroseconds(50);
-
-  USB.printf("Measured difference: %.2f\n", vFinal);
-*/
 
   phase = Phase::FOLLOW;
 
