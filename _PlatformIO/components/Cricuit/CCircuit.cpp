@@ -71,5 +71,5 @@ double CCircuit::sensor2DeltaFromMidDelta(int midDelta, double sensor2) const {
   const double lightGain = (sensor1EstNow - MID_STEP_PIVOT_SENSOR1_EST) / denominator;
   const double deltaSensor2Voltage = diffAmpMultiplier * lightGain * deltaMidVoltage;
 
-  return deltaSensor2Voltage * CDiffAmp::SENSOR_SCALAR * 0.9;
+  return deltaSensor2Voltage * CDiffAmp::SENSOR_SCALAR;
 }

@@ -51,8 +51,8 @@ namespace Asano.Caldera
 
         public static string CreateVoltagesChanged(VoltageValues voltages)
         {
-            var length = VoltagesPrefix.Length + GetFloatLength(voltages.Sensor1)
-                       + VoltagesSensor2.Length + GetFloatLength(voltages.Sensor2)
+            var length = VoltagesPrefix.Length + GetDoubleLength(voltages.Sensor1)
+                       + VoltagesSensor2.Length + GetDoubleLength(voltages.Sensor2)
                        + ObjectEnd.Length;
 
             return string.Create(
@@ -103,6 +103,18 @@ namespace Asano.Caldera
             return length;
         }
 
+        private static int GetDoubleLength(double value)
+        {
+            if (!double.IsFinite(value))
+                return 8;
+            Span<char> buffer = stackalloc char[32];
+            value.TryFormat(buffer, out var length, VoltageFormat, CultureInfo.InvariantCulture);
+            return length;
+        }
+
+
+
+
         private static void Append(ref Span<char> span, string value)
         {
             value.AsSpan().CopyTo(span);
@@ -123,6 +135,17 @@ namespace Asano.Caldera
                 return;
             }
 
+            value.TryFormat(span, out var length, VoltageFormat, CultureInfo.InvariantCulture);
+            span = span[length..];
+        }
+
+        private static void Append(ref Span<char> span, double value)
+        {
+            if (!double.IsFinite(value))
+            {
+                Append(ref span, "null");
+                return;
+            }
             value.TryFormat(span, out var length, VoltageFormat, CultureInfo.InvariantCulture);
             span = span[length..];
         }

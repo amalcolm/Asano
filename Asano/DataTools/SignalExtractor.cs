@@ -54,14 +54,13 @@ namespace Asano.DataTools
             if (_isDisposed) return false;
             SetChart(packet); 
 
-            double C0 = packet.Channel[0] * scale_C0;
-
+//            double C0 = packet.Channel[0] * scale_C0;
 //            bool isDiscontinuity = packet.Stage2_Offset != lastOffset2;
 
             lastOffset2 = packet.Offset;
 
             double x = packet.TimeStamp;
-            double y = C0 + packet.Offset * delta_Offset2;
+            double y = packet.LightEnvelope;
             bool changed = false;
 
 //            if (isDiscontinuity)

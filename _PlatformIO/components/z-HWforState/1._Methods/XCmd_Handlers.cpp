@@ -18,6 +18,7 @@ void HWforState::setWipers(XCMD_SetWipers& cmd) {
     double change = tools.circuit.sensor2DeltaFromMidDelta(midChange, sensor2.lastV());
     USB.printf("Mid change: %d, Sensor2 change: %f\n", midChange, change);
     sensor2.offset_lastV(change);
+    sensor2.offset_Env(-change);
   }
 
   int offsetChange = cmd.offset - offset.getLevel();
@@ -25,6 +26,7 @@ void HWforState::setWipers(XCMD_SetWipers& cmd) {
     double change = tools.circuit.sensor2DeltaFromOffsetDelta(offsetChange);
     USB.printf("Offset change: %d, Sensor2 change: %f\n", offsetChange, change);
     sensor2.offset_lastV(change);
+    sensor2.offset_Env(-change);
   }
 
   top   .setLevel(cmd.top);

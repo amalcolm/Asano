@@ -53,6 +53,7 @@ namespace TheLib
 					dataPkt->SensorState   = nativePacket.block.blockData[i].sensorState;
 					dataPkt->Sensor1       = nativePacket.block.blockData[i].Sensor1;
 					dataPkt->Sensor2       = nativePacket.block.blockData[i].Sensor2;
+					dataPkt->LightEnvelope = nativePacket.block.blockData[i].lightEnvelope;
 
 					for (size_t ch = 0; ch < CDataPacket::A2D_NUM_CHANNELS; ++ch)
 					{

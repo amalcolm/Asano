@@ -27,6 +27,9 @@ export class Digipot extends Shape {
     const stepArrowHalfWidth = 0.07;
     const stepArrowHalfHeight = 0.045;
     const stepArrowOffsetY = wiperHalfHeight + 0.105;
+    const coarseStepArrowColor = "#ff5cab";
+    const coarseStepArrowOffsetX = 0.18;
+    const coarseStepAmount = 10;
 
     this.bodyTop = bodyTop;
     this.bodyBottom = bodyBottom;
@@ -35,6 +38,8 @@ export class Digipot extends Shape {
     this.wiperTipX = wiperTipX;
     this.wiperHalfHeight = wiperHalfHeight;
     this.stepArrowX = this.wiperLabelX;
+    this.coarseStepArrowX = this.stepArrowX - coarseStepArrowOffsetX;
+    this.coarseStepAmount = coarseStepAmount;
     this.stepArrowHalfWidth = stepArrowHalfWidth;
     this.stepArrowHalfHeight = stepArrowHalfHeight;
     this.stepArrowOffsetY = stepArrowOffsetY;
@@ -71,6 +76,16 @@ export class Digipot extends Shape {
       [this.stepArrowX - stepArrowHalfWidth, -stepArrowOffsetY + stepArrowHalfHeight],
       [this.stepArrowX + stepArrowHalfWidth, -stepArrowOffsetY + stepArrowHalfHeight],
     ], { color }));
+    this.wiper.add(makeFilledPolygon([
+      [this.coarseStepArrowX, stepArrowOffsetY + stepArrowHalfHeight],
+      [this.coarseStepArrowX - stepArrowHalfWidth, stepArrowOffsetY - stepArrowHalfHeight],
+      [this.coarseStepArrowX + stepArrowHalfWidth, stepArrowOffsetY - stepArrowHalfHeight],
+    ], { color: coarseStepArrowColor }));
+    this.wiper.add(makeFilledPolygon([
+      [this.coarseStepArrowX, -stepArrowOffsetY - stepArrowHalfHeight],
+      [this.coarseStepArrowX - stepArrowHalfWidth, -stepArrowOffsetY + stepArrowHalfHeight],
+      [this.coarseStepArrowX + stepArrowHalfWidth, -stepArrowOffsetY + stepArrowHalfHeight],
+    ], { color: coarseStepArrowColor }));
 
     if (label) {
       this.add(new TextLabel(label, {
@@ -122,33 +137,52 @@ export class Digipot extends Shape {
 
   getWiperStepDirectionAt(worldPoint) {
     const localPoint = this.worldToLocal(worldPoint.clone());
+    const candidates = [
+      { centerOffsetY: this.stepArrowOffsetY, centerX: this.stepArrowX, direction: 1 },
+      { centerOffsetY: -this.stepArrowOffsetY, centerX: this.stepArrowX, direction: -1 },
+      { centerOffsetY: this.stepArrowOffsetY, centerX: this.coarseStepArrowX, direction: this.coarseStepAmount },
+      { centerOffsetY: -this.stepArrowOffsetY, centerX: this.coarseStepArrowX, direction: -this.coarseStepAmount },
+    ];
+    let nearestHit = null;
 
-    if (this.containsStepArrowPoint(localPoint, this.stepArrowOffsetY)) {
-      return 1;
+    for (const candidate of candidates) {
+      if (!this.containsStepArrowPoint(localPoint, candidate.centerOffsetY, candidate.centerX)) {
+        continue;
+      }
+
+      const distance = this.getStepArrowDistanceSq(localPoint, candidate.centerOffsetY, candidate.centerX);
+      if (!nearestHit || distance < nearestHit.distance) {
+        nearestHit = { direction: candidate.direction, distance };
+      }
     }
 
-    if (this.containsStepArrowPoint(localPoint, -this.stepArrowOffsetY)) {
-      return -1;
-    }
-
-    return 0;
+    return nearestHit?.direction ?? 0;
   }
 
-  containsStepArrowPoint(localPoint, centerOffsetY) {
+  containsStepArrowPoint(localPoint, centerOffsetY, centerX = this.stepArrowX) {
     const padding = 0.08;
     const centerY = this.wiperY + centerOffsetY;
 
     return (
-      localPoint.x >= this.stepArrowX - this.stepArrowHalfWidth - padding
-      && localPoint.x <= this.stepArrowX + this.stepArrowHalfWidth + padding
+      localPoint.x >= centerX - this.stepArrowHalfWidth - padding
+      && localPoint.x <= centerX + this.stepArrowHalfWidth + padding
       && localPoint.y >= centerY - this.stepArrowHalfHeight - padding
       && localPoint.y <= centerY + this.stepArrowHalfHeight + padding
     );
   }
 
+  getStepArrowDistanceSq(localPoint, centerOffsetY, centerX) {
+    const dx = localPoint.x - centerX;
+    const dy = localPoint.y - (this.wiperY + centerOffsetY);
+
+    return dx * dx + dy * dy;
+  }
+
   getWiperStepAnchorWorldPoint(direction) {
+    const centerX = Math.abs(direction) > 1 ? this.coarseStepArrowX : this.stepArrowX;
+
     return this.localToWorld(new THREE.Vector3(
-      this.stepArrowX,
+      centerX,
       this.wiperY + (direction > 0 ? this.stepArrowOffsetY : -this.stepArrowOffsetY),
       0,
     ));
@@ -178,7 +212,9 @@ export class Digipot extends Shape {
   }
 
   stepWiper(direction, options = {}) {
-    this.setWiperValue(this.value + (direction > 0 ? 1 : -1), options);
+    const magnitude = Math.max(1, Math.abs(Math.trunc(Number(direction))) || 1);
+
+    this.setWiperValue(this.value + (direction > 0 ? magnitude : -magnitude), options);
   }
 
   snapWiper(options = {}) {

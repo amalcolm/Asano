@@ -70,6 +70,7 @@ namespace TheLib
 		SensorState = 0;
         Sensor1 = 0.0f;
 		Sensor2 = 0.0f;
+		LightEnvelope = 0.0f;
 		// Channel array is reused, and no need to clean it.
     }
 

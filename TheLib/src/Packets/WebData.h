@@ -19,13 +19,12 @@ namespace TheLib::Packets
     public ref class VoltageValues sealed
     {
     private:
-        literal float Scalar = 3.3f / 1023.0f;
+        literal double Scalar = 3.3 / 1023.0;
 
     public:
-        [JsonPropertyName("sensor1")] property float Sensor1;
-        [JsonPropertyName("sensor2")] property float Sensor2;
-
-        VoltageValues() { Sensor1 = 0.0f; Sensor2 = 0.0f; }
+        [JsonPropertyName("sensor1")] property double Sensor1;
+        [JsonPropertyName("sensor2")] property double Sensor2;
+        VoltageValues() { Sensor1 = 0.0; Sensor2 = 0.0; }
 
         void CopyFrom(BlockPacket^ block) {if (block == nullptr || block->Count <= 0 || block->BlockData == nullptr) return;
 

@@ -31,8 +31,9 @@ namespace
                                            + sizeof(double)                                    // stateTime
                                            + sizeof(uint64_t)                                  // hardwareState
                                            + sizeof(uint32_t)                                  // sensorState
-                                           + sizeof(float)                                     // Sensor1
-                                           + sizeof(float)                                     // Sensor2
+                                           + sizeof(double)                                    // Sensor1
+                                           + sizeof(double)                                    // Sensor2
+                                           + sizeof(double)                                    // lightEnvelope
                                            + CDataPacket::A2D_NUM_CHANNELS * sizeof(uint32_t); // channel data
 
     constexpr size_t kBlockEventSize       = sizeof(uint8_t)  // eventKind
@@ -434,8 +435,9 @@ namespace
             readDouble(rP, dp.stateTime    ); rP += sizeof(double  );
             readU64   (rP, dp.hardwareState); rP += sizeof(uint64_t);
             readU32   (rP, dp.sensorState  ); rP += sizeof(uint32_t);
-            readFloat (rP, dp.Sensor1      ); rP += sizeof(float   );
-            readFloat (rP, dp.Sensor2      ); rP += sizeof(float   );
+            readDouble(rP, dp.Sensor1      ); rP += sizeof(double  );
+            readDouble(rP, dp.Sensor2      ); rP += sizeof(double  );
+            readDouble(rP, dp.lightEnvelope); rP += sizeof(double  );
 
             for (size_t ch = 0; ch < CDataPacket::A2D_NUM_CHANNELS; ++ch, rP += sizeof(uint32_t))
                 readU32(rP, dp.channel[ch]);

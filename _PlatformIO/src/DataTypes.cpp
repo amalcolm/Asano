@@ -68,10 +68,12 @@ void DataType::fillFromHardware(struct HWforState& HW, bool setTimestamp) {
     (uint32_t(HW.sensor1.lastValue()) << 16) |
      uint32_t(HW.sensor2.lastValue());
 
-  float sv1 = HW.sensor1.lastV(); if (sv1 < 0) sv1 = static_cast<float>(analogRead(HW.sensor1.getPin()));
-  float sv2 = HW.sensor2.lastV(); if (sv2 < 0) sv2 = static_cast<float>(analogRead(HW.sensor2.getPin()));   
+  double sv1 = HW.sensor1.lastV(); if (sv1 < 0) sv1 = static_cast<double>(analogRead(HW.sensor1.getPin()));
+  double sv2 = HW.sensor2.lastV(); if (sv2 < 0) sv2 = static_cast<double>(analogRead(HW.sensor2.getPin()));   
   sensor1 = sv1;
   sensor2 = sv2;
+
+  lightEnv = HW.sensor2.env();
 
   memset(&channels[0], 0, CHANNELS_BYTESIZE);
 }
@@ -117,6 +119,7 @@ void BlockType::writeSerial(bool includeFrameMarkers) {
     USB.write(item.sensorState);
     USB.write(item.sensor1);
     USB.write(item.sensor2);
+    USB.write(item.lightEnv);
     USB.write((uint8_t*)&item.channels[0], CHANNELS_BYTESIZE);
   }
 
@@ -133,8 +136,9 @@ void BlockType::debugSerial() {
   USB.printf("N:%d", count);
   uint32_t limit = std::min(count, DEBUG_BLOCKSIZE);
   for(uint32_t i = 0; i < limit; i++) {
-    USB.printf("\t S1:%.2f", data[i].sensor1);
-    USB.printf("\t S2:%.2f", data[i].sensor2);
+    USB.printf("\t S1:%.2lf", data[i].sensor1);
+    USB.printf("\t S2:%.2lf", data[i].sensor2);
+    USB.printf("\t LE:%.2lf", data[i].lightEnv);
   }
   USB.printf("\n");
 }

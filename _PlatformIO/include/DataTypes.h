@@ -22,8 +22,9 @@ struct DataType {
   uint64_t   hardwareState;  //   offset1pot << 56 | offset1_hi << 48 | offset1_lo << 40 | count&0xFF << 32 ...
                              // | offset2pot << 24 | gain       << 16 | reserved   << 8  | reserved    << 0
   uint32_t   sensorState;    //  preGain << 16 | postGain 
-  float      sensor1;
-  float      sensor2;
+  double     sensor1;
+  double     sensor2;
+  double     lightEnv;     // continuous relative value derived from sensor2 accounting for wiper changes
   uint32_t   channels[NUM_CHANNELS];
 
   DataType();

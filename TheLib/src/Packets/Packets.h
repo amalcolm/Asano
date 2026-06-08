@@ -85,8 +85,9 @@ namespace TheLib
 		property double         StateTime;
         property System::UInt64 HardwareState;
         property int            SensorState;
-		property float          Sensor1;
-		property float          Sensor2;
+		property double         Sensor1;
+		property double         Sensor2;
+        property double         LightEnvelope;
 
         property array<unsigned int>^ Channel;
 
