@@ -13,6 +13,9 @@ public:
   CCircuit();
   ~CCircuit();
 
+  double sensor1FromSensor2() const;
+  double sensor1FromSensor2(double sensor2) const;
+
   double midVoltageFromMid() const;
   double midVoltage(int top, int bot, int mid) const;
   

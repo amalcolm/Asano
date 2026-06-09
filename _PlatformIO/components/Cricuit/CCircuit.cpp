@@ -30,6 +30,14 @@ CCircuit::~CCircuit() {
   delete ptr_3Pot; ptr_3Pot = nullptr;
 }
 
+double CCircuit::sensor1FromSensor2() const {
+  return _DA.sensor1FromSensor2(HW->sensor2.lastV(), clampWiper(HW->gain.getLevel()), clampWiper(HW->offset.getLevel()));
+}
+
+double CCircuit::sensor1FromSensor2(double sensor2) const {
+  return _DA.sensor1FromSensor2(sensor2, clampWiper(HW->gain.getLevel()), clampWiper(HW->offset.getLevel()));
+}
+
 double CCircuit::midVoltageFromMid() const {
   return midVoltage(HW->top.getLevel(), HW->bot.getLevel(), HW->mid.getLevel());
 }

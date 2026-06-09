@@ -1,5 +1,6 @@
 #pragma once
 #include "CSensor.h"
+#include <stack>
 class CFilteredSensor : public CSensor {
 public:
   CFilteredSensor(int pin, double t);
@@ -15,14 +16,17 @@ public:
   inline double lastV() const { return _lastV; }
   inline int    getVariance() const;
 
-  inline double getTfromSamples(int samples);
-  inline int    getSamplesFromT(double t);
+  static double getTfromSamples(int samples);
+  static int    getSamplesFromT(double t);
 
   inline void   offset_lastV(double dV)  { _lastV += dV; _lastValue += static_cast<int>(dV + 0.5); }
 
   inline void   offset_Env(double dEnv) { _envOffset += dEnv; }
   inline double env() const { return _lastV + _envOffset; }
 
+  // use these for short samples.  Do not hold for more than a millisecond
+         void  pushT(double t);
+         void  popT();
 
 private:
   inline double _readSingle();
@@ -35,4 +39,6 @@ private:
   int _minForT = -1;
   int _minV = 1023;
   int _maxV = 0;
+
+  std::stack<CFilteredSensor> _tStack;
 };

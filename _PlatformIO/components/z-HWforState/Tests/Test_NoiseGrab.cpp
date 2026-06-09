@@ -15,7 +15,7 @@ bool HWTools::testGetNoiseSample() {
   DebugType* dbg = USB.getDebugBuffer();  if (dbg == nullptr) return false;
 
   dbg->count = numSamples;
-  FillBufferWithNoise(dbg->data, dbg->count, SP.Sensor2, period); // fill using 20uS period
+  FillBufferWithNoise(dbg->data, dbg->count, SP.Sensor1, period); // fill using 20uS period
   USB.buffer(dbg);
   USB.suppressNextDataOutput();
   CTelemetry::suppressNextLog();

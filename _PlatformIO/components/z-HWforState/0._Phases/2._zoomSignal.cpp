@@ -16,34 +16,37 @@ void HWforState::_zoomSignal() {
     offset.setLevel(128);
     delayMicroseconds(10);
 
-   
-    tools.centreMid(sensor1);    if (phase != Phase::ZOOM) goto exit; 
-    tools.centreOffset(sensor2); if (phase != Phase::ZOOM) goto exit;
-    // starting point with stability, 
+    tools.seekTargets();
   }
 
-
-  
+  bool reverting = false;
   while (phase == Phase::ZOOM) {
-    flags.zoomLevel += 8;
+    flags.zoomLevel += 16;
     gain.setLevel(flags.zoomLevel);
     delayMicroseconds(10);
     
     if (quickNoiseTest(40, sensor1.getPin()) > 20) {
-      gain.setLevel(flags.zoomLevel-16);
+      reverting = true;
+      gain.setLevel(flags.zoomLevel - 16);
       delayMicroseconds(10);
-      phase = Phase::MEASURE;
-      USB.printf("Noise failed found... reverting to gain: %d\n", gain.getLevel());
     }
 
-    tools.centreMid(sensor1);       if (phase != Phase::ZOOM) goto exit;
+    tools.readCheck(); if (phase != Phase::ZOOM) break;
 
-    tools.centreOffset(sensor2);    if (phase != Phase::ZOOM) goto exit;
+    tools.seekTargets();
 
-    if (gain.getLevel() == CDigiPot::WIPER_MAX) phase = Phase::MEASURE;
+    if (reverting) {
+      phase = Phase::MEASURE;
+      USB.printf("Noise found... reverting to gain: %d\n", gain.getLevel());
+    }
+
+    if (flags.zoomLevel == CDigiPot::WIPER_MAX) {
+      phase = Phase::MEASURE;
+    }
   }
 
-exit:
-  flags.zoomLevel = -1; // reset zoom level if we are leaving zoom phase
+  if (phase != Phase::ZOOM)
+    flags.zoomLevel = -1;
 
+  tools.cache.set();
 }

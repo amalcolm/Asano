@@ -17,8 +17,9 @@ public:
 
   int  read();
 
-  inline int lastValue() const { return _lastValue; }
-  inline int getPin()    const { return _pin;       }
+  inline bool isInverted() const { return _inverted; }
+  inline int  lastValue() const { return _lastValue; }
+  inline int  getPin()    const { return _pin;       }
 
 protected:
 

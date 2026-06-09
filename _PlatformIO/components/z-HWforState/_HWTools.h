@@ -17,9 +17,20 @@ public:
 
     bool inZone = false;
 
-    double s2Delta_mid = 0.0;
-    double s2Delta_offset = 0.0;
   } flags;
+
+  struct HWCache {
+    double S1_target = -1.0;
+    double S2_target = -1.0;
+
+
+    double dS1_mid = -1.0;
+    double dS2_mid = -1.0;
+    
+    double dS2_offset = -1.0;
+
+    void set(double s2 = -1.0);
+  } cache;
 
   void dbg();
 
@@ -39,6 +50,6 @@ public:
   inline void centreMid   (CSensor& sensor) { centre(sensor, hw.mid); }
   inline void centreOffset(CSensor& sensor) { centre(sensor, hw.offset); }
 
-private:
+  void seekTargets();
 
 };

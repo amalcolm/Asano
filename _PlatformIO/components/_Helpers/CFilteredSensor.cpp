@@ -2,7 +2,6 @@
 #include "Helpers.h"
 #include <Arduino.h>
 #include <cmath>
-#include <deque>
 
 CFilteredSensor::CFilteredSensor(int pin, double t) : CSensor(pin) { setT(t); }
 
@@ -58,9 +57,35 @@ double CFilteredSensor::read(int numSamples) { if (numSamples <= 0) ERROR("CFilt
   _t = t; 
   _tInv = 1.0 - t; 
   _minForT = getSamplesFromT(t); 
-}
+ }
 
 inline int    CFilteredSensor::getVariance() const { return  _maxV - _minV; }
 
-inline double CFilteredSensor::getTfromSamples(int samples) { return 1.0 - std::pow(0.05, 1.0 / samples); } // 95% settle - no error check
-inline int    CFilteredSensor::getSamplesFromT(double t)    { return static_cast<int>(std::ceil(std::log(0.05) / std::log(1.0 - t))); }
+double CFilteredSensor::getTfromSamples(int samples) { return 1.0 - std::pow(0.05, 1.0 / samples); } // 95% settle - no error check
+int    CFilteredSensor::getSamplesFromT(double t)    { return static_cast<int>(std::ceil(std::log(0.05) / std::log(1.0 - t))); }
+
+
+
+void CFilteredSensor::pushT(double t) {
+  _tStack.push(*this);
+  setT(t);
+}
+
+void CFilteredSensor::popT() {
+  if (_tStack.empty()) return;
+
+  CFilteredSensor copy = _tStack.top();
+  _tStack.pop();
+
+  setT(copy.getT());
+  _lastV = copy.lastV();
+  _lastValue = copy.lastValue();
+  _envOffset = copy._envOffset;
+  _counter = copy._counter;
+  _minForT = copy._minForT;
+  _minV = copy._minV;
+  _maxV = copy._maxV;
+
+  CSensor::zone = copy.zone;
+  CSensor::inZone = copy.inZone;
+}
