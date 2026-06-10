@@ -43,7 +43,7 @@ void HWforState::_zoomSignal() {
     if (flags.zoomLevel == CDigiPot::WIPER_MAX) {
       phase = Phase::MEASURE;
     }
- //  }6     
+ //  }
 
  exit:
   if (phase != Phase::ZOOM)
