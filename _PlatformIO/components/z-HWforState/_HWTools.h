@@ -51,5 +51,6 @@ public:
   inline void centreOffset(CSensor& sensor) { centre(sensor, hw.offset); }
 
   void seekTargets();
+  void seekTarget(CFilteredSensor& sensor, CDigiPot& pot);
 
 };

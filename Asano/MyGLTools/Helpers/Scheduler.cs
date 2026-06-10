@@ -112,7 +112,7 @@ namespace Asano.MyGLTools.Helpers
 
                 if (_targetFrameRateIsDirty.TestAndClear())
                 { 
-                    frameTimer.Period = 0.93721 / TargetFrameRate;
+                    frameTimer.Period = 1.0 / TargetFrameRate;
                 }
 
                 frameTimer.Wait(token);

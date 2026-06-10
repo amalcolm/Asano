@@ -23,6 +23,10 @@ public:
 
   inline virtual void writeCurrentToPot() { _writeToPot(_currentLevel); }
   
+  // equality relies on csPin
+  bool operator==(const CDigiPot& other) const {
+    return this->_csPin == other._csPin;
+  }
 
 protected:
   int _csPin; 

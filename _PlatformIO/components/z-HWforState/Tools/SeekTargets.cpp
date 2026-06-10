@@ -2,10 +2,7 @@
 #include "HWforState.h"
 #include "CCircuit.h"
 
-namespace {
-  constexpr int SAMPLES_IN_TESTREAD = 20;
-}
-
+constexpr int SAMPLES_IN_TESTREAD = 20;
 
 void HWTools::seekTargets() {
   
@@ -41,6 +38,34 @@ void HWTools::seekTargets() {
     delayMicroseconds(10);
   }
 
+  hw.sensor1.popT();
+  hw.sensor2.popT(); 
+}
+
+void HWTools::seekTarget(CFilteredSensor& sensor, CDigiPot& pot) {
+  double newT = CFilteredSensor::getTfromSamples(SAMPLES_IN_TESTREAD);
+  hw.sensor1.pushT(newT);
+  hw.sensor2.pushT(newT);
+
+  bool isSensor2 = (sensor.getPin() == hw.sensor2.getPin());
+  
+  double target = isSensor2 ? cache.S2_target : cache.S1_target;
+
+  double delta = (pot == hw.mid   ) ? (isSensor2 ? cache.dS2_mid    : cache.dS1_mid) :
+                 (pot == hw.offset) ? (isSensor2 ? cache.dS2_offset : -1.0) :
+                 -1.0;
+
+  if (delta > 0) {
+    double s = sensor.read(SAMPLES_IN_TESTREAD);
+    double distance = s - target;
+
+    int midDelta_steps = static_cast<int>(std::round(distance / delta));
+
+    if (std::abs(midDelta_steps) > 0) {
+      pot.offsetLevel(-midDelta_steps);
+      delayMicroseconds(10);
+    }
+  }
   hw.sensor1.popT();
   hw.sensor2.popT(); 
 }
