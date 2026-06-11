@@ -11,7 +11,7 @@ public:
     // hardware timing constants (in microseconds / hertz)
     inline static constexpr double STATE_DURATION_uS       =  3'000;  // time for each state. loop will be slightly longer than this
 
-    inline static constexpr double LED_OFF_PEERIOD_uS     =       0;  // time between cycles when LEDs are turned off
+    inline static constexpr double LED_OFF_PEERIOD_uS      =      0;  // time between cycles when LEDs are turned off
 
     inline static constexpr double HEAD_SETTLE_TIME_uS     =    220;  // delay between Head change and first A2D read
     

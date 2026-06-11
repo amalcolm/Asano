@@ -20,7 +20,7 @@ void HWforState::_zoomSignal() {
   }
 
   bool reverting = false;
-//  while (phase == Phase::ZOOM) {
+  while (phase == Phase::ZOOM) {
     flags.zoomLevel += 16;
     gain.setLevel(flags.zoomLevel);
     delayMicroseconds(10);
@@ -43,7 +43,7 @@ void HWforState::_zoomSignal() {
     if (flags.zoomLevel == CDigiPot::WIPER_MAX) {
       phase = Phase::MEASURE;
     }
- //  }
+  }
 
  exit:
   if (phase != Phase::ZOOM)
