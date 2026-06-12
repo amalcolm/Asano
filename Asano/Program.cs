@@ -5,7 +5,7 @@ namespace Asano
 {
     internal static class Program
     {
-        public static readonly TeensySerial? serialPort = new();
+        public static readonly MySerialPort? SerialPort = new();
 
         public static bool IsRunning = false;
         public static Caldera.Caldera? Caldera = null;
@@ -21,28 +21,25 @@ namespace Asano
 
 //            ZFixer.DoTest(); return;
 
+            if (SerialPort == null) return;
+
             Application.ThreadException += (sender, e) =>
             {
                 MessageBox.Show(e.Exception.Message);
-                serialPort?.Close();
+                SerialPort?.Close();
             };
 
             IsRunning = true;
-            SocketWatcher.SP = serialPort;
+            
 
-            if (serialPort != null)
-            {
-                SocketWatcher.StartListening();
+            SocketWatcher.SP = SerialPort;
 
-                Application.Run(new MainForm());
+            SocketWatcher.StartListening();
 
-                IsRunning = false;
-                SocketWatcher.StopListening();
-            }
+            Application.Run(new MainForm());
 
-            Caldera?.Dispose();
-            Caldera = null;
-            serialPort?.Close();
+            IsRunning = false;
+            SocketWatcher.StopListening();
         }
     }
 }

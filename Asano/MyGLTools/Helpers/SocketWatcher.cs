@@ -15,7 +15,7 @@ namespace Asano.MyGLTools.Helpers
 
         private static readonly CancellationTokenSource cts = new();
 
-        public static TeensySerial? SP { get; set; }
+        public static MySerialPort? SP { get; set; }
 
         public static void StartListening()
         {

@@ -34,9 +34,9 @@ namespace Asano.Caldera
             };
             _messageFlushTimer.Tick += MessageFlushTimer_Tick;
 
-            if (Program.serialPort == null) return;
+            if (Program.SerialPort == null) return;
 
-            Program.serialPort.ConnectionChanged += SerialPort_ConnectionChanged;
+            Program.SerialPort.ConnectionChanged += SerialPort_ConnectionChanged;
         }
 
         private void MessageFlushTimer_Tick(object? sender, EventArgs e)
@@ -110,8 +110,8 @@ namespace Asano.Caldera
 
             await ShutdownSpawnedFormsAsync();
 
-            if (Program.serialPort != null)
-                Program.serialPort.ConnectionChanged -= SerialPort_ConnectionChanged;
+            if (Program.SerialPort != null)
+                Program.SerialPort.ConnectionChanged -= SerialPort_ConnectionChanged;
 
             try
             {

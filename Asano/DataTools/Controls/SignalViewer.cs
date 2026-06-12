@@ -26,7 +26,7 @@ namespace Asano.DataTools.Controls
 
         private static readonly CultureInfo CsvCulture = CultureInfo.InvariantCulture;
 
-        private static TeensySerial SP => Program.serialPort ?? throw new InvalidOperationException("Serial port is not initialized.");
+        private static MySerialPort SP => Program.SerialPort ?? throw new InvalidOperationException("Serial port is not initialized.");
 
         private bool IsRunning => !_disposed && _ready;
 
@@ -49,7 +49,8 @@ namespace Asano.DataTools.Controls
 
             BackColor = Color.MistyRose;
             Setup(initAction: Init, shutdownAction: Shutdown);
-            SP.DataReceived += SP_DataReceived;
+            SP.BlockPacketReceived += SP_BlockPacketReceived;
+            SP.DebugPacketReceived += SP_DebugPacketReceived;
 
             AxesOptions = new()
             {
@@ -63,25 +64,22 @@ namespace Asano.DataTools.Controls
 
 
         static readonly float ticksToSeconds = 1.0f / 600_000_000f;
-        private void SP_DataReceived(IPacket packet)
+        private void SP_BlockPacketReceived(BlockPacket blockPacket)
         {
             if (IsRunning == false) return;
 
-            if (packet is BlockPacket blockPacket)
-            {
-                StoreHardwareSnapshot(blockPacket);
-                return;
-            }
+            StoreHardwareSnapshot(blockPacket);
+        }
 
-            if (packet is not DebugPacket dbg) return; if (dbg.Count <= 0) return;
-
+        private void SP_DebugPacketReceived(DebugPacket packet)
+        {   
             if (base.requestHold) return;
 
-            int max = Math.Min(dbg.Count, MAX_SAMPLES);
+            int max = Math.Min(packet.Count, MAX_SAMPLES);
 
             double total = 0.0;
             for (int i = 0; i < max; i++)
-                total += dbg.Data[i].Sample;
+                total += packet.Data[i].Sample;
 
             float mean = (float)(total / max);
             List<NoiseSampleSnapshot> samples = new(max);
@@ -91,12 +89,12 @@ namespace Asano.DataTools.Controls
             int verts = 0;
             for (int i = 0; i < max; i++)
             {
-                float y = dbg.Data[i].Sample;
+                float y = packet.Data[i].Sample;
                 if (float.IsFinite(y) == false) continue;
 
-                float x1 = dbg.Data[i].StartTick * ticksToSeconds;
-                float x2 = dbg.Data[i].EndTick * ticksToSeconds;
-                samples.Add(new NoiseSampleSnapshot(x1, x2, dbg.Data[i].Sample));
+                float x1 = packet.Data[i].StartTick * ticksToSeconds;
+                float x2 = packet.Data[i].EndTick * ticksToSeconds;
+                samples.Add(new NoiseSampleSnapshot(x1, x2, packet.Data[i].Sample));
 
                 float y1 = MathF.Min(mean, y);
                 float y2 = MathF.Max(mean, y);
@@ -128,7 +126,7 @@ namespace Asano.DataTools.Controls
             lock (_lock)
             {
                 _noiseRange = noiseRange;
-                _latestNoise = new NoiseSnapshot(dbg.TimeStamp, dbg.State, _latestHardware, samples);
+                _latestNoise = new NoiseSnapshot(packet.TimeStamp, packet.State, _latestHardware, samples);
                 _vertexBuffer.Set(ref vertices, vertexCount);
                 SetAutomaticViewPort(new RectangleF(0.0f, topY, lastX, height));
             }
@@ -180,7 +178,12 @@ namespace Asano.DataTools.Controls
             _ready = false;
             cmStrip.Closed -= cmStrip_Closed;
 
-            Program.serialPort!.DataReceived -= SP_DataReceived;
+            if (Program.SerialPort != null)
+            {
+                Program.SerialPort.BlockPacketReceived -= SP_BlockPacketReceived;
+
+                Program.SerialPort.DebugPacketReceived -= SP_DebugPacketReceived;
+            }
             _xAxisUnitLabel?.Dispose();
             _noiseRangeLabel?.Dispose();
             _noiseRangeValueLabel?.Dispose();

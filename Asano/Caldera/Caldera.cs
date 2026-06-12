@@ -6,12 +6,13 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Asano.MyGLTools.UserControls;
+using Asano.MyGLTools.Helpers;
 
 namespace Asano.Caldera
 {
     public class Caldera : IDisposable
     {
-        protected static TeensySerial SP => Program.serialPort ?? throw new InvalidOperationException("Serial port is not initialized.");
+        protected static MySerialPort SP => Program.SerialPort ?? throw new InvalidOperationException("Serial port is not initialized.");
         private static readonly Encoding CsvEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
         private static readonly object ViewsLock = new();
         private static readonly List<Caldera> Views = [];
@@ -25,8 +26,6 @@ namespace Asano.Caldera
         public CalderaView View { get; }
         public bool IsRunning => !_disposed && _ready;
         private bool IsPrimaryBridge => View == CalderaView.Circuit;
-
-        public static event EventHandler? OnInit;
 
         public event EventHandler<SetDebugFlagsMessage>? TestStarted;
 
@@ -51,7 +50,8 @@ namespace Asano.Caldera
 
             if (IsPrimaryBridge)
             {
-                SP.DataReceived += SP_DataReceived;
+                SP.BlockPacketReceived += SP_BlockPacketReceived;
+                SP.DebugPacketReceived += SP_DebugPacketReceived;
                 SP.ConnectionChanged += SP_ConnectionChanged;
             }
         }
@@ -81,26 +81,23 @@ namespace Asano.Caldera
         private uint? _pendingHeldWipersState;
         private CommandFlags _pendingHeldWipersFlags = CommandFlags.None;
 
-        private void SP_DataReceived(TheLib.IPacket packet)
+        private void SP_BlockPacketReceived(BlockPacket packet)
         {
             if (IsRunning == false) return;
 
-            switch (packet)
+            if (_needsRefresh)
             {
-                case BlockPacket blockPacket:
-                    if (_needsRefresh)
-                    {
-                        _needsRefresh = false;
-                        if (_lastState < 0) _lastState = (int)blockPacket.State;
-                        PostStateChange(_lastState);
-                    }
-                    TryRestoreHeldWipers(blockPacket);
-                    break;
-                case DebugPacket debugPacket:
-                    if (_lastState < 0 || (int)debugPacket.State != _lastState)
-                      PostStateChange((int)debugPacket.State, force: true);
-                    break;
+                _needsRefresh = false;
+                if (_lastState < 0) _lastState = (int)packet.State;
+                PostStateChange(_lastState);
             }
+            TryRestoreHeldWipers(packet);
+        }
+
+        private void SP_DebugPacketReceived(DebugPacket debugPacket)
+        {
+            if (_lastState < 0 || (int)debugPacket.State != _lastState)
+                PostStateChange((int)debugPacket.State, force: true);
         }
 
         internal void HandlePacket(IPacket packet)
@@ -229,8 +226,6 @@ namespace Asano.Caldera
 
             WebView.Settings.IsWebMessageEnabled = true;
             _ready = true;
-            OnInit?.Invoke(this, EventArgs.Empty);
-
         }
 
         private void WebView_WebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
@@ -509,7 +504,7 @@ namespace Asano.Caldera
             var message = root.Deserialize<SetWipersMessage>();
             if (message?.Wipers == null) return;
 
-            Program.serialPort?.Write(CreateSetWipersCommand(message.Wipers, message.CMDflags));
+            Program.SerialPort?.Write(CreateSetWipersCommand(message.Wipers, message.CMDflags));
         }
 
         private void HandleGetSateMessage()
@@ -543,7 +538,7 @@ namespace Asano.Caldera
 
             ScheduleHeldWiperRestore(message.CMDflags, xCMD.state);
 
-            Program.serialPort?.Write(xCMD);
+            Program.SerialPort?.Write(xCMD);
         }
 
         private void HandleSetDebugFlagsMessage(JsonElement root)
@@ -559,7 +554,7 @@ namespace Asano.Caldera
                 cmdFlags = message.CMDflags,
             };
 
-            Program.serialPort?.Write(xCMD);
+            Program.SerialPort?.Write(xCMD);
         }
 
         private void HandleSaveCsvMessage(JsonElement root)
@@ -728,7 +723,7 @@ namespace Asano.Caldera
             }
 
             if (restoreCommand != null)
-                Program.serialPort?.Write(restoreCommand);
+                Program.SerialPort?.Write(restoreCommand);
         }
 
         private void ClearHeldWiperRestore()
@@ -767,10 +762,11 @@ namespace Asano.Caldera
             _disposed = true;
             _ready = false;
 
-            if (IsPrimaryBridge && Program.serialPort != null)
+            if (IsPrimaryBridge && SP != null)
             {
-                Program.serialPort.DataReceived -= SP_DataReceived;
-                Program.serialPort.ConnectionChanged -= SP_ConnectionChanged;
+                SP.BlockPacketReceived -= SP_BlockPacketReceived;
+                SP.DebugPacketReceived -= SP_DebugPacketReceived;
+                SP.ConnectionChanged   -= SP_ConnectionChanged;
             }
 
             try

@@ -6,16 +6,10 @@ namespace Asano.MyGLTools.UserControls
 {
     public partial class DataForm : Form
     {
-        private readonly Dictionary<HeadState, SignalExtractor> _extractors = [];
 
         public DataForm()
         {
             InitializeComponent();
-
-            MyColour colour = chart.BackColor;
-
-            chart.BackColor = colour.Darken(0.4).ToColor();
-
 
             switch (Environment.MachineName)
             {
@@ -35,52 +29,6 @@ namespace Asano.MyGLTools.UserControls
             }
 
 
-            FormClosing += (_, _) =>
-            {
-                foreach (var extractor in _extractors.Values)
-                    extractor.Dispose();
-                _extractors.Clear();
-            };
         }
-
-        public void Process(BlockPacket blockPacket)
-        {
-            if (blockPacket.Count == 0) return;
-
-            DataPacket packet = blockPacket.BlockData[blockPacket.Count - 1];
-            
-            if (_extractors.TryGetValue(packet.State, out var extractor) == false)
-                _extractors[packet.State] = extractor = new SignalExtractor(packet.State) { Chart = chart };
-
-            extractor.Process(packet);
-        }
-
-        public Task ShutdownCalderaAsync()
-            => calderaControl.ShutdownAsync();
-
-        bool isMouseDown = false;
-        int original_Y = 0;
-
-        private void DataForm_MouseDown(object sender, MouseEventArgs e)
-        {
-            isMouseDown = true;
-            original_Y = e.Y;
-        }
-
-        private void DataForm_MouseMove(object sender, MouseEventArgs e)
-        {   if (!isMouseDown) return;
-
-        }
-
-        private void DataForm_MouseUp(object sender, MouseEventArgs e)
-        {
-            if (e.Y == original_Y) return;  
-            isMouseDown = false;
-        }
-
-
-        readonly MouseEventArgs dummy = new(MouseButtons.Left, 1, 0, 0, 0);
-        private void DataForm_MouseLeave(object sender, EventArgs e)
-            => DataForm_MouseUp(sender, dummy);
     }
 }

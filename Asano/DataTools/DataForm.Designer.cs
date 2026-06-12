@@ -28,32 +28,25 @@
         /// </summary>
         private void InitializeComponent()
         {
-            chart = new MyChart();
+            dataControl = new DataTools.Controls.DataControl();
             calderaControl = new Asano.Caldera.CalderaControl();
             SuspendLayout();
             // 
-            // chart
+            // dataControl
             // 
-            chart.AutoClear = true;
-            chart.BackColor = Color.DarkSlateGray;
-            chart.BorderStyle = BorderStyle.FixedSingle;
-            chart.Dock = DockStyle.Fill;
-            chart.EnableLabels = true;
-            chart.EnablePlots = true;
-            chart.Location = new Point(0, 0);
-            chart.Name = "chart";
-            chart.Size = new Size(800, 813);
-            chart.TabIndex = 0;
-            chart.Yscale = 1F;
-            chart.MouseDown += DataForm_MouseDown;
-            chart.MouseMove += DataForm_MouseMove;
-            chart.MouseUp += DataForm_MouseUp;
+            dataControl.BackColor = Color.DarkSlateGray;
+            dataControl.BorderStyle = BorderStyle.FixedSingle;
+            dataControl.Dock = DockStyle.Fill;
+            dataControl.Location = new Point(0, 0);
+            dataControl.Name = "dataControl";
+            dataControl.Size = new Size(800, 813);
+            dataControl.TabIndex = 0;
             // 
             // calderaControl
             // 
             calderaControl.Dock = DockStyle.Bottom;
             calderaControl.Location = new Point(0, 813);
-            calderaControl.Name = "calderaControl1";
+            calderaControl.Name = "calderaControl";
             calderaControl.Size = new Size(800, 422);
             calderaControl.TabIndex = 1;
             // 
@@ -62,22 +55,18 @@
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 1235);
-            Controls.Add(chart);
+            Controls.Add(dataControl);
             Controls.Add(calderaControl);
             Location = new Point(3840, -400);
             Name = "DataForm";
             StartPosition = FormStartPosition.Manual;
             Text = "MyTallForm";
-            MouseDown += DataForm_MouseDown;
-            MouseLeave += DataForm_MouseLeave;
-            MouseMove += DataForm_MouseMove;
-            MouseUp += DataForm_MouseUp;
             ResumeLayout(false);
         }
 
         #endregion
 
-        private MyChart chart;
+        private Asano.DataTools.Controls.DataControl dataControl;
         private Caldera.CalderaControl calderaControl;
     }
 }

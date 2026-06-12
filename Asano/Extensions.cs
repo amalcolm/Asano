@@ -19,7 +19,11 @@ namespace Asano
         public static void Invoker(this Control control, MethodInvoker action)
         {
             if (control.IsHandleCreated == false) return;
-            control.Invoke( action );
+
+            if (control.InvokeRequired)
+                control.Invoke(action);
+            else
+                action();
         }
 
         public static string Description(this HeadState headState)

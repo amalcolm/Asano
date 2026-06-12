@@ -90,7 +90,6 @@ namespace TheLib {
 
         // --- Async helpers ---
 
-        // [NEW] Parameterless Open (uses last known m_portName)
         
         Task<bool>^ OpenAsync();
         Task<bool>^ OpenAsync(String^ portName);

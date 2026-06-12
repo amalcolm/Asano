@@ -53,8 +53,8 @@ namespace Asano.MyGLTools.UserControls
         static readonly string[] dataFieldsToPlot = [
 //            "Top"   , "Bot" , "Mid",
 //            "Offset", "Gain",
-              "RawSensor1", // "RawSensor1",
-              "RawSensor2", // "RawSensor2",
+              "RawSensor1", // "Sensor1",
+              "RawSensor2", // "Sensor2",
             ];
 
         static readonly string[] dataFieldsForLabels = [
@@ -91,10 +91,10 @@ namespace Asano.MyGLTools.UserControls
             AxesOptions.GridSettings = PlotAxesRenderer.GridFlags.VerticalLines | PlotAxesRenderer.GridFlags.XaxisLabels;
             AxesOptions.LabelColor = Color.FromArgb(32, 32, 32, 32);
 
-            if (SP == null) return;
+            if (Program.SerialPort == null) return;
             ActiveChart ??= this;
 
-            SP.ConnectionChanged += SP_ConnectionChanged;
+            Program.SerialPort.ConnectionChanged += SP_ConnectionChanged;
 
             var properties = typeof(DataPacket).GetProperties(BindingFlags.Public | BindingFlags.Instance);
 
@@ -133,7 +133,7 @@ namespace Asano.MyGLTools.UserControls
                 {
                     int index = 1;
 
-                    uint[] orderedKeys = [.. _blocks.Keys.OrderBy(k => -_blocks[k].Item1.Y)];
+                    uint[] orderedKeys = [.. _blocks.Keys.OrderByDescending(k => _blocks[k].Item1.Y)];
 
                     foreach (var key in orderedKeys)
                     {

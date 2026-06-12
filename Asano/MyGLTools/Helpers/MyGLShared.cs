@@ -4,7 +4,7 @@ using OpenTK.Windowing.Desktop;
 
 namespace Asano.MyGLTools.Helpers
 {
-    public static class GLShared
+    public static class MyGLShared
     {
         public static IGLFWGraphicsContext? SharedContext { get; set; } = null;
 

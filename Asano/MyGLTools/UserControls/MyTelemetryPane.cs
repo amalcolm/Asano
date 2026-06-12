@@ -31,12 +31,14 @@ namespace Asano.MyGLTools.UserControls
         public MyTelemetryPane()
         {
             InitializeComponent();
+
+            if (Program.SerialPort != null)
+                Program.SerialPort.TelemetryPacketReceived += TelemetryReceived;
         }
-        public void SP_DataReceived(IPacket packet)
+        public void TelemetryReceived(TelemetryPacket telePacket)
         {
             if (font == null) return;
 
-            if (packet is TelemetryPacket telePacket == false) return;
             var key = telePacket.Key; if (key == 0) return;
 
             if (_blocks.ContainsKey(key) == false)

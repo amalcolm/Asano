@@ -13,14 +13,13 @@ namespace Asano.DataTools.Controls
         {
             InitializeComponent();
 
-
             MyColour colour = chart.BackColor;
-
             chart.BackColor = colour.Darken(0.4).ToColor();
         }
 
+         
 
-        public void Process(BlockPacket blockPacket)
+        private void ProcessBlockPacket(BlockPacket blockPacket)
         {
             if (blockPacket.Count == 0) return;
 
@@ -32,6 +31,23 @@ namespace Asano.DataTools.Controls
             extractor.Process(packet);
         }
 
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+
+            if (ParentForm == null || Program.SerialPort == null) return;
+
+            ParentForm.FormClosing += (_, _) =>
+            {
+                foreach (var extractor in _extractors.Values)
+                    extractor.Dispose();
+                _extractors.Clear();
+            };
+
+            Program.SerialPort.BlockPacketReceived += ProcessBlockPacket;
+
+        }
+
         protected override void OnHandleDestroyed(EventArgs e)
         {
             base.OnHandleDestroyed(e);
@@ -41,8 +57,6 @@ namespace Asano.DataTools.Controls
             foreach (var extractor in _extractors.Values)
                 extractor.Dispose();
             _extractors.Clear();
-              
-
         }
 
 

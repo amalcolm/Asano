@@ -83,7 +83,7 @@ namespace Asano.MyGLTools.UserControls
             InstanceCount++;
 
             
-            MyGL = GLShared.GetControl();
+            MyGL = MyGLShared.GetControl();
             this.Controls.Add(MyGL);
 
             GLThread = new(MyGL);
@@ -102,7 +102,7 @@ namespace Asano.MyGLTools.UserControls
         {
             base.OnHandleCreated(e);
 
-            if (!DesignMode && GLThread != null)
+            if (Program.IsRunning && GLThread != null)
                 GLThread.Enqueue(GL_Load, shutdownAction: GL_Shutdown);
         }
 
@@ -138,7 +138,10 @@ namespace Asano.MyGLTools.UserControls
             fontRenderer.ModelMatrix = Matrix4.Identity;
 
             if (ParentForm != null)
+            {
                 ParentForm.FormClosing += (s, e) => IsLoaded = false;
+                ParentForm.Shown += (s, e) => ClearGL();
+            }
 
             Init();
             IsLoaded = true;

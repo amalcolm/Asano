@@ -1,14 +1,11 @@
-﻿using OpenTK.Graphics.OpenGL4;
-using TheLib;
+﻿using TheLib;
 using System.ComponentModel;
-using System.Diagnostics;
 using Asano.MyGLTools.Helpers;
 namespace Asano.MyGLTools.UserControls
 {
     [ToolboxItem(false)]
     public partial class MyPlotter : MyPlotterBase
     {
-        protected TeensySerial? SP = Program.serialPort;
 
         public static float Window { get; set; } = 10.0f;
         public        float Yscale { get; set; } = 1.0f;
@@ -25,9 +22,8 @@ namespace Asano.MyGLTools.UserControls
             if (MyGL != null && UseLegacyMouseWheelZoom)
                 MyGL.MouseWheel += MyGL_MouseWheel;
 
-            if (SP == null) return;
-
-            SP.ConnectionChanged += SP_ConnectionChanged;
+            if (Program.SerialPort != null)
+                Program.SerialPort.ConnectionChanged += SP_ConnectionChanged;
         }
 
         private MyPlot[] _plotsSnapshot = [];

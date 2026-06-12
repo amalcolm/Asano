@@ -31,7 +31,7 @@
             chart = new Asano.MyGLTools.UserControls.MyChart();
             SuspendLayout();
             // 
-            // chart
+            // dataControl
             // 
             chart.AutoClear = true;
             chart.BackColor = Color.DarkSlateGray;

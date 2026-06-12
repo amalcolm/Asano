@@ -1,12 +1,14 @@
-﻿using TheLib;
-using TheLib.Math;
+﻿using Asano.MyGLTools.Helpers;
 using System.Diagnostics;
-using Asano.MyGLTools.Helpers;
+using TheLib;
+using TheLib.Math;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Asano.MyGLTools.UserControls
 {
     public partial class MyMultichart : MyTLPChart
     {
+        private static MySerialPort SP => Program.SerialPort ?? throw new InvalidOperationException("Serial port must be set before using MyMultichart.");
         private readonly object _lock = new();
         private readonly Dictionary<HeadState, MyChart> _chartsByState = [];
         private readonly Dictionary<HeadState, int> _initStates = [];
@@ -27,6 +29,12 @@ namespace Asano.MyGLTools.UserControls
         {
             InitializeComponent();
             _applyPrimaryChartTag = ApplyPrimaryChartTag;
+
+            
+            SP.BlockPacketReceived += AddBlockPacket;
+            SP.ConnectionChanged += ConnectionChanged;
+            SP.ParsedParametersReceived += (data) => AddData(data);
+            Clear();
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -48,6 +56,17 @@ namespace Asano.MyGLTools.UserControls
 
         public void Clear() => SetState(FormState.None);
         
+        private void ConnectionChanged(ConnectionState state)
+        {
+            switch (state)
+            {
+                case ConnectionState.Connected:
+                case ConnectionState.Disconnected: Clear(); break;
+
+                case ConnectionState.HandshakeSuccessful: BeginInitialising(); break;
+
+            }
+        }
 
         public void AddBlockPacket(BlockPacket blockPacket)
         {
@@ -65,6 +84,8 @@ namespace Asano.MyGLTools.UserControls
                                              : GetOrAddChart(blockPacket.State);
             chart?.SP_DataReceived(blockPacket);
         }
+
+
 
         private void RefreshSingleStateMode() => SingleStateMode = Config.DEBUG_MODE == "SINGLE_STATE";
 
