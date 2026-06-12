@@ -1,11 +1,4 @@
-﻿using Asano.MyGLTools.Fonts;
-using OpenTK.Mathematics;
-using System.Buffers;
-using System.Collections.Concurrent;
-using System.ComponentModel;
-using System.Drawing.Printing;
-using TheLib;
-
+﻿using System.ComponentModel;
 
 namespace Asano.MyGLTools.UserControls
 {

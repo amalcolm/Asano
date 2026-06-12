@@ -17,14 +17,14 @@ namespace Asano.MyGLTools.Helpers
         private bool _gridDirty = true;
         
         
-        public int GridDivisions { get; set; } = (int)Math.Round(Config.STATE_DURATION_uS/1000000.0f);
+        public int GridDivisions { get; set; } = (int)Math.Round(Config.STATE_DURATION_uS * 0.000_001f);
         public bool UniformGrid { get; set; } = false;
 
         public MySubplot(MyPlotterBase myPlotter) : base(myPlotter)
         {
-            base.Margin = 20;
+            base.Margin = 40;
             base.InRect = new RectangleF(0f, 0f, 0.5f, 0.35f);
-            this.OutRect = new RectangleF(0f, -10f, Config.STATE_DURATION_uS/1000000.0f, 1050f);
+            this.OutRect = new RectangleF(0f, -10f, Config.STATE_DURATION_uS * 0.000_001f, 1050f);
         }
 
         public override void Init()
@@ -53,8 +53,6 @@ namespace Asano.MyGLTools.Helpers
 
         /// <summary>
         /// Overrides base OutRect to auto-invalidate grid when data range changes.
-        /// Feel free to set this directly – it's your RectangleF for X/Y min/max.
-        /// Left = XMin, Bottom = YMin, Right = XMax, Top = YMax.
         /// </summary>
         public new RectangleF OutRect
         {
@@ -107,7 +105,7 @@ namespace Asano.MyGLTools.Helpers
 
 
         #region Build Grid Methods
-        readonly Color _gridColor = Color.FromArgb(50, 64, 64, 64);
+        readonly Color _gridColor = Color.FromArgb(80, 255, 255, 255);
         float[] xs = new float[160];
         Vertex[] grid = new Vertex[1024];
 
@@ -116,7 +114,8 @@ namespace Asano.MyGLTools.Helpers
             var r = OutRect;
             float xMin = r.Left, xMax = r.Right, yMin = r.Top, yMax = r.Bottom; // note: Y inverted in GL coords
             int numVerticalLines;
-            // 1) Get the X positions for vertical lines
+
+            // Get the X positions for vertical lines
             if (waveBuffer is null)
             {
                 int div = Math.Max(1, GridDivisions);
@@ -145,7 +144,6 @@ namespace Asano.MyGLTools.Helpers
 
             }
 
-            // 2) Allocate and emit geometry
             int count = 0;
 
             for (int i = 0; i < numVerticalLines; i++)

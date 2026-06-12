@@ -71,6 +71,17 @@ namespace Asano.DataTools.Controls
             StoreHardwareSnapshot(blockPacket);
         }
 
+        private void Clear()
+        {
+            lock (_lock)
+            {
+                vertexCount = 0;
+                GLThread?.Enqueue(() => _vertexBuffer.Set(ref vertices, vertexCount));
+                _latestNoise = NoiseSnapshot.Empty;
+                _noiseRange = 0.0f;
+            }
+        }
+
         private void SP_DebugPacketReceived(DebugPacket packet)
         {   
             if (base.requestHold) return;
@@ -87,6 +98,9 @@ namespace Asano.DataTools.Controls
             float minY = float.MaxValue, maxY = float.MinValue;
             float lastX = 0.0f;
             int verts = 0;
+
+            MyColour colour = Color.SeaShell;
+            MyColour transparent = colour with { a = 0.4f };
             for (int i = 0; i < max; i++)
             {
                 float y = packet.Data[i].Sample;
@@ -99,13 +113,14 @@ namespace Asano.DataTools.Controls
                 float y1 = MathF.Min(mean, y);
                 float y2 = MathF.Max(mean, y);
 
-                vertices[verts].Position.X = x1; vertices[verts].Position.Y = y1; verts++;
-                vertices[verts].Position.X = x2; vertices[verts].Position.Y = y1; verts++;
-                vertices[verts].Position.X = x2; vertices[verts].Position.Y = y2; verts++;
+                MyColour c = (y2 - y1 < 1.0f) ? transparent : colour;
 
-                vertices[verts].Position.X = x1; vertices[verts].Position.Y = y1; verts++;
-                vertices[verts].Position.X = x2; vertices[verts].Position.Y = y2; verts++;
-                vertices[verts].Position.X = x1; vertices[verts].Position.Y = y2; verts++;
+                vertices[verts].Position.X = x1; vertices[verts].Position.Y = y1; vertices[verts].Colour = c; verts++;
+                vertices[verts].Position.X = x2; vertices[verts].Position.Y = y1; vertices[verts].Colour = c; verts++;
+                vertices[verts].Position.X = x2; vertices[verts].Position.Y = y2; vertices[verts].Colour = c; verts++;
+                vertices[verts].Position.X = x1; vertices[verts].Position.Y = y1; vertices[verts].Colour = c; verts++;
+                vertices[verts].Position.X = x2; vertices[verts].Position.Y = y2; vertices[verts].Colour = c; verts++;
+                vertices[verts].Position.X = x1; vertices[verts].Position.Y = y2; vertices[verts].Colour = c; verts++;
 
                 lastX = x2;
 
@@ -115,7 +130,10 @@ namespace Asano.DataTools.Controls
             vertexCount = verts;
 
             if (vertexCount == 0 || !float.IsFinite(minY) || !float.IsFinite(maxY) || lastX <= 0.0f)
+            {
+                Clear();
                 return;
+            }
 
             float noiseRange = Math.Max(0.0f, maxY - minY);
             float midY = mean;
@@ -160,7 +178,7 @@ namespace Asano.DataTools.Controls
             _vertexBuffer.Set(ref vertices, vertexCount);
 
             SetAutomaticViewPort(new RectangleF(-0.5f, -0.5f, MAX_SAMPLES - 0.5f, 1000 - 0.5f));
-            MyColour myColour = MyColour.Black;
+            MyColour myColour = Color.SeaShell;
 
             for (int i = 0; i < vertices.Length; i++)
             {

@@ -25,12 +25,12 @@
 .state-panel__button {
   min-width: 0;
   min-height: 30px;
-  border: 1px solid #444b55;
+  border: 1px solid var(--control-border);
   border-radius: 30px;
   padding: 5px 8px;
-  color: rgb(255 255 255 / 52%);
-  background: #56815b;
-  box-shadow: 0 6px 18px rgb(0 0 0 / 16%);
+  color: var(--button-text-muted);
+  background: var(--control-bg);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
   font: inherit;
   font-weight: 700;
   line-height: 1.2;
@@ -49,12 +49,12 @@
   align-self: center;
   gap: 7px;
   min-height: 30px;
-  border: 1px solid #444b55;
+  border: 1px solid var(--control-border);
   border-radius: 30px;
   padding: 5px 10px 5px 8px;
-  color: rgb(255 255 255 / 62%);
-  background: #4b6252;
-  box-shadow: 0 6px 18px rgb(0 0 0 / 16%);
+  color: var(--button-text-muted);
+  background: var(--control-bg-muted);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
   line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
@@ -62,8 +62,8 @@
 }
 
 .state-panel__option:hover {
-  color: rgb(255 255 255 / 78%);
-  background: #48515c;
+  color: var(--button-text-hover);
+  background: var(--control-bg-hover);
 }
 
 .state-panel__option-input {
@@ -88,8 +88,8 @@
 .state-panel__option-box::after {
   width: 8px;
   height: 5px;
-  border-bottom: 2px solid #ffffff;
-  border-left: 2px solid #ffffff;
+  border-bottom: 2px solid var(--button-text);
+  border-left: 2px solid var(--button-text);
   opacity: 0;
   content: "";
   transform: rotate(-45deg) translate(1px, -1px);
@@ -105,7 +105,7 @@
 }
 
 .state-panel__option-input:focus-visible + .state-panel__option-box {
-  outline: 2px solid rgb(255 255 255 / 55%);
+  outline: 2px solid var(--button-focus-ring);
   outline-offset: 2px;
 }
 
@@ -114,8 +114,8 @@
 }
 
 .state-panel__button:hover {
-  color: rgb(255 255 255 / 68%);
-  background: #48515c;
+  color: var(--button-text-hover);
+  background: var(--control-bg-hover);
 }
 
 .state-panel__button:focus {
@@ -123,7 +123,7 @@
 }
 
 .state-panel__button:focus-visible {
-  outline: 2px solid rgb(255 255 255 / 55%);
+  outline: 2px solid var(--button-focus-ring);
   outline-offset: 2px;
 }
 
@@ -132,7 +132,7 @@
 .state-panel__button--red-active:focus,
 .state-panel__button--red-active:active {
   border-color: var(--control-active-red);
-  color: #ffffff;
+  color: var(--button-text);
   background: var(--control-active-red);
 }
 
@@ -141,6 +141,6 @@
 .state-panel__button--ir-active:focus,
 .state-panel__button--ir-active:active {
   border-color: var(--control-active-blue);
-  color: #ffffff;
+  color: var(--button-text);
   background: var(--control-active-blue);
 }

@@ -52,13 +52,7 @@ namespace Asano.MyGLTools.Helpers
 
             _bufMainPlot = new MyGLVertexBuffer(_bufferCapacity) { WindowSize = _windowSize };
 
-            _subPlot = new MySubplot(_plotter)
-            {
-                Margin  = 10,
-                InRect  = new RectangleF(0, 0, 0.5f, 0.35f),
-                OutRect = new RectangleF(0, -10f, Config.STATE_DURATION_uS/1000000.0f, 1050f)
-            };
-
+            _subPlot = new MySubplot(_plotter);
             _plotter.Setup(initAction:Init, shutdownAction:Shutdown);
             _plotter.GLResize += (s, p) => _ra = null; // reset running average on resize
         }

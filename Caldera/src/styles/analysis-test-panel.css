@@ -13,7 +13,7 @@
   border: 2px solid rgba(7, 49, 5, 0.747);
   border-radius: 20px;
   padding: 12px;
-  color: rgba(244, 255, 237, 0.92);
+  color: var(--button-text);
   background: rgba(14, 36, 13, 0.2);
   box-shadow: 5px 10px 10px rgba(0, 0, 0, 0.5);
   font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
@@ -25,7 +25,7 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  color: #ffffff;
+  color: var(--button-text);
   font-weight: 700;
 }
 
@@ -95,7 +95,7 @@
   border: 1px solid rgba(255, 242, 145, 0.26);
   border-radius: 12px;
   padding: 7px 10px;
-  color: rgba(244, 255, 237, 0.92);
+  color: var(--button-text);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(7, 49, 5, 0.22)),
     rgba(14, 36, 13, 0.24);
@@ -111,7 +111,7 @@
 .test-panel__button:hover,
 .test-panel__button:focus-visible {
   border-color: rgba(255, 242, 145, 0.48);
-  color: #fff8c7;
+  color: var(--button-text);
   background:
     linear-gradient(180deg, rgba(255, 242, 145, 0.13), rgba(7, 49, 5, 0.25)),
     rgba(14, 36, 13, 0.32);
@@ -131,7 +131,7 @@
 
 .test-panel__button[data-running="true"] {
   border-color: var(--control-warning);
-  color: #ffe1e2;
+  color: var(--button-text);
   background:
     linear-gradient(180deg, rgb(196 91 95 / 18%), rgba(7, 49, 5, 0.22)),
     rgba(14, 36, 13, 0.28);

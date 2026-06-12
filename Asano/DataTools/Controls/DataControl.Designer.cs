@@ -28,12 +28,26 @@
         /// </summary>
         private void InitializeComponent()
         {
+            MyGLTools.Helpers.PlotAxesRenderer._Options _Options1 = new MyGLTools.Helpers.PlotAxesRenderer._Options();
             chart = new Asano.MyGLTools.UserControls.MyChart();
             SuspendLayout();
             // 
-            // dataControl
+            // chart
             // 
             chart.AutoClear = true;
+            _Options1.AxesLabelVisible = true;
+            _Options1.AxesVisible = true;
+            _Options1.AxisColour = Color.FromArgb(180, 32, 32, 32);
+            _Options1.GridColour = Color.FromArgb(8, 32, 32, 32);
+            _Options1.GridSettings = MyGLTools.Helpers.PlotAxesRenderer.GridFlags.VerticalLines | MyGLTools.Helpers.PlotAxesRenderer.GridFlags.XaxisLabels;
+            _Options1.GridVisible = true;
+            _Options1.LabelColor = Color.FromArgb(32, 32, 32, 32);
+            _Options1.LabelPadding = 60F;
+            _Options1.TickColour = Color.FromArgb(140, 32, 32, 32);
+            _Options1.TicksVisible = true;
+            _Options1.XAxisLabelClipRightPadding = 0F;
+            _Options1.XAxisUnitScale = 1F;
+            chart.AxesOptions = _Options1;
             chart.BackColor = Color.DarkSlateGray;
             chart.BorderStyle = BorderStyle.FixedSingle;
             chart.Dock = DockStyle.Fill;
@@ -41,14 +55,14 @@
             chart.EnablePlots = true;
             chart.Location = new Point(0, 0);
             chart.Name = "chart";
-            chart.Size = new Size(800, 813);
+            chart.Size = new Size(842, 1016);
             chart.TabIndex = 0;
+            chart.TextColour = Color.Silver;
             chart.Yscale = 1F;
             chart.MouseDown += DataControl_MouseDown;
+            chart.MouseLeave += DataControl_MouseLeave;
             chart.MouseMove += DataControl_MouseMove;
             chart.MouseUp += DataControl_MouseUp;
-            chart.MouseLeave += DataControl_MouseLeave;
-
             // 
             // DataControl
             // 
@@ -58,9 +72,9 @@
             Name = "DataControl";
             Size = new Size(842, 1016);
             MouseDown += DataControl_MouseDown;
+            MouseLeave += DataControl_MouseLeave;
             MouseMove += DataControl_MouseMove;
             MouseUp += DataControl_MouseUp;
-            MouseLeave += DataControl_MouseLeave;
             ResumeLayout(false);
         }
 

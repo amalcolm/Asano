@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-export const SCENE_BACKGROUND = "#2e9450";
+export const SCENE_BACKGROUND = "#101008";
 
 const CANVAS_LABEL = "A two dimensional circuit with powered digipots, a photodiode, differential amplifiers, a slider, and a gain stage.";
 const MINIMUM_VIEW_HEIGHT = 10.2;

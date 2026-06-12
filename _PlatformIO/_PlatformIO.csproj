@@ -7,4 +7,16 @@
     <Platforms>x64</Platforms>
   </PropertyGroup>
 
+  <Target Name="RemoveVisualStudioNestedGitStub"
+          AfterTargets="Build"
+          Condition="Exists('$(MSBuildProjectDirectory)\.git\ms-persist.xml') and !Exists('$(MSBuildProjectDirectory)\.git\HEAD') and !Exists('$(MSBuildProjectDirectory)\.git\config')">
+    <ItemGroup>
+      <_VisualStudioNestedGitStub Include="$(MSBuildProjectDirectory)\.git\ms-persist.xml" />
+      <_VisualStudioNestedGitStubDirectory Include="$(MSBuildProjectDirectory)\.git" />
+    </ItemGroup>
+
+    <Delete Files="@(_VisualStudioNestedGitStub)" />
+    <RemoveDir Directories="@(_VisualStudioNestedGitStubDirectory)" />
+  </Target>
+
 </Project>

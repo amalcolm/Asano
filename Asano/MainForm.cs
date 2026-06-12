@@ -164,10 +164,7 @@ namespace Asano
 
         int index = -1;
         private void butDBG_Click(object sender, EventArgs e)
-        {
-            foreach (var chart in multiChart.GetCharts())
-                Log.Add(chart.getDebugOutput(index));
-            
+        {            
             butDBG.Text = $"DBG {index++}";
         }
 

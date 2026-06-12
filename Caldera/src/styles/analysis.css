@@ -1176,7 +1176,7 @@
   height: var(--circuit-size);
   min-height: 0;
   overflow: hidden;
-  background: #2e9450;
+  background: #153f23;
 }
 
 .view-launch-button {
@@ -1188,7 +1188,7 @@
   border: 1px solid rgba(255, 242, 145, 0.26);
   border-radius: 12px;
   padding: 7px 12px;
-  color: rgba(244, 255, 237, 0.92);
+  color: var(--button-text);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(52, 60, 54, 0.22)),
     rgba(43, 49, 45, 0.42);
@@ -1204,7 +1204,7 @@
 
 .view-launch-button:hover {
   border-color: rgba(255, 242, 145, 0.48);
-  color: #fff8c7;
+  color: var(--button-text);
   background:
     linear-gradient(180deg, rgba(255, 242, 145, 0.13), rgba(52, 60, 54, 0.25)),
     rgba(43, 49, 45, 0.5);
@@ -1213,7 +1213,7 @@
 .view-launch-button[data-active="true"],
 .view-launch-button[data-active="true"]:hover {
   border-color: var(--control-active-red);
-  color: #ffffff;
+  color: var(--button-text);
   background: var(--control-active-red);
 }
 

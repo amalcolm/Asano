@@ -28,34 +28,38 @@
         /// </summary>
         private void InitializeComponent()
         {
-            dataControl = new DataTools.Controls.DataControl();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(DataForm));
+            multiChart = new MyMultichart();
             calderaControl = new Asano.Caldera.CalderaControl();
             SuspendLayout();
             // 
-            // dataControl
+            // multiChart
             // 
-            dataControl.BackColor = Color.DarkSlateGray;
-            dataControl.BorderStyle = BorderStyle.FixedSingle;
-            dataControl.Dock = DockStyle.Fill;
-            dataControl.Location = new Point(0, 0);
-            dataControl.Name = "dataControl";
-            dataControl.Size = new Size(800, 813);
-            dataControl.TabIndex = 0;
+            multiChart.BackColor = Color.DarkSlateGray;
+            multiChart.BorderStyle = BorderStyle.FixedSingle;
+            multiChart.Dock = DockStyle.Fill;
+            multiChart.Location = new Point(0, 0);
+            multiChart.Name = "multiChart";
+            multiChart.Size = new Size(800, 813);
+            multiChart.TabIndex = 0;
             // 
             // calderaControl
             // 
             calderaControl.Dock = DockStyle.Bottom;
             calderaControl.Location = new Point(0, 813);
             calderaControl.Name = "calderaControl";
+            calderaControl.QueryParameters = (IReadOnlyDictionary<string, string>)resources.GetObject("calderaControl.QueryParameters");
             calderaControl.Size = new Size(800, 422);
             calderaControl.TabIndex = 1;
+            calderaControl.View = Caldera.CalderaView.Circuit;
             // 
             // DataForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
+            BackColor = Color.FromArgb(16, 8, 8);
             ClientSize = new Size(800, 1235);
-            Controls.Add(dataControl);
+            Controls.Add(multiChart);
             Controls.Add(calderaControl);
             Location = new Point(3840, -400);
             Name = "DataForm";
@@ -66,7 +70,7 @@
 
         #endregion
 
-        private Asano.DataTools.Controls.DataControl dataControl;
+        private Asano.MyGLTools.UserControls.MyMultichart multiChart;
         private Caldera.CalderaControl calderaControl;
     }
 }

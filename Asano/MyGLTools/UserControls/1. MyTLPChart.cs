@@ -28,6 +28,7 @@ namespace Asano.MyGLTools.UserControls
                 EnablePlots  = true,
                 Padding      = new Padding(4),
                 Tag          = tag,
+                TextColour   = Color.Silver,
                 Yscale       = 1.0f
             };
 
