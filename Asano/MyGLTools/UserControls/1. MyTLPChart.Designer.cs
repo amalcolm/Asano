@@ -47,6 +47,8 @@
             tlpCharts.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tlpCharts.Size = new Size(150, 150);
             tlpCharts.TabIndex = 0;
+            tlpCharts.Padding = Padding.Empty;
+            tlpCharts.Margin = Padding.Empty;
             // 
             // chart0
             // 
@@ -65,14 +67,13 @@
             _Options1.XAxisUnitScale = 1F;
             chart0.AxesOptions = _Options1;
             chart0.BackColor = Color.FromArgb(16, 8, 8);
-            chart0.BorderStyle = BorderStyle.FixedSingle;
+            chart0.BorderStyle = BorderStyle.None;
             chart0.Dock = DockStyle.Fill;
             chart0.EnableLabels = true;
             chart0.EnablePlots = true;
-            chart0.Location = new Point(3, 3);
+            chart0.Margin = Padding.Empty;
             chart0.Name = "chart0";
-            chart0.Padding = new Padding(4);
-            chart0.Size = new Size(144, 144);
+            chart0.Padding = Padding.Empty;
             chart0.TabIndex = 0;
             chart0.TextColour = Color.Silver;
             chart0.Yscale = 1F;
@@ -81,6 +82,7 @@
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
+            this.BorderStyle = BorderStyle.None;
             Controls.Add(tlpCharts);
             Name = "MyTLPChart";
             tlpCharts.ResumeLayout(false);

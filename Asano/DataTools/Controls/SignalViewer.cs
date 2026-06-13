@@ -182,8 +182,8 @@ namespace Asano.DataTools.Controls
 
             for (int i = 0; i < vertices.Length; i++)
             {
-                vertices[i].Position.X = i;
-                vertices[i].Position.Y = Random.Shared.Next(0, 1000);
+                vertices[i].Position.X = i*0.001f;
+                vertices[i].Position.Y = 0;
                 vertices[i].Colour = myColour;
             }
             vertexCount = vertices.Length;

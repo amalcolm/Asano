@@ -118,7 +118,7 @@ namespace Asano.MyGLTools.UserControls
                 {
                     Name = property.Name,
                     Selector = field,
-                    AdditionalMask = count << 12 // 12 > number of red LEDs, and < 16 (IR1) so as not to overlap state bits
+                    AdditionalMask = count << 12 // 12 > number of red LEDs.  top bit < 16 (IR1) so as not to overlap state bits
                 };
 
                 dataSelectorsToOutput.Add(dsInfo); // for latest values tracking, which handles both plots and labels
@@ -129,20 +129,29 @@ namespace Asano.MyGLTools.UserControls
 
             this.Resize += (s, e) =>
             {
-                lock (PlotsLock)
+                lock (_lock)
                 {
-                    int index = 1;
-
                     uint[] orderedKeys = [.. _blocks.Keys.OrderByDescending(k => _blocks[k].Item1.Y)];
 
+                    int index = 1;
                     foreach (var key in orderedKeys)
                     {
                         float yPos = Height - _labelTopMargin -  index * _labelLineSpacing;
+                        float valueYPos = yPos + 0.01f; // to maintain ordering
+                        var tuple = _blocks[key];
 
-                        _blocks[key].Item1.Y = yPos;
-                        _blocks[key].Item2.Y = yPos + 0.01f;  // to maintain ordering
+                        if (tuple.Item1.Y != yPos || tuple.Item2.Y != valueYPos)
+                        {
+                            tuple.Item1.Y = yPos;
+                            tuple.Item2.Y = valueYPos;  
+                            tuple.Item1.Bounds = RectangleF.Empty;
+                            tuple.Item2.Bounds = RectangleF.Empty;
+                            maxBounds = RectangleF.Empty;
+                        }
+
                         index++;
                     }
+
                 }
             };
         }
@@ -479,6 +488,7 @@ namespace Asano.MyGLTools.UserControls
                     _latestValues.Clear();
                     _pendingStates.Clear();
                     _keyCache = [];
+                    maxBounds = RectangleF.Empty;
                     _numLabels = 0;
                     _lastSingleStateLabelState = uint.MaxValue;
                     MyColour.Reset();

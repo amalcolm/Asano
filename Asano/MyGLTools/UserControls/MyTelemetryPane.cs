@@ -134,7 +134,7 @@ namespace Asano.MyGLTools.UserControls
             // 3. Render the background with padding.
             if (!totalBounds.IsEmpty)
             {
-                float padding = 10f;
+                float padding = 20f;
                 var paddedBounds = new RectangleF(
                     totalBounds.X - padding,
                     totalBounds.Y - padding,

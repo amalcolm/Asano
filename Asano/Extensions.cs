@@ -120,7 +120,7 @@ namespace Asano
                     totalBounds = RectangleF.Union(totalBounds, block.Bounds);
             }
 
-            if (maxBounds.Width < totalBounds.Width)
+            if (maxBounds.Width < totalBounds.Width || maxBounds.Height < totalBounds.Height)
                 maxBounds = totalBounds;
 
             return maxBounds;
@@ -140,7 +140,7 @@ namespace Asano
                     totalBounds = RectangleF.Union(totalBounds, block.Bounds);
             }
 
-            if (maxBounds.Width < totalBounds.Width)
+            if (maxBounds.Width < totalBounds.Width || maxBounds.Height < totalBounds.Height)
                 maxBounds = totalBounds;
 
             return maxBounds;

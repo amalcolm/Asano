@@ -22,11 +22,11 @@ namespace Asano.MyGLTools.UserControls
             {
                 AutoClear    = true,
                 BackColor    = Color.Cornsilk,
-                BorderStyle  = BorderStyle.FixedSingle,
+                BorderStyle  = BorderStyle.None,
                 Dock         = DockStyle.Fill,
                 EnableLabels = true,
                 EnablePlots  = true,
-                Padding      = new Padding(4),
+                Padding      = Padding.Empty,
                 Tag          = tag,
                 TextColour   = Color.Silver,
                 Yscale       = 1.0f
