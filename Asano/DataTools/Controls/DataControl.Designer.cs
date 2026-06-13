@@ -37,13 +37,13 @@
             chart.AutoClear = true;
             _Options1.AxesLabelVisible = true;
             _Options1.AxesVisible = true;
-            _Options1.AxisColour = Color.FromArgb(180, 32, 32, 32);
-            _Options1.GridColour = Color.FromArgb(8, 32, 32, 32);
+            _Options1.AxisColour = Color.FromArgb(80, 255, 255, 255);
+            _Options1.GridColour = Color.FromArgb(8, 255, 255, 255);
             _Options1.GridSettings = MyGLTools.Helpers.PlotAxesRenderer.GridFlags.VerticalLines | MyGLTools.Helpers.PlotAxesRenderer.GridFlags.XaxisLabels;
             _Options1.GridVisible = true;
-            _Options1.LabelColor = Color.FromArgb(32, 32, 32, 32);
+            _Options1.LabelColor = Color.FromArgb(80, 255, 255, 255);
             _Options1.LabelPadding = 60F;
-            _Options1.TickColour = Color.FromArgb(140, 32, 32, 32);
+            _Options1.TickColour = Color.FromArgb(140, 255, 255, 255);
             _Options1.TicksVisible = true;
             _Options1.XAxisLabelClipRightPadding = 0F;
             _Options1.XAxisUnitScale = 1F;

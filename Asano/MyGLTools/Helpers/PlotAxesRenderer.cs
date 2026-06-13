@@ -6,6 +6,7 @@ namespace Asano.MyGLTools.Helpers
     public sealed class PlotAxesRenderer
     {
         private const int MaxXTicks = 64;
+        private const int MaxXLabels = 128;
         private const int MaxYTicks = 64;
         private const int VertexCapacity = (MaxXTicks + MaxYTicks) * 4 + 4;
         private const float DesiredXTickSpacing = 95.0f;
@@ -14,6 +15,7 @@ namespace Asano.MyGLTools.Helpers
         private const float TickLength = 6.0f;
         private const float XLabelOffset = 0.0f;
         private const float XLabelBottom = -8.0f;
+        private const float XLabelMarginFraction = 0.10f;
         public const float XAxisLineY = 28.0f;
         private const float YLabelRight = 58.0f;
         
@@ -69,9 +71,8 @@ namespace Asano.MyGLTools.Helpers
         private readonly MyGLVertexBuffer _lineBuffer = new(VertexCapacity);
         private Vertex[] _vertices = new Vertex[VertexCapacity];
 
-        private readonly TextBlock[] _xLabels = new TextBlock[MaxXTicks];
+        private XAxisLabelCache? _xLabelCache;
         private readonly TextBlock[] _yLabels = new TextBlock[MaxYTicks];
-        private readonly float[] _xLabelTicks = new float[MaxXTicks];
         private readonly float[] _yLabelTicks = new float[MaxYTicks];
         private MyColour _AxisColour;
         private MyColour _GridColour;
@@ -79,7 +80,6 @@ namespace Asano.MyGLTools.Helpers
 
         private RectangleF _lastViewPort = RectangleF.Empty;
         private Size _lastDisplaySize = Size.Empty;
-        private int _xLabelCount;
         private int _yLabelCount;
         private readonly int[] _savedScissorBox = new int[4];
         private bool _savedScissorEnabled;
@@ -89,8 +89,7 @@ namespace Asano.MyGLTools.Helpers
         {
             _lineBuffer.Init();  
 
-            for (int i = 0; i < _xLabels.Length; i++)
-                _xLabels[i] = new TextBlock("0", 0, 0, font, TextAlign.Right, Options.XFormat);
+            _xLabelCache = new XAxisLabelCache(MaxXLabels, font, Options.XFormat);
 
             for (int i = 0; i < _yLabels.Length; i++)
                 _yLabels[i] = new TextBlock("0", 0, 0, font, TextAlign.Right, Options.YFormat);
@@ -103,8 +102,8 @@ namespace Asano.MyGLTools.Helpers
             _ready = false;
             _lineBuffer.Dispose();
 
-            for (int i = 0; i < _xLabels.Length; i++)
-                _xLabels[i]?.Dispose();
+            _xLabelCache?.Dispose();
+            _xLabelCache = null;
 
             for (int i = 0; i < _yLabels.Length; i++)
                 _yLabels[i]?.Dispose();
@@ -116,7 +115,7 @@ namespace Asano.MyGLTools.Helpers
 
             if (!IsUsable(viewPort, displaySize))
             {
-                _xLabelCount = 0;
+                _xLabelCache?.Clear();
                 _yLabelCount = 0;
                 return;
             }
@@ -137,12 +136,12 @@ namespace Asano.MyGLTools.Helpers
                 fontRenderer.RenderText(_yLabels, _yLabelCount);
             }
 
-            if (_xLabelCount <= 0) return;
+            if (_xLabelCache == null || _xLabelCache.Count <= 0) return;
 
-            PositionXLabels(fontRenderer.Scaling);
+            _xLabelCache.UpdateScreenPositions(_lastViewPort, _lastDisplaySize, fontRenderer.Scaling, XLabelBottom, XLabelOffset);
 
             bool clipped = BeginXAxisLabelClip();
-            fontRenderer.RenderText(_xLabels, _xLabelCount);
+            fontRenderer.RenderText(_xLabelCache.Labels, _xLabelCache.OffsetX, _xLabelCache.OffsetY, _xLabelCache.Count);
             if (clipped)
                 EndXAxisLabelClip();
         }
@@ -164,7 +163,6 @@ namespace Asano.MyGLTools.Helpers
         {
             _lastViewPort = viewPort;
             _lastDisplaySize = displaySize;
-            _xLabelCount = 0;
             _yLabelCount = 0;
 
             _AxisColour = Options.AxisColour;
@@ -207,8 +205,13 @@ namespace Asano.MyGLTools.Helpers
             float yOverflow = yRange * TickSearchOverflow;
             int desiredXTicks = GetDesiredTickCount(displaySize.Width , DesiredXTickSpacing, MaxXTicks - 2);
             int desiredYTicks = GetDesiredTickCount(displaySize.Height, DesiredYTickSpacing, MaxYTicks - 2);
+            float xStep = NiceStep(xRange, desiredXTicks);
+            bool isTimeXAxis = IsTimeXAxis();
+            if (isTimeXAxis && xStep > 0.0f && xStep < 1.0f)
+                xStep = 1.0f;
 
-            BuildXTicks(ref vertexCount, xMin - xOverflow, xMax + xOverflow, xMin, xMax, yMin, yMax, yTickWorld, xAxisWorldY, desiredXTicks, showXLabels, displaySize);
+            BuildXTicks(ref vertexCount, xMin - xOverflow, xMax + xOverflow, yMin, yMax, yTickWorld, xAxisWorldY, xStep);
+            UpdateXLabels(viewPort, xStep, showXLabels, isTimeXAxis);
             BuildYTicks(ref vertexCount, yMin - yOverflow, yMax + yOverflow, xMin, xMax, yMin, yMax, xTickWorld, yAxisWorldX, drawYAxis, desiredYTicks, showYLabels, displaySize);
 
             _lineBuffer.Set(ref _vertices, vertexCount);
@@ -216,17 +219,13 @@ namespace Asano.MyGLTools.Helpers
             Options.ClearChanged();
         }
 
-        private void BuildXTicks(ref int vertexCount, float tickMin, float tickMax, float xMin, float xMax, float yMin, float yMax, float tickWorld, float axisWorldY, int desiredTicks, bool showLabels, Size displaySize)
+        private void BuildXTicks(ref int vertexCount, float tickMin, float tickMax, float yMin, float yMax, float tickWorld, float axisWorldY, float step)
         {
-
-            float step = NiceStep(xMax - xMin, desiredTicks);
             if (!float.IsFinite(step) || step <= 0.0f) return;
-
 
             float first = MathF.Ceiling(tickMin / step) * step;
             int tickCount = 0;
 
-            bool isTime = Options.XFormat.Contains(":") && Options.XAxisUnitScale == 1.0;
             for (float x = first; x <= tickMax && tickCount < MaxXTicks; x += step)
             {
                 if (DrawGridLine(GridFlags.VerticalLines))
@@ -235,25 +234,25 @@ namespace Asano.MyGLTools.Helpers
                 if (Options.TicksVisible)
                     AddLine(ref vertexCount, x, axisWorldY - tickWorld, x, axisWorldY, _LineColour);
 
-                if (showLabels)
-                {
-                    TextBlock label = _xLabels[tickCount];
-                    float tickScreenX = WorldToScreenX(x, xMin, xMax, displaySize.Width) + XLabelOffset;
-                    label.X = tickScreenX;
-                    label.Y = XLabelBottom;
-
-                    if (isTime)
-                        label.SetAsTime(x, Options.XFormat);
-                    else
-                        label.SetValue(GetXAxisLabelValue(x), Options.XFormat);
-
-                    _xLabelTicks[tickCount] = tickScreenX;
-                    _xLabelCount++;
-                }
-
                 tickCount++;
             }
         }
+
+        private void UpdateXLabels(RectangleF viewPort, float step, bool showLabels, bool isTime)
+        {
+            if (_xLabelCache == null) return;
+
+            if (!showLabels)
+            {
+                _xLabelCache.Clear();
+                return;
+            }
+
+            _xLabelCache.Update(viewPort, step, Options.XFormat, Options.XAxisUnitScale, isTime, XLabelMarginFraction);
+        }
+
+        private bool IsTimeXAxis()
+            => Options.XFormat.Contains(':') && Options.XAxisUnitScale == 1.0f;
 
         private void BuildYTicks(ref int vertexCount, float tickMin, float tickMax, float xMin, float xMax, float yMin, float yMax, float tickWorld, float axisWorldX, bool drawAxis, int desiredTicks, bool showLabels, Size displaySize)
         {
@@ -298,22 +297,6 @@ namespace Asano.MyGLTools.Helpers
         private bool DrawGridLabels(GridFlags flag)
             => (Options.GridSettings & flag) != 0;
 
-        private void PositionXLabels(float scaling)
-        {
-            for (int i = 0; i < _xLabelCount; i++)
-            {
-                TextBlock label = _xLabels[i];
-                float tickX = _xLabelTicks[i];
-
-                label.X = tickX;
-                label.Y = XLabelBottom;
-                label.GetVertices(scaling);
-
-                if (label.Bounds.Width > 0.0f)
-                    label.X += tickX - (label.Bounds.Left + label.Bounds.Width * 0.5f);
-            }
-        }
-
         private void PositionYLabels(float scaling)
         {
             for (int i = 0; i < _yLabelCount; i++)
@@ -348,14 +331,6 @@ namespace Asano.MyGLTools.Helpers
                 GL.Scissor(_savedScissorBox[0], _savedScissorBox[1], _savedScissorBox[2], _savedScissorBox[3]);
             else
                 GL.Disable(EnableCap.ScissorTest);
-        }
-
-        private float GetXAxisLabelValue(float x)
-        {
-            float scale = Options.XAxisUnitScale;
-            if (!float.IsFinite(scale) || scale == 0.0f) return NormalizeLabelValue(x);
-
-            return NormalizeLabelValue(x / scale);
         }
 
         private static float NormalizeLabelValue(float value)
@@ -450,9 +425,6 @@ namespace Asano.MyGLTools.Helpers
 
             return new RectangleF(left, viewPort.Top, width, viewPort.Height);
         }
-
-        private static float WorldToScreenX(float x, float xMin, float xMax, int width)
-            => (x - xMin) * width / (xMax - xMin);
 
         private static float WorldToScreenY(float y, float yMin, float yMax, int height)
             => (y - yMin) * height / (yMax - yMin);

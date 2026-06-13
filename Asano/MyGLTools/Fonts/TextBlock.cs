@@ -1,4 +1,5 @@
-﻿using TheLib;
+﻿using System.Diagnostics;
+using TheLib;
 
 namespace Asano.MyGLTools.Fonts
 {
@@ -216,18 +217,25 @@ namespace Asano.MyGLTools.Fonts
 
         private FontVertex[] _vertices = [];
         private int _vertexCount = 0;
+        private float _lastScaling = float.NaN;
+
+        public void EnsureVertexCapacity(int charCount)
+        {
+            int requiredCount = charCount * 6; // 6 _vertices per character
+            if (_vertices.Length < requiredCount)
+                Array.Resize(ref _vertices, requiredCount);
+        }
 
         public ReadOnlySpan<FontVertex> GetVertices(float scaling = 1.0f)
         {
-            if (_hasChanged)
+            if (_hasChanged || _lastScaling != scaling)
             {
-                int requiredCount = _length * 6; // 6 _vertices per character
-                if (_vertices.Length < requiredCount)
-                    Array.Resize(ref _vertices, requiredCount);
+                EnsureVertexCapacity(_length);
 
                 _vertexCount = FontVertex.BuildString(_vertices, 0, Span, Font, X, Y, scaling, Align);
 
                 Bounds = CalculateBoundsFromVertices();
+                _lastScaling = scaling;
                 _hasChanged = false;
             }
       

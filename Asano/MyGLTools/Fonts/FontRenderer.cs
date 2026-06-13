@@ -106,6 +106,29 @@ namespace Asano.MyGLTools.Fonts
             Render();
         }
 
+        public void RenderText(TextBlock[] blocks, float[] offsetX, float[] offsetY, int count)
+        {
+            if (count <= 0) return;
+            count = Math.Min(count, Math.Min(blocks.Length, Math.Min(offsetX.Length, offsetY.Length)));
+            if (count <= 0) return;
+
+            _currentVertexCount = 0;
+
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, blocks[0].Font.TextureId);
+
+            for (int i = 0; i < count; i++)
+            {
+                var blockVerticesSpan = blocks[i].GetVertices(Scaling);
+                EnsureVertexCapacity(_currentVertexCount + blockVerticesSpan.Length);
+                CopyVertices(blockVerticesSpan, _vertices.AsSpan(_currentVertexCount), offsetX[i], offsetY[i]);
+                _currentVertexCount += blockVerticesSpan.Length;
+            }
+
+            BindVertices();
+            Render();
+        }
+
         public void RenderText(List<TextBlock> blocks)
         {
             _currentVertexCount = 0;
@@ -178,6 +201,16 @@ namespace Asano.MyGLTools.Fonts
             {
                 int newSize = Math.Max(_vertices.Length * 2, requiredCount);
                 Array.Resize(ref _vertices, newSize);
+            }
+        }
+
+        private static void CopyVertices(ReadOnlySpan<FontVertex> source, Span<FontVertex> target, float offsetX, float offsetY)
+        {
+            for (int i = 0; i < source.Length; i++)
+            {
+                target[i] = source[i];
+                target[i].Position.X += offsetX;
+                target[i].Position.Y += offsetY;
             }
         }
     }
