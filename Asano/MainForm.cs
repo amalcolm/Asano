@@ -158,15 +158,5 @@ namespace Asano
 
             }
         }
-
-
-
-
-        int index = -1;
-        private void butDBG_Click(object sender, EventArgs e)
-        {            
-            butDBG.Text = $"DBG {index++}";
-        }
-
     }
 }

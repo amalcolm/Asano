@@ -49,25 +49,6 @@ namespace Asano.DataTools.Controls
             Setup(initAction: Init, shutdownAction: Shutdown);
             SP.BlockPacketReceived += SP_BlockPacketReceived;
             SP.DebugPacketReceived += SP_DebugPacketReceived;
-
-            AxesOptions = new()
-            {
-                AxesVisible = true,
-                AxesLabelVisible = true,
-                AxisColour = Color.FromArgb(80, 255, 255, 255),
-                GridColour = Color.FromArgb(8, 255, 255, 255),
-                GridSettings = PlotAxesRenderer.GridFlags.VerticalLines | PlotAxesRenderer.GridFlags.HorizontalLines | PlotAxesRenderer.GridFlags.YaxisLabels | PlotAxesRenderer.GridFlags.XaxisLabels,
-                GridVisible = true,
-                LabelColor = Color.FromArgb(80, 255, 255, 255),
-                LabelPadding = 70F,
-                TickColour = Color.FromArgb(140, 255, 255, 255),
-                TicksVisible = true,
-                XAxisLabelClipRightPadding = 40f,
-                XAxisUnitScale = 0.001f,
-                XFormat = "G5",
-            };
-
-
         }
 
 

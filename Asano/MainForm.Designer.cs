@@ -1,4 +1,7 @@
-﻿namespace Asano
+﻿using Asano.MyGLTools.Helpers;
+using static System.Windows.Forms.DataFormats;
+
+namespace Asano
 {
     partial class MainForm
     {
@@ -29,13 +32,12 @@
         private void InitializeComponent()
         {
             components = new System.ComponentModel.Container();
+            PlotAxesRenderer._Options _Options1 = new PlotAxesRenderer._Options();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             cbPorts = new ComboBox();
             labPorts = new Label();
             dataControl = new Asano.DataTools.Controls.DataControl();
-            butDBG = new Button();
             pHeader = new Panel();
-            dbg = new Asano.MyGLTools.UserControls.MyDebugPane();
             TelemetryPane = new Asano.MyGLTools.UserControls.MyTelemetryPane();
             pDiagnostics = new Panel();
             signalViewer1 = new Asano.DataTools.Controls.SignalViewer();
@@ -46,10 +48,11 @@
             // cbPorts
             // 
             cbPorts.BackColor = Color.FromArgb(128, 128, 128);
+            cbPorts.Dock = DockStyle.Right;
             cbPorts.Enabled = false;
             cbPorts.ForeColor = Color.Gainsboro;
             cbPorts.FormattingEnabled = true;
-            cbPorts.Location = new Point(1060, 10);
+            cbPorts.Location = new Point(1274, 0);
             cbPorts.Name = "cbPorts";
             cbPorts.Size = new Size(121, 23);
             cbPorts.TabIndex = 3;
@@ -67,45 +70,21 @@
             // dataControl
             // 
             dataControl.Dock = DockStyle.Fill;
-            dataControl.Location = new Point(0, 42);
+            dataControl.Location = new Point(0, 22);
             dataControl.Name = "dataControl";
-            dataControl.Size = new Size(1395, 989);
+            dataControl.Size = new Size(1395, 1009);
             dataControl.TabIndex = 8;
-            // 
-            // butDBG
-            // 
-            butDBG.Enabled = false;
-            butDBG.Location = new Point(15, 9);
-            butDBG.Name = "butDBG";
-            butDBG.Size = new Size(75, 23);
-            butDBG.TabIndex = 9;
-            butDBG.Text = "DBG";
-            butDBG.UseVisualStyleBackColor = true;
-            butDBG.Click += butDBG_Click;
             // 
             // pHeader
             // 
             pHeader.BackColor = Color.FromArgb(16, 8, 8);
-            pHeader.Controls.Add(butDBG);
             pHeader.Controls.Add(cbPorts);
             pHeader.Controls.Add(labPorts);
             pHeader.Dock = DockStyle.Top;
             pHeader.Location = new Point(0, 0);
             pHeader.Name = "pHeader";
-            pHeader.Size = new Size(1395, 42);
+            pHeader.Size = new Size(1395, 22);
             pHeader.TabIndex = 10;
-            // 
-            // dbg
-            // 
-            dbg.AutoClear = true;
-            dbg.BackColor = Color.FromArgb(16, 8, 8);
-            dbg.Dock = DockStyle.Fill;
-            dbg.Location = new Point(0, 0);
-            dbg.Margin = new Padding(0);
-            dbg.Name = "dbg";
-            dbg.Size = new Size(1066, 287);
-            dbg.TabIndex = 6;
-            dbg.TextColour = Color.Silver;
             // 
             // TelemetryPane
             // 
@@ -120,7 +99,6 @@
             // 
             // pDiagnostics
             // 
-            pDiagnostics.Controls.Add(dbg);
             pDiagnostics.Controls.Add(TelemetryPane);
             pDiagnostics.Dock = DockStyle.Bottom;
             pDiagnostics.Location = new Point(0, 1333);
@@ -131,6 +109,19 @@
             // signalViewer1
             // 
             signalViewer1.AutoClear = true;
+            _Options1.AxesLabelVisible = true;
+            _Options1.AxesVisible = true;
+            _Options1.AxisColour = Color.FromArgb(80, 255, 255, 255);
+            _Options1.GridColour = Color.FromArgb(8, 255, 255, 255);
+            _Options1.GridSettings = PlotAxesRenderer.GridFlags.VerticalLines | PlotAxesRenderer.GridFlags.HorizontalLines | PlotAxesRenderer.GridFlags.YaxisLabels | PlotAxesRenderer.GridFlags.XaxisLabels;
+            _Options1.GridVisible = true;
+            _Options1.LabelColor = Color.FromArgb(80, 255, 255, 255);
+            _Options1.LabelPadding = 70F;
+            _Options1.TickColour = Color.FromArgb(140, 255, 255, 255);
+            _Options1.TicksVisible = true;
+            _Options1.XAxisLabelClipRightPadding = 40F;
+            _Options1.XAxisUnitScale = 0.001F;
+            signalViewer1.AxesOptions = _Options1;
             signalViewer1.BackColor = Color.FromArgb(32, 16, 16);
             signalViewer1.BorderStyle = BorderStyle.FixedSingle;
             signalViewer1.Dock = DockStyle.Bottom;
@@ -167,9 +158,7 @@
         private ComboBox cbPorts;
         private Label labPorts;
         private DataTools.Controls.DataControl dataControl;
-        private Button butDBG;
         private Panel pHeader;
-        private Asano.MyGLTools.UserControls.MyDebugPane dbg;
         private Asano.MyGLTools.UserControls.MyTelemetryPane TelemetryPane;
         private Panel pDiagnostics;
         private DataTools.Controls.SignalViewer signalViewer1;
