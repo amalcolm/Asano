@@ -15,8 +15,6 @@ namespace Asano.DataTools.Controls
         private const string XAxisUnit = "mS";
         private const float XAxisUnitRightMargin = 8.0f;
         private const float XAxisUnitBottomMargin = -8.0f;
-        private const float XAxisUnitClipPadding = 40.0f;
-        private const float XAxisUnitScale = 0.001f;
         private const string NoiseRangeLabel = ": Range";
         private const string NoiseRangeFormat = "F0";
         private const float NoiseRangeRightMargin = 8.0f;
@@ -55,11 +53,21 @@ namespace Asano.DataTools.Controls
             AxesOptions = new()
             {
                 AxesVisible = true,
-                GridVisible = false,
-                LabelPadding = 70.0f,
-                XAxisUnitScale = XAxisUnitScale,
-                XAxisLabelClipRightPadding = XAxisUnitClipPadding
+                AxesLabelVisible = true,
+                AxisColour = Color.FromArgb(80, 255, 255, 255),
+                GridColour = Color.FromArgb(8, 255, 255, 255),
+                GridSettings = PlotAxesRenderer.GridFlags.VerticalLines | PlotAxesRenderer.GridFlags.HorizontalLines | PlotAxesRenderer.GridFlags.YaxisLabels | PlotAxesRenderer.GridFlags.XaxisLabels,
+                GridVisible = true,
+                LabelColor = Color.FromArgb(80, 255, 255, 255),
+                LabelPadding = 70F,
+                TickColour = Color.FromArgb(140, 255, 255, 255),
+                TicksVisible = true,
+                XAxisLabelClipRightPadding = 40f,
+                XAxisUnitScale = 0.001f,
+                XFormat = "G5",
             };
+
+
         }
 
 

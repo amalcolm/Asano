@@ -46,6 +46,10 @@ namespace Asano.MyGLTools.Helpers
             public Color TickColour        { get => _tickColor;        set { _tickColor        = value; Changed = true; } }   private Color     _tickColor        = Color.FromArgb(140, 32, 32, 32);
             public GridFlags GridSettings  { get => _gridSettings;     set { _gridSettings     = value; Changed = true; } }   private GridFlags _gridSettings     = GridFlags.All;
 
+            public string XFormat          { get => _xFormat;          set { _xFormat          = value; Changed = true; } }   private string    _xFormat           = "HH:mm:ss";
+            public string YFormat          { get => _yFormat;          set { _yFormat          = value; Changed = true; } }   private string    _yFormat           = "G5";
+
+
             private float _xAxisLabelClipRightPadding = 0.0f;
             public float XAxisLabelClipRightPadding
             {
@@ -61,8 +65,6 @@ namespace Asano.MyGLTools.Helpers
 
 
 
-        private static readonly string XFormat = "G5";
-        private static readonly string YFormat = "G5";
 
         private readonly MyGLVertexBuffer _lineBuffer = new(VertexCapacity);
         private Vertex[] _vertices = new Vertex[VertexCapacity];
@@ -88,10 +90,10 @@ namespace Asano.MyGLTools.Helpers
             _lineBuffer.Init();  
 
             for (int i = 0; i < _xLabels.Length; i++)
-                _xLabels[i] = new TextBlock("0", 0, 0, font, TextAlign.Right, XFormat);
+                _xLabels[i] = new TextBlock("0", 0, 0, font, TextAlign.Right, Options.XFormat);
 
             for (int i = 0; i < _yLabels.Length; i++)
-                _yLabels[i] = new TextBlock("0", 0, 0, font, TextAlign.Right, YFormat);
+                _yLabels[i] = new TextBlock("0", 0, 0, font, TextAlign.Right, Options.YFormat);
 
             _ready = true;
         }
@@ -224,6 +226,7 @@ namespace Asano.MyGLTools.Helpers
             float first = MathF.Ceiling(tickMin / step) * step;
             int tickCount = 0;
 
+            bool isTime = Options.XFormat.Contains(":") && Options.XAxisUnitScale == 1.0;
             for (float x = first; x <= tickMax && tickCount < MaxXTicks; x += step)
             {
                 if (DrawGridLine(GridFlags.VerticalLines))
@@ -238,7 +241,12 @@ namespace Asano.MyGLTools.Helpers
                     float tickScreenX = WorldToScreenX(x, xMin, xMax, displaySize.Width) + XLabelOffset;
                     label.X = tickScreenX;
                     label.Y = XLabelBottom;
-                    label.SetValue(GetXAxisLabelValue(x), XFormat);
+
+                    if (isTime)
+                        label.SetAsTime(x, Options.XFormat);
+                    else
+                        label.SetValue(GetXAxisLabelValue(x), Options.XFormat);
+
                     _xLabelTicks[tickCount] = tickScreenX;
                     _xLabelCount++;
                 }
@@ -275,7 +283,7 @@ namespace Asano.MyGLTools.Helpers
                     label.X = YLabelRight;
                     float tickScreenY = WorldToScreenY(y, yMin, yMax, displaySize.Height);
                     label.Y = tickScreenY;
-                    label.SetValue(NormalizeLabelValue(y), YFormat);
+                    label.SetValue(NormalizeLabelValue(y), Options.YFormat);
                     _yLabelTicks[tickCount] = tickScreenY;
                     _yLabelCount++;
                 }

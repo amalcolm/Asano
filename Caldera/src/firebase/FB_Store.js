@@ -88,7 +88,7 @@ export class FB_Store {
     this.panel.appendText("Testing Firebase connection...\n");
     try {
       await this.signIn();
-      this.panel.appendText("Firebase connection successful!\n");
+      this.panel.appendText("Firebase connection successful.\n");
 
       const latestModelRun = await this.getLatestModelRun({ component: DIFF_AMP_COMPONENT });
 
@@ -98,7 +98,7 @@ export class FB_Store {
       }
 
       if (isLatestModelRunInstalled(this.modelStorage, latestModelRun)) {
-        this.panel.appendText(`Up to date\n`);
+        this.panel.appendText(`All models up to date.\n`);
         return;
       }
 

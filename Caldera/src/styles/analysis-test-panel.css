@@ -10,11 +10,11 @@
   width: 30%;
   height: 26%;
   transform: translateX(-50%);
-  border: 2px solid rgba(7, 49, 5, 0.747);
+  border: 2px solid rgb(var(--warm-border-rgb) / 75%);
   border-radius: 20px;
   padding: 12px;
   color: var(--button-text);
-  background: rgba(14, 36, 13, 0.2);
+  background: rgb(var(--warm-panel-rgb) / 20%);
   box-shadow: 5px 10px 10px rgba(0, 0, 0, 0.5);
   font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   overflow: auto;
@@ -35,15 +35,15 @@
   justify-content: space-between;
   gap: 12px;
   margin-top: auto;
-  border-top: 1px solid rgba(255, 242, 145, 0.12);
+  border-top: 1px solid rgb(var(--gold-accent-rgb) / 12%);
   padding-top: 8px;
-  color: rgba(226, 242, 205, 0.72);
+  color: rgb(var(--neutral-text-rgb) / 72%);
   font-weight: 700;
 }
 
 .test-panel__header [data-test-status],
 .test-panel__footer [data-test-status] {
-  color: rgba(226, 242, 205, 0.72);
+  color: rgb(var(--neutral-text-rgb) / 72%);
   font-weight: 600;
 }
 
@@ -56,12 +56,12 @@
   flex: 0 0 auto;
   box-sizing: border-box;
   width: 100%;
-  border: 1px solid rgba(255, 242, 145, 0.16);
+  border: 1px solid rgb(var(--gold-accent-rgb) / 16%);
   border-radius: 14px;
   padding: 8px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(7, 49, 5, 0.2)),
-    rgba(14, 36, 13, 0.2);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgb(var(--warm-shade-rgb) / 20%)),
+    rgb(var(--warm-panel-rgb) / 20%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
   table-layout: fixed;
   border-collapse: separate;
@@ -75,7 +75,7 @@
 }
 
 .test-panel__matrix th {
-  color: rgba(226, 242, 205, 0.72);
+  color: rgb(var(--neutral-text-rgb) / 72%);
   font: inherit;
   font-weight: 700;
   text-align: left;
@@ -92,13 +92,13 @@
 .test-panel__button {
   width: 100%;
   min-height: 34px;
-  border: 1px solid rgba(255, 242, 145, 0.26);
+  border: 1px solid rgb(var(--gold-accent-rgb) / 24%);
   border-radius: 12px;
   padding: 7px 10px;
   color: var(--button-text);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(7, 49, 5, 0.22)),
-    rgba(14, 36, 13, 0.24);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgb(var(--warm-shade-rgb) / 22%)),
+    rgb(var(--warm-panel-rgb) / 24%);
   box-shadow:
     0 7px 16px rgba(0, 0, 0, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
@@ -110,14 +110,14 @@
 
 .test-panel__button:hover,
 .test-panel__button:focus-visible {
-  border-color: rgba(255, 242, 145, 0.48);
+  border-color: rgb(var(--gold-accent-rgb) / 38%);
   color: var(--button-text);
   background:
-    linear-gradient(180deg, rgba(255, 242, 145, 0.13), rgba(7, 49, 5, 0.25)),
-    rgba(14, 36, 13, 0.32);
+    linear-gradient(180deg, rgb(var(--gold-accent-rgb) / 13%), rgb(var(--warm-shade-rgb) / 25%)),
+    rgb(var(--warm-panel-rgb) / 32%);
   box-shadow:
     0 9px 20px rgba(0, 0, 0, 0.3),
-    0 0 14px rgba(255, 210, 80, 0.16),
+    0 0 14px rgb(var(--gold-accent-rgb) / 10%),
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
   outline: none;
 }
@@ -133,8 +133,8 @@
   border-color: var(--control-warning);
   color: var(--button-text);
   background:
-    linear-gradient(180deg, rgb(196 91 95 / 18%), rgba(7, 49, 5, 0.22)),
-    rgba(14, 36, 13, 0.28);
+    linear-gradient(180deg, rgb(196 91 95 / 18%), rgb(var(--warm-shade-rgb) / 22%)),
+    rgb(var(--warm-panel-rgb) / 28%);
   box-shadow:
     0 8px 18px rgba(0, 0, 0, 0.28),
     0 0 14px rgb(196 91 95 / 18%),

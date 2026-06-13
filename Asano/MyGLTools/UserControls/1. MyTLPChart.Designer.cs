@@ -59,14 +59,14 @@
             _Options1.GridColour = Color.FromArgb(4, 255, 255, 255);
             _Options1.GridSettings = Helpers.PlotAxesRenderer.GridFlags.VerticalLines | Helpers.PlotAxesRenderer.GridFlags.XaxisLabels;
             _Options1.GridVisible = true;
-            _Options1.LabelColor = Color.FromArgb(40, 255, 255, 255);
+            _Options1.LabelColor = Color.FromArgb(20, 255, 255, 255);
             _Options1.LabelPadding = 60F;
-            _Options1.TickColour = Color.FromArgb(40, 255, 255, 255);
+            _Options1.TickColour = Color.FromArgb(20, 255, 255, 255);
             _Options1.TicksVisible = true;
             _Options1.XAxisLabelClipRightPadding = 0F;
             _Options1.XAxisUnitScale = 1F;
             chart0.AxesOptions = _Options1;
-            chart0.BackColor = Color.FromArgb(16, 8, 8);
+            chart0.BackColor = Color.FromArgb(16,16, 8);
             chart0.BorderStyle = BorderStyle.None;
             chart0.Dock = DockStyle.Fill;
             chart0.EnableLabels = true;

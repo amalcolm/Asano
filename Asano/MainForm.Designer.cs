@@ -29,7 +29,6 @@
         private void InitializeComponent()
         {
             components = new System.ComponentModel.Container();
-            MyGLTools.Helpers.PlotAxesRenderer._Options _Options1 = new MyGLTools.Helpers.PlotAxesRenderer._Options();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             cbPorts = new ComboBox();
             labPorts = new Label();
@@ -132,19 +131,6 @@
             // signalViewer1
             // 
             signalViewer1.AutoClear = true;
-            _Options1.AxesLabelVisible = true;
-            _Options1.AxesVisible = true;
-            _Options1.AxisColour = Color.FromArgb(80, 255, 255, 255);
-            _Options1.GridColour = Color.FromArgb(8, 255, 255, 255);
-            _Options1.GridSettings = MyGLTools.Helpers.PlotAxesRenderer.GridFlags.VerticalLines | MyGLTools.Helpers.PlotAxesRenderer.GridFlags.HorizontalLines | MyGLTools.Helpers.PlotAxesRenderer.GridFlags.YaxisLabels | MyGLTools.Helpers.PlotAxesRenderer.GridFlags.XaxisLabels;
-            _Options1.GridVisible = true;
-            _Options1.LabelColor = Color.FromArgb(80, 255, 255, 255);
-            _Options1.LabelPadding = 60F;
-            _Options1.TickColour = Color.FromArgb(140, 255, 255, 255);
-            _Options1.TicksVisible = true;
-            _Options1.XAxisLabelClipRightPadding = 0F;
-            _Options1.XAxisUnitScale = 0.001F;
-            signalViewer1.AxesOptions = _Options1;
             signalViewer1.BackColor = Color.FromArgb(32, 16, 16);
             signalViewer1.BorderStyle = BorderStyle.FixedSingle;
             signalViewer1.Dock = DockStyle.Bottom;

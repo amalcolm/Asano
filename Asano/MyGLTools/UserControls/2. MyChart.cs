@@ -88,9 +88,7 @@ namespace Asano.MyGLTools.UserControls
         public MyChart()
         {
             InitializeComponent();
-            AxesOptions.GridSettings = PlotAxesRenderer.GridFlags.VerticalLines | PlotAxesRenderer.GridFlags.XaxisLabels;
-            AxesOptions.LabelColor = Color.FromArgb(32, 32, 32, 32);
-
+            
             if (Program.SerialPort == null) return;
             ActiveChart ??= this;
 

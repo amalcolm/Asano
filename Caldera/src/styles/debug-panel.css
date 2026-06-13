@@ -8,11 +8,11 @@
   gap: 10px;
   width: min(400px, calc(100vw - 24px));
   height: min(450px, calc(100vh - 24px));
-  border: 2px solid rgba(7, 49, 5, 0.747);
+  border: 2px solid rgb(var(--warm-border-rgb) / 75%);
   border-radius: 20px;
   padding: 12px;
   color: var(--button-text);
-  background: rgba(14, 36, 13, 0.3);
+  background: rgb(var(--warm-panel-rgb) / 30%);
   box-shadow: 5px 10px 10px rgba(0, 0, 0, 0.5);
   font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   overflow: hidden;
@@ -28,7 +28,7 @@
 
 .debug-panel__section {
   min-height: 0;
-  border: 1px solid rgba(255, 242, 145, 0.2);
+  border: 1px solid rgb(var(--gold-accent-rgb) / 20%);
   border-radius: 14px;
   padding: 10px;
   box-shadow:
@@ -39,15 +39,15 @@
 
 .debug-panel__section--flags {
   background:
-    linear-gradient(180deg, rgba(255, 242, 145, 0.1), rgba(7, 49, 5, 0.2)),
-    rgba(14, 36, 13, 0.18);
+    linear-gradient(180deg, rgb(var(--gold-accent-rgb) / 10%), rgb(var(--warm-shade-rgb) / 20%)),
+    rgb(var(--warm-panel-rgb) / 18%);
 }
 
 .debug-panel__section--tests {
   border-color: rgb(196 91 95 / 26%);
   background:
     linear-gradient(180deg, rgb(196 91 95 / 10%), rgb(255 255 255 / 3%)),
-    rgba(14, 36, 13, 0.18);
+    rgb(var(--warm-panel-rgb) / 18%);
 }
 
 .debug-panel__header {
@@ -62,7 +62,7 @@
 
 .debug-panel__header [data-debug-flags-status],
 .debug-panel__header [data-debug-tests-status] {
-  color: rgba(226, 242, 205, 0.72);
+  color: rgb(var(--neutral-text-rgb) / 72%);
   font-weight: 600;
 }
 
@@ -87,7 +87,7 @@
   border-radius: 4px;
   background:
     linear-gradient(180deg, rgb(255 255 255 / 6%), rgb(0 0 0 / 8%)),
-    rgb(12 31 11 / 78%);
+    rgb(var(--warm-panel-rgb) / 78%);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 8%),
     0 2px 6px rgb(0 0 0 / 18%);
@@ -132,13 +132,13 @@
 .debug-panel__button {
   width: 100%;
   min-height: 36px;
-  border: 1px solid rgba(255, 242, 145, 0.26);
+  border: 1px solid rgb(var(--gold-accent-rgb) / 24%);
   border-radius: 12px;
   padding: 7px 10px;
   color: var(--button-text);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(7, 49, 5, 0.22)),
-    rgba(14, 36, 13, 0.24);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgb(var(--warm-shade-rgb) / 22%)),
+    rgb(var(--warm-panel-rgb) / 24%);
   box-shadow:
     0 7px 16px rgba(0, 0, 0, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
@@ -150,14 +150,14 @@
 
 .debug-panel__button:hover,
 .debug-panel__button:focus-visible {
-  border-color: rgba(255, 242, 145, 0.48);
+  border-color: rgb(var(--gold-accent-rgb) / 38%);
   color: var(--button-text);
   background:
-    linear-gradient(180deg, rgba(255, 242, 145, 0.13), rgba(7, 49, 5, 0.25)),
-    rgba(14, 36, 13, 0.32);
+    linear-gradient(180deg, rgb(var(--gold-accent-rgb) / 13%), rgb(var(--warm-shade-rgb) / 25%)),
+    rgb(var(--warm-panel-rgb) / 32%);
   box-shadow:
     0 9px 20px rgba(0, 0, 0, 0.3),
-    0 0 14px rgba(255, 210, 80, 0.16),
+    0 0 14px rgb(var(--gold-accent-rgb) / 10%),
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
   outline: none;
 }
@@ -180,6 +180,6 @@
   justify-content: space-between;
   gap: 8px;
   margin-top: 7px;
-  color: rgba(226, 242, 205, 0.72);
+  color: rgb(var(--neutral-text-rgb) / 72%);
   font-weight: 600;
 }

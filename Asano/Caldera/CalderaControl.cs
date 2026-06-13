@@ -1,17 +1,20 @@
 using Microsoft.Web.WebView2.Core;
+using System.ComponentModel;
 
 namespace Asano.Caldera
 {
     public partial class CalderaControl : UserControl
     {
+        [Browsable(false)]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public IReadOnlyDictionary<string, string?> QueryParameters { get; set; } = new Dictionary<string, string?>();
+
+
         private static readonly TimeSpan WebViewShutdownTimeout = TimeSpan.FromSeconds(2);
         private const int MessageFlushIntervalMs = 16;
 
         public CoreWebView2 CoreWebView2 => web.CoreWebView2;
         public CalderaView View { get; set; } = CalderaView.Circuit;
-        public IReadOnlyDictionary<string, string?> QueryParameters { get; set; } =
-            new Dictionary<string, string?>();
-
         public Caldera? Caldera { get => _caldera; }
         private bool _webInitStarted = false;
         private bool _disposedOrClosing = false;
@@ -26,7 +29,7 @@ namespace Asano.Caldera
         public CalderaControl()
         {
             InitializeComponent();
-            components ??= new System.ComponentModel.Container();
+            components ??= new Container();
 
             _messageFlushTimer = new System.Windows.Forms.Timer(components)
             {

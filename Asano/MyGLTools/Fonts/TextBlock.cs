@@ -60,6 +60,107 @@ namespace Asano.MyGLTools.Fonts
             CharPool.Return(tempBuffer);
         }
 
+        public void SetAsTime(double value, string format)
+        {
+            _valueFormat = format;
+            char[] tempBuffer = CharPool.Rent();
+
+            int charsWritten = FormatSeconds(tempBuffer, value, format);
+            var newSpan = tempBuffer.AsSpan(0, charsWritten);
+
+            if (!Span.SequenceEqual(newSpan))
+            {
+                ClearBuffer(); // Return the old buffer
+                _buffer = tempBuffer; // Keep the new buffer
+                _length = charsWritten;
+                Changed("Text");
+                return; // Success
+            }
+
+            CharPool.Return(tempBuffer);
+        }
+
+        private static int FormatSeconds(Span<char> buffer, double value, ReadOnlySpan<char> format)
+        {
+            if (!double.IsFinite(value))
+            {
+                buffer[0] = '-';
+                buffer[1] = '-';
+                return 2;
+            }
+
+            bool isNegative = value < 0.0;
+            double absoluteValue = isNegative ? -value : value;
+            long totalSeconds = absoluteValue >= long.MaxValue
+                ? long.MaxValue
+                : (long)absoluteValue;
+
+            int index = 0;
+            if (isNegative && totalSeconds != 0)
+                buffer[index++] = '-';
+
+            bool showHours = (format.Contains('H') || format.Contains('h')) && totalSeconds >= 3600;
+            bool showMinutes = (showHours || format.Contains('m')) && totalSeconds >= 60;
+            int seconds = (int)(totalSeconds % 60);
+
+            if (showHours)
+            {
+                long hours = totalSeconds / 3600;
+                int minutes = (int)(totalSeconds / 60 % 60);
+
+                index = WriteUnsigned(buffer, index, hours, 1);
+                buffer[index++] = ':';
+                index = WriteTwoDigits(buffer, index, minutes);
+                buffer[index++] = ':';
+                return WriteTwoDigits(buffer, index, seconds);
+            }
+
+            if (showMinutes)
+            {
+                long minutes = totalSeconds / 60;
+
+                index = WriteUnsigned(buffer, index, minutes, 1);
+                buffer[index++] = ':';
+                return WriteTwoDigits(buffer, index, seconds);
+            }
+
+            return WriteUnsigned(buffer, index, totalSeconds, 1);
+        }
+
+        private static int WriteTwoDigits(Span<char> buffer, int index, int value)
+        {
+            buffer[index++] = (char)('0' + value / 10);
+            buffer[index++] = (char)('0' + value % 10);
+            return index;
+        }
+
+        private static int WriteUnsigned(Span<char> buffer, int index, long value, int minDigits)
+        {
+            int start = index;
+
+            do
+            {
+                buffer[index++] = (char)('0' + (int)(value % 10));
+                value /= 10;
+            }
+            while (value > 0);
+
+            while (index - start < minDigits)
+                buffer[index++] = '0';
+
+            int end = index - 1;
+            while (start < end)
+            {
+                char temp = buffer[start];
+                buffer[start] = buffer[end];
+                buffer[end] = temp;
+                start++;
+                end--;
+            }
+
+            return index;
+        }
+
         // Clean up the buffer
         private void ClearBuffer()
         {
