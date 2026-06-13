@@ -28,7 +28,6 @@
         /// </summary>
         private void InitializeComponent()
         {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(DataForm));
             multiChart = new MyMultichart();
             calderaControl = new Asano.Caldera.CalderaControl();
             SuspendLayout();
@@ -45,10 +44,10 @@
             // 
             // calderaControl
             // 
+            calderaControl.BackColor = Color.FromArgb(16, 16, 8);
             calderaControl.Dock = DockStyle.Bottom;
             calderaControl.Location = new Point(0, 813);
             calderaControl.Name = "calderaControl";
-            calderaControl.QueryParameters = (IReadOnlyDictionary<string, string>)resources.GetObject("calderaControl.QueryParameters");
             calderaControl.Size = new Size(800, 422);
             calderaControl.TabIndex = 1;
             calderaControl.View = Caldera.CalderaView.Circuit;

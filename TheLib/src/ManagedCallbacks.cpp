@@ -29,7 +29,7 @@ namespace TheLib
 				}
             }
         }
-        catch (OperationCanceledException^) { Debug::WriteLine("ManagedCallbacks: WorkerLoop cancelled."); }
+        catch (OperationCanceledException^) { if (m_disposing == false) Debug::WriteLine("ManagedCallbacks: WorkerLoop cancelled."); }
         catch (Exception^ ex)               { Debug::WriteLine("ManagedCallbacks: Exception in WorkerLoop: " + ex->Message); }
         finally {
                                                                                                                    if (VERBOSE) Debug::WriteLine("ManagedCallbacks: WorkerLoop exiting.");
@@ -144,6 +144,7 @@ namespace TheLib
     void ManagedCallbacks::Disposing(bool disposing) {
         if (!m_disposed) {
             if (disposing) {                                                                                                   if (VERBOSE) Debug::WriteLine("ManagedCallbacks: Disposing...");
+                m_disposing = true;
                 if (m_cts != nullptr) {
                     if (!m_cts->IsCancellationRequested) {                                                                     if (VERBOSE) Debug::WriteLine("ManagedCallbacks: Requesting cancellation...");
                         m_cts->Cancel();

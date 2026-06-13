@@ -1,11 +1,10 @@
-using TheLib;
 using Asano.MyGLTools.Helpers;
 
 namespace Asano
 {
     internal static class Program
     {
-        public static readonly MySerialPort? SerialPort = new();
+        public static readonly MySerialPort SerialPort = new();
 
         public static bool IsRunning = false;
         public static Caldera.Caldera? Caldera = null;
@@ -37,9 +36,11 @@ namespace Asano
             SocketWatcher.StartListening();
 
             Application.Run(new MainForm());
-
+            
             IsRunning = false;
             SocketWatcher.StopListening();
+
+            SerialPort.Dispose();
         }
     }
 }

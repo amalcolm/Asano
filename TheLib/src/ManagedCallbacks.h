@@ -60,6 +60,7 @@ namespace TheLib
         void WorkerLoop(CancellationToken token);
 
         // --- IDisposable pattern ---
+		bool m_disposing;
         bool m_disposed;
         void Disposing(bool disposing);
 

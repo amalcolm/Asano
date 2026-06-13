@@ -49,7 +49,7 @@
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             Controls.Add(web);
-            Name = "CalderaControl";
+            Name = "calderaControl";
             ((System.ComponentModel.ISupportInitialize)web).EndInit();
             ResumeLayout(false);
         }

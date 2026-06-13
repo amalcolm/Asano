@@ -152,11 +152,14 @@ namespace Asano
                     dataForm.Show();
 
                     SetPorts(ports);
+
+                    this.Focus();
                 }
 
-                firstLoad = false;
 
             }
+
+            firstLoad = false;
         }
     }
 }

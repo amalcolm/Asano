@@ -42,7 +42,6 @@ CSerial::CSerial()
 
 
 CSerial::~CSerial() {
-    delete m_decodedPacket;
     Close();  // Ensure proper cleanup
 }
 
@@ -607,6 +606,8 @@ void CSerial::Clear()
 
 bool CSerial::Close()
 {
+    if (m_isClosing) return false; // already in the process of closing
+	
     m_isClosing = true;
 
     // Tell the read thread to stop as soon as possible
@@ -666,6 +667,10 @@ bool CSerial::Close()
     // Only signal a connection state change if we were actually open
     if (wasOpen) InvokeConnectionChanged(false);
     
+    if (m_decodedPacket) {
+        delete m_decodedPacket;
+        m_decodedPacket = nullptr;
+	}
 
     return true;
 }

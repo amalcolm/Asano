@@ -88,9 +88,6 @@ namespace TheLib
                     if (m_nativeSerial->IsOpen()) {                                                                                                 if (VERBOSE) Debug::WriteLine("SerialHelper: Calling native Close() during dispose...");
                         m_nativeSerial->Close();                                                                                                    if (VERBOSE) Debug::WriteLine("SerialHelper: Native Close() returned.");
                     }
-                    else {
-                        Debug::WriteLine("SerialHelper: Native port already closed, skipping native Close().");
-                    }
                 }
                 catch (const std::exception& ex) {
                     String^ errMsg = gcnew String(ex.what());
