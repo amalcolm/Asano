@@ -10,7 +10,6 @@ struct Hardware {
     static bool canUpdate();
     static void update();
 
-
   private:
     static bool debugLayerOverride();
     inline static bool firstCallInCycle = true;

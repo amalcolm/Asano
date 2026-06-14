@@ -35,5 +35,7 @@ void loop() {
 
   CTelemetry::logAll();             // Log all counter telemetry
 
+  Timer.honourOffTime();            // Ensure 10mW per second limit is respected
+
   activityLED.toggle();             // Indicate activity on LED
 }

@@ -11,8 +11,6 @@ public:
     // hardware timing constants (in microseconds / hertz)
     inline static constexpr double STATE_DURATION_uS       =  3'000;  // time for each state. loop will be slightly longer than this
 
-    inline static constexpr double LED_OFF_PEERIOD_uS      =      0;  // time between cycles when LEDs are turned off
-
     inline static constexpr double HEAD_SETTLE_TIME_uS     =    220;  // delay between Head change and first A2D read
     
     inline static constexpr double POT_UPDATE_OFFSET_uS    =      0;  // A2D -> Potentiometer update offset, minimizes interference
@@ -33,7 +31,7 @@ public:
     inline static constexpr char DEVICE_VERSION[]  = "0.1.5+" BUILD_STR;  // this is a #define from the build system
     inline static constexpr char DEVICE_NAME[]     = "fNIRS (Teensy 4.1)";
     inline static           char HOST_VERSION[16]  = "[unknown]";
-    inline static           char DEBUG_MODE[16]    = "OFF";
+    inline static           char DEBUG_MODE[16]    = "ON";                // !!! THIS MUST BE "" IN CLINICAL USE !!!
 
     inline static CommandFlags commandFlags{}; // bitfield for various command options, set in USB XCMD headers
     inline static bool    hasCommandFlag(CommandFlags flag) { return (_u(commandFlags) &  _u(flag)) != 0; }

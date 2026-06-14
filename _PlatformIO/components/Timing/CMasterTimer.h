@@ -2,6 +2,7 @@
 #include "C32bitTimer.h"
 #include "CA2DTimer.h"
 #include "CTimer.h"
+#include "MyQueue.h"
 
 class CMasterTimer : public CTimer {
   
@@ -16,11 +17,11 @@ public:
 
         CA2DTimer   A2D   = CA2DTimer{};
 
-public:
   CMasterTimer();
   
-  inline void   setConnectTime() { s_connectTime = CTimer::time();                                         }
-  inline double getConnectTime() { return (CTimer::time() - s_connectTime) * CTimerBase::s_SecondsPerTick; }
+         void     setConnectTime();
+  inline uint64_t getConnectTicks() { return  CTimer::time() - s_connectTime;                                 }
+  inline double   getConnectTime()  { return (CTimer::time() - s_connectTime) * CTimerBase::s_SecondsPerTick; }
 
   inline static double upTime() { return CTimer::time() * CTimerBase::s_SecondsPerTick; }
   inline double getStateTime()  { return state.getSeconds(); }
@@ -32,6 +33,25 @@ public:
 
   bool sampleReady = false;
   
+
+  void updateOffTime(int unsetPins, uint64_t unsetTime, int setPins, uint64_t setTime);
+  
+  void honourOffTime() const;
+  
+
+  private:
+    uint64_t _offTimeTicks = 0;
+    uint64_t _lastSetTime = 0;
+    bool _validSetTime = false;
+
+    struct TimingRecord {
+      int pinsOn;
+      uint64_t startTime;
+      uint64_t endTime;
+      uint64_t duration;
+    };
+
+    MyQueue<TimingRecord, 256> _timingQueue;
 
 };
 

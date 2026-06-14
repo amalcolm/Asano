@@ -14,28 +14,21 @@ class LEDpins {
 
 public:
   static const bool inverted = false;
-  const int high = inverted ? LOW : HIGH;
-  const int low  = inverted ? HIGH : LOW;
-
-  uint32_t dbgBits = 0;
+  static void initMCP();
 
 
-  void begin() const;
 
-  void write(int pin, bool value);
+  void begin();
 
-  void writeState(uint32_t state) const {
+
+  inline void writeState(uint32_t state) {
 
     uint16_t output =   state & 0x000000FF; // only use lower 16 bits, as we only have 16 pins
              output |= (state & 0x00FF0000) >> 8; // allow upper bits to set higher pins, but mask out any bits above 31
     write_raw(output);
   }
 
-  void clear() {
-    static uint16_t empty = inverted ? 0xFFFF : 0x0000;
-    write_raw(empty);
-  }
-
+  inline void clear() { write_raw(0x0000); }
 
   void set(int pin);
   void clear(int pin);
@@ -44,8 +37,20 @@ public:
   inline void on (int pin) { set  (pin); }
   inline void off(int pin) { clear(pin); }
 
+  void ensureOff(); // ensures all pins are off
+
 private:
-  void write_raw(uint16_t data) const;
+  inline static bool _mcpInitialized = false;
+  static const int _high = inverted ? LOW : HIGH;
+  static const int _low  = inverted ? HIGH : LOW;
+
+  void write_raw(uint16_t data);
+
+  uint16_t _current = 0;
+  uint16_t _debugBits = 0;
+
+  // safety metrics
+  int _numPinsOn = 0;
 };
 
 // -- Base ----------------------------------------------------------
