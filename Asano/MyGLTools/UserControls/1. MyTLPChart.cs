@@ -13,23 +13,38 @@ namespace Asano.MyGLTools.UserControls
             InitializeComponent();
 
             PrimaryChart = chart0;
+            PrimaryChart.ActivateOnMouseDown = true;
+            PrimaryChart.PauseSchedulerOnlyWhenActive = true;
             _charts.Add(PrimaryChart);
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+
+            if (ParentForm != null)
+            {
+                BackColor = ParentForm.BackColor;
+                PrimaryChart.BackColor = BackColor;
+            }
         }
 
         protected MyChart CreateChart(string? tag = null)
         {
             MyChart chart = new()
             {
-                AutoClear    = true,
-                BackColor    = Color.Cornsilk,
-                BorderStyle  = BorderStyle.None,
-                Dock         = DockStyle.Fill,
-                EnableLabels = true,
-                EnablePlots  = true,
-                Padding      = Padding.Empty,
+                AutoClear    = PrimaryChart.AutoClear,
+                BackColor    = BackColor,
+                BorderStyle  = BorderStyle.FixedSingle,
+                Dock         = PrimaryChart.Dock,
+                EnableLabels = PrimaryChart.EnableLabels,
+                EnablePlots  = PrimaryChart.EnablePlots,
+                Padding      = PrimaryChart.Padding,
+                ActivateOnMouseDown = true,
+                PauseSchedulerOnlyWhenActive = true,
                 Tag          = tag,
-                TextColour   = Color.Silver,
-                Yscale       = 1.0f
+                TextColour   = PrimaryChart.TextColour,
+                Yscale       = PrimaryChart.Yscale
             };
 
             if (tag != null)
@@ -47,6 +62,12 @@ namespace Asano.MyGLTools.UserControls
             {
                 _charts.Clear();
                 _charts.AddRange(charts);
+
+                if (MyChart.ActiveChart is not { } activeChart || !_charts.Contains(activeChart))
+                    _charts[0].Activate();
+                else
+                    activeChart.Activate();
+
                 ApplyChartLayout();
             });
         }
@@ -59,6 +80,7 @@ namespace Asano.MyGLTools.UserControls
 
                 _charts.Clear();
                 _charts.Add(PrimaryChart);
+                PrimaryChart.Activate();
                 ApplyChartLayout();
 
                 foreach (var chart in chartsToRemove)

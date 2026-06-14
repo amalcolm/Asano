@@ -70,6 +70,71 @@ namespace Asano.MyGLTools.UserControls
 
         public WipersChangedMessage   LastWipersChange   { get; private set; } = new();
         public VoltagesChangedMessage LastVoltagesChange { get; private set; } = new();
+        public HeadState? ChartState { get; set; }
+        public bool PauseSchedulerOnlyWhenActive { get; set; }
+        private bool _activateOnMouseDown;
+        public bool ActivateOnMouseDown
+        {
+            get => _activateOnMouseDown;
+            set
+            {
+                if (_activateOnMouseDown == value)
+                    return;
+
+                _activateOnMouseDown = value;
+
+                if (Program.IsRunning == false || MyGL == null)
+                    return;
+
+                if (value)
+                {
+                    MouseDown += ActivateChart;
+                    MyGL.MouseDown += ActivateChart;
+                }
+                else
+                {
+                    MouseDown -= ActivateChart;
+                    MyGL.MouseDown -= ActivateChart;
+                }
+            }
+        }
+
+        public void Activate()
+        {
+            if (ReferenceEquals(ActiveChart, this))
+            {
+                SetChartActive(true);
+                PostActiveChartState();
+                return;
+            }
+
+            ActiveChart?.SetChartActive(false);
+            ActiveChart = this;
+            SetChartActive(true);
+            PostActiveChartState();
+        }
+
+        private void ActivateChart(object? sender, EventArgs e)
+        {
+            Activate();
+        }
+
+
+        Padding onePadding = new(1);
+        private void SetChartActive(bool active)
+        {
+            this.BorderStyle = active ? BorderStyle.Fixed3D : BorderStyle.FixedSingle;
+            this.Margin = active ? Padding.Empty : onePadding;
+        }
+
+        protected override bool ShouldPauseSchedulerOnMouseDown(MouseEventArgs e)
+            => !PauseSchedulerOnlyWhenActive || ReferenceEquals(ActiveChart, this);
+
+        private void PostActiveChartState()
+        {
+            if (ChartState.HasValue)
+                Program.Caldera?.PostStateChange(unchecked((int)ChartState.Value), force: true);
+        }
 
         public void CopyLatestCalderaMessages(
             WipersChangedMessage wipersChange,
@@ -90,7 +155,6 @@ namespace Asano.MyGLTools.UserControls
             InitializeComponent();
             
             if (Program.SerialPort == null) return;
-            ActiveChart ??= this;
 
             Program.SerialPort.ConnectionChanged += SP_ConnectionChanged;
 
@@ -225,6 +289,11 @@ namespace Asano.MyGLTools.UserControls
 
                     LastWipersChange.CopyFrom(blockPacket);
                     LastVoltagesChange.CopyFrom(blockPacket);
+
+                    if (LastWipersChange.IsValid == false || LastVoltagesChange.IsValid == false)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Invalid WipersChangedMessage or VoltagesChangedMessage in MyChart after receiving BlockPacket. WipersValid: {LastWipersChange.IsValid}, VoltagesValid: {LastVoltagesChange.IsValid}");
+                    }
                 }
             }
 

@@ -14,7 +14,7 @@ namespace Asano.DataTools.Controls
             InitializeComponent();
 
             MyColour colour = chart.BackColor;
-            chart.BackColor = colour.Darken(0.4).ToColor();
+            chart.BackColor = colour.Darken(0.3).ToColor();
         }
 
          

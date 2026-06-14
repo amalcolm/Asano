@@ -58,12 +58,12 @@ void CA2D::waitForNextDataReady() {
   poll();
 }
   
-CTeleCounter TC_Poll{TeleGroup::A2D, 1};
-CTeleCounter TC_Read{TeleGroup::A2D, 2};
+//CTeleCounter TC_Poll{TeleGroup::A2D, 1};
+//CTeleCounter TC_Read{TeleGroup::A2D, 2};
 
 bool CA2D::poll() {
   double start = Timer.getStateTime();
-  TC_Poll.increment();
+//  TC_Poll.increment();
 
   switch (m_mode) {
     case ModeType::CONTINUOUS: if (!m_dataReady       ) return false; else break;
@@ -73,7 +73,7 @@ bool CA2D::poll() {
  
 
   m_dataReady = false;  // reset flag
-  TC_Read.increment();
+//  TC_Read.increment();
   
   bool result = true;
 

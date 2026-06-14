@@ -200,7 +200,7 @@ export class WebView {
   }
 
   handleMessage(event) {
-    const message = parseMessage(event.data);
+    const message = normaliseIncomingMessage(parseMessage(event.data));
 
     if (!message?.type) {
       return;
@@ -285,4 +285,68 @@ function parseMessage(data) {
   } catch {
     return null;
   }
+}
+
+function normaliseIncomingMessage(message) {
+  if (!message || typeof message !== "object" || Array.isArray(message)) {
+    return message;
+  }
+
+  const type = message.type ?? message.Type;
+  const normalisedMessage = type && message.type !== type
+    ? { ...message, type }
+    : message;
+
+  if (normalisedMessage.type === "voltagesChanged") {
+    return normaliseVoltagesChangedMessage(normalisedMessage);
+  }
+
+  return normalisedMessage;
+}
+
+function normaliseVoltagesChangedMessage(message) {
+  const payload = getObjectProperty(message, "voltages", "Voltages", "value", "Value") ?? message;
+  const payloadSensor1 = getProperty(payload, "sensor1", "Sensor1");
+  const payloadSensor2 = getProperty(payload, "sensor2", "Sensor2");
+  const sensor1 = payloadSensor1 !== undefined
+    ? payloadSensor1
+    : getProperty(message, "sensor1", "Sensor1");
+  const sensor2 = payloadSensor2 !== undefined
+    ? payloadSensor2
+    : getProperty(message, "sensor2", "Sensor2");
+  const voltages = {};
+
+  if (sensor1 !== undefined) {
+    voltages.sensor1 = sensor1;
+  }
+
+  if (sensor2 !== undefined) {
+    voltages.sensor2 = sensor2;
+  }
+
+  return Object.keys(voltages).length
+    ? { ...message, voltages }
+    : message;
+}
+
+function getObjectProperty(source, ...keys) {
+  const value = getProperty(source, ...keys);
+
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : null;
+}
+
+function getProperty(source, ...keys) {
+  if (!source || typeof source !== "object") {
+    return undefined;
+  }
+
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      return source[key];
+    }
+  }
+
+  return undefined;
 }

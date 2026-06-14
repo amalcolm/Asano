@@ -40,6 +40,7 @@ namespace Asano
             pHeader = new Panel();
             TelemetryPane = new Asano.MyGLTools.UserControls.MyTelemetryPane();
             pDiagnostics = new Panel();
+            dbg = new Asano.MyGLTools.UserControls.MyDebugPane();
             signalViewer1 = new Asano.DataTools.Controls.SignalViewer();
             pHeader.SuspendLayout();
             pDiagnostics.SuspendLayout();
@@ -99,12 +100,25 @@ namespace Asano
             // 
             // pDiagnostics
             // 
+            pDiagnostics.Controls.Add(dbg);
             pDiagnostics.Controls.Add(TelemetryPane);
             pDiagnostics.Dock = DockStyle.Bottom;
             pDiagnostics.Location = new Point(0, 1333);
             pDiagnostics.Name = "pDiagnostics";
             pDiagnostics.Size = new Size(1395, 287);
             pDiagnostics.TabIndex = 14;
+            // 
+            // dbg
+            // 
+            dbg.AutoClear = true;
+            dbg.BackColor = Color.FromArgb(16, 8, 8);
+            dbg.Dock = DockStyle.Fill;
+            dbg.Location = new Point(0, 0);
+            dbg.Margin = new Padding(0);
+            dbg.Name = "dbg";
+            dbg.Size = new Size(1066, 287);
+            dbg.TabIndex = 9;
+            dbg.TextColour = Color.DarkGray;
             // 
             // signalViewer1
             // 
@@ -121,6 +135,8 @@ namespace Asano
             _Options1.TicksVisible = true;
             _Options1.XAxisLabelClipRightPadding = 40F;
             _Options1.XAxisUnitScale = 0.001F;
+            _Options1.XFormat = "G5";
+            _Options1.YFormat = "G5";
             signalViewer1.AxesOptions = _Options1;
             signalViewer1.BackColor = Color.FromArgb(32, 16, 16);
             signalViewer1.BorderStyle = BorderStyle.FixedSingle;
@@ -162,5 +178,6 @@ namespace Asano
         private Asano.MyGLTools.UserControls.MyTelemetryPane TelemetryPane;
         private Panel pDiagnostics;
         private DataTools.Controls.SignalViewer signalViewer1;
+        private MyGLTools.UserControls.MyDebugPane dbg;
     }
 }

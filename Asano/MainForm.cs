@@ -112,6 +112,7 @@ namespace Asano
 
         bool firstLoad = true;
         DataForm? dataForm;
+        private Timer? focusTimer;
         public void Form1_Shown(object sender, EventArgs e)
         {
             var ports = SerialHelper.GetUSBSerialPorts();
@@ -153,10 +154,15 @@ namespace Asano
 
                     SetPorts(ports);
 
-                    this.Focus();
+                    focusTimer = new Timer { Interval = 500, Enabled = false };
+                    focusTimer.Tick += (s, e) =>
+                    {   focusTimer.Stop(); focusTimer.Dispose(); focusTimer = null;
+
+                        if (this.IsDisposed == false)
+                            this.Focus();
+                    };
+                    focusTimer.Start();
                 }
-
-
             }
 
             firstLoad = false;

@@ -54,7 +54,7 @@ void LEDpins::toggle(int pin) {  _debugBits ^=  (1u << pin);  write_raw(_current
 
 
 void Pins::flash(int numFlashes) {
-  if (CFG::DEBUG_MODE[0] == '\0') return; // don't flash if debug mode is off
+  if (CFG::isDebugMode() == false) return; // don't flash if debug mode is off
 
   LEDpins::initMCP();
 
@@ -94,8 +94,6 @@ void LEDpins::initMCP(){
 [[noreturn]] void error_impl(const char* file, int line, const char* func,
                              const char* fmt, ...)
 {
-    bool clinicalMode = (CFG::DEBUG_MODE[0] == '\0')
-    ;
     char msg[4096];
     va_list args; va_start(args, fmt);
     vsnprintf(msg, sizeof(msg), fmt, args);
@@ -129,7 +127,7 @@ void LEDpins::initMCP(){
 
       for (int i = 0; i < 16; i++) {
         bits |= one << i;
-        if (clinicalMode == false) mcp.writeGPIOAB(bits);
+        if (CFG::isDebugMode()) mcp.writeGPIOAB(bits);
         delay(20);
       }
 
@@ -137,7 +135,7 @@ void LEDpins::initMCP(){
 
       while (bits != 0) {
         bits >>= 1;
-        if (clinicalMode == false) mcp.writeGPIOAB(bits);
+        if (CFG::isDebugMode()) mcp.writeGPIOAB(bits);
         delay(20);
       }
 

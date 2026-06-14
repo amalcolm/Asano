@@ -90,12 +90,26 @@ namespace Asano.MyGLTools.UserControls
 
             this.Resize += (s, e) => GLThread?.Enqueue(GL_Resize);
 
-            MyGL.MouseDown += (s, e) => Scheduler.IsPaused = true ;
-            MyGL.MouseUp   += (s, e) => Scheduler.IsPaused = false;
+            MyGL.MouseDown += MyGL_MouseDown;
+            MyGL.MouseUp   += MyGL_MouseUp;
 
             GLThread.RenderAction = RenderMethod;
 
             CalcFPS = _CalcFPS();
+        }
+
+        protected virtual bool ShouldPauseSchedulerOnMouseDown(MouseEventArgs e)
+            => true;
+
+        private void MyGL_MouseDown(object? sender, MouseEventArgs e)
+        {
+            if (ShouldPauseSchedulerOnMouseDown(e))
+                Scheduler.IsPaused = true;
+        }
+
+        private void MyGL_MouseUp(object? sender, MouseEventArgs e)
+        {
+            Scheduler.IsPaused = false;
         }
 
         protected override void OnHandleCreated(EventArgs e)

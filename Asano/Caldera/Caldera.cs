@@ -1,7 +1,6 @@
 using Microsoft.Web.WebView2.Core;
 using TheLib;
 using TheLib.Packets;
-using System.Drawing;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -50,7 +49,7 @@ namespace Asano.Caldera
 
             if (IsPrimaryBridge)
             {
-                SP.BlockPacketReceived += SP_BlockPacketReceived;
+                ObserveBlockPackets();
                 SP.DebugPacketReceived += SP_DebugPacketReceived;
                 SP.ConnectionChanged += SP_ConnectionChanged;
             }
@@ -80,6 +79,52 @@ namespace Asano.Caldera
         private readonly WipersChangedMessage _pendingHeldWipers = new();
         private uint? _pendingHeldWipersState;
         private CommandFlags _pendingHeldWipersFlags = CommandFlags.None;
+        private readonly object _blockPacketSubscriptionLock = new();
+        private bool _observingBlockPackets;
+
+        private void ObserveBlockPackets()
+        {
+            if (!IsPrimaryBridge)
+                return;
+
+            lock (_blockPacketSubscriptionLock)
+            {
+                if (_observingBlockPackets)
+                    return;
+
+                SP.BlockPacketReceived += SP_BlockPacketReceived;
+                _observingBlockPackets = true;
+            }
+        }
+
+        private void StopObservingBlockPackets()
+        {
+            if (!IsPrimaryBridge)
+                return;
+
+            lock (_blockPacketSubscriptionLock)
+            {
+                if (!_observingBlockPackets)
+                    return;
+
+                SP.BlockPacketReceived -= SP_BlockPacketReceived;
+                _observingBlockPackets = false;
+            }
+        }
+
+        private void StopObservingBlockPacketsIfIdle()
+        {
+            if (_needsRefresh || HasPendingHeldWiperRestore())
+                return;
+
+            StopObservingBlockPackets();
+        }
+
+        private bool HasPendingHeldWiperRestore()
+        {
+            lock (_pendingHeldWipersLock)
+                return _pendingHeldWipersState.HasValue;
+        }
 
         private void SP_BlockPacketReceived(BlockPacket packet)
         {
@@ -88,14 +133,22 @@ namespace Asano.Caldera
             if (_needsRefresh)
             {
                 _needsRefresh = false;
-                if (_lastState < 0) _lastState = (int)packet.State;
-                PostStateChange(_lastState);
+
+                if (IsSingleStateMode)
+                {
+                    if (_lastState < 0) _lastState = (int)packet.State;
+                    PostStateChange(_lastState);
+                }
             }
             TryRestoreHeldWipers(packet);
+            StopObservingBlockPacketsIfIdle();
         }
 
         private void SP_DebugPacketReceived(DebugPacket debugPacket)
         {
+            if (!IsSingleStateMode)
+                return;
+
             if (_lastState < 0 || (int)debugPacket.State != _lastState)
                 PostStateChange((int)debugPacket.State, force: true);
         }
@@ -117,6 +170,7 @@ namespace Asano.Caldera
                 case ConnectionState.HandshakeSuccessful:
                     _ready = true;
                     _needsRefresh = true;
+                    ObserveBlockPackets();
                     break;
                 case ConnectionState.Disconnected:
                     _ready = false;
@@ -128,6 +182,7 @@ namespace Asano.Caldera
         private readonly BufferedPoster<WipersChangedMessage> _wipersPoster;
         private readonly BufferedPoster<VoltagesChangedMessage> _voltagesPoster;
         private readonly BufferedPoster<StateChangedMessage> _statePoster;
+        private static bool IsSingleStateMode => Config.DEBUG_MODE == "SINGLE_STATE";
 
         public bool PostWipersChange(WipersChangedMessage wipers, bool force = false)
             => PostToViews(caldera => caldera._wipersPoster.Post(wipers, force));
@@ -339,7 +394,7 @@ namespace Asano.Caldera
                 return;
             }
 
-            var virtualScreen = System.Windows.Forms.SystemInformation.VirtualScreen;
+            var virtualScreen = SystemInformation.VirtualScreen;
             var x = (int)Math.Clamp(Math.Round(screenX), virtualScreen.Left, virtualScreen.Right - 1);
             var y = (int)Math.Clamp(Math.Round(screenY), virtualScreen.Top, virtualScreen.Bottom - 1);
             Action moveCursor = () =>
@@ -523,6 +578,9 @@ namespace Asano.Caldera
 
             if (wipers.IsValid)
                 PostWipersChange(wipers, force: true);
+
+            if (voltages.IsValid)
+                PostVoltagesChange(voltages);
         }
 
         private void HandleSetStateMessage(JsonElement root)
@@ -706,6 +764,8 @@ namespace Asano.Caldera
                 _pendingHeldWipersFlags = flags;
                 _pendingHeldWipersState = state;
             }
+
+            ObserveBlockPackets();
         }
 
         private void TryRestoreHeldWipers(BlockPacket blockPacket)
@@ -730,6 +790,8 @@ namespace Asano.Caldera
         {
             lock (_pendingHeldWipersLock)
                 _pendingHeldWipersState = null;
+
+            StopObservingBlockPacketsIfIdle();
         }
 
         private static bool TryCopyLatestWipers(WipersChangedMessage target)
@@ -764,7 +826,7 @@ namespace Asano.Caldera
 
             if (IsPrimaryBridge && SP != null)
             {
-                SP.BlockPacketReceived -= SP_BlockPacketReceived;
+                StopObservingBlockPackets();
                 SP.DebugPacketReceived -= SP_DebugPacketReceived;
                 SP.ConnectionChanged   -= SP_ConnectionChanged;
             }

@@ -1,6 +1,6 @@
 #pragma once
 #include <cstdint>
-
+#include <cstring>
 enum class CommandFlags : uint32_t;
 
 class CFG {
@@ -31,7 +31,26 @@ public:
     inline static constexpr char DEVICE_VERSION[]  = "0.1.5+" BUILD_STR;  // this is a #define from the build system
     inline static constexpr char DEVICE_NAME[]     = "fNIRS (Teensy 4.1)";
     inline static           char HOST_VERSION[16]  = "[unknown]";
-    inline static           char DEBUG_MODE[16]    = "ON";                // !!! THIS MUST BE "" IN CLINICAL USE !!!
+
+     enum class DebugMode : uint8_t {
+      OFF = 0,
+      ON  = 1,
+      SINGLE_STATE = 2, // for testing a single state without offtime restrictions, set DEBUG_MODE to "SINGLE_STATE"
+    };
+    inline static DebugMode debugMode = DebugMode::ON;
+
+    static void setDebugMode(DebugMode mode) {
+      debugMode = mode;
+      switch (mode) {
+        case DebugMode::OFF:          strcpy(DEBUG_MODE, "OFF"); break;
+        case DebugMode::ON:           strcpy(DEBUG_MODE, "ON"); break;
+        case DebugMode::SINGLE_STATE: strcpy(DEBUG_MODE, "SINGLE_STATE"); break;
+      }
+    }
+
+    inline static char* getDebugModeStr() { return DEBUG_MODE; }
+    inline static bool isSingleStateMode() { return debugMode == DebugMode::SINGLE_STATE; }
+    inline static bool isDebugMode() { return debugMode != DebugMode::OFF; }
 
     inline static CommandFlags commandFlags{}; // bitfield for various command options, set in USB XCMD headers
     inline static bool    hasCommandFlag(CommandFlags flag) { return (_u(commandFlags) &  _u(flag)) != 0; }
@@ -40,6 +59,7 @@ public:
 
   private:
     inline static uint32_t _u(CommandFlags flag) { return static_cast<uint32_t>(flag); } 
+    inline static char DEBUG_MODE[16] = "ON";
 
 };
 

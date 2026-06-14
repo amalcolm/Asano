@@ -173,6 +173,7 @@ namespace Asano.MyGLTools.UserControls
                     var state = states[i];
                     MyChart chart = i == 0 ? PrimaryChart : CreateChart(state.Description());
 
+                    chart.ChartState = state;
                     chart.Tag = state.Description();
 
                     chartsByState[state] = chart;
@@ -206,6 +207,7 @@ namespace Asano.MyGLTools.UserControls
                         return existingChart;
 
                 MyChart chart = CreateChart(state.Description());
+                chart.ChartState = state;
 
                 lock (_lock)
                     _chartsByState[state] = chart;
@@ -218,6 +220,7 @@ namespace Asano.MyGLTools.UserControls
         private MyChart? GetSingleStateChart(HeadState state)
         {
             string description = state.Description();
+            PrimaryChart.ChartState = state;
             bool resetLayout;
             bool updateTag;
 

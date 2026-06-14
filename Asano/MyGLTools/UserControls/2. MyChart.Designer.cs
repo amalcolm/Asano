@@ -35,6 +35,7 @@
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             Name = "MyChart";
+            Padding = new Padding(1);
             ResumeLayout(false);
         }
 

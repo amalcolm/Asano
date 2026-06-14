@@ -150,9 +150,9 @@ bool CSerial::SetPort(const std::string& portName, DataHandler dataHandler, void
     static constexpr int RETRY_DELAY = TOTALWAIT / (RETRIES-1);
 
     // Close any existing connection first (this is fine outside the lock)
-    if (IsOpen()) {
-        Close();
-    }
+    if (IsOpen()) Close();
+    
+    m_isClosing = false;
 
     HANDLE hSerial = INVALID_HANDLE_VALUE; // Declare outside lock scope
     const char* failStage = nullptr;
@@ -667,11 +667,6 @@ bool CSerial::Close()
     // Only signal a connection state change if we were actually open
     if (wasOpen) InvokeConnectionChanged(false);
     
-    if (m_decodedPacket) {
-        delete m_decodedPacket;
-        m_decodedPacket = nullptr;
-	}
-
     return true;
 }
 

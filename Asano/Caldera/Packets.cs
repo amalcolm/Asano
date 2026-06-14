@@ -26,7 +26,8 @@ namespace Asano.Caldera
         private static readonly MyPool<NoisePacket> Pool = new(
             64,
             static () => new NoisePacket(),
-            static packet => packet.Reset());
+            static packet => packet.Reset()
+        );
 
         private int _returnedToPool;
 

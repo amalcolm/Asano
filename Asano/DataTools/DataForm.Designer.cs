@@ -34,8 +34,7 @@
             // 
             // multiChart
             // 
-            multiChart.BackColor = Color.DarkSlateGray;
-            multiChart.BorderStyle = BorderStyle.FixedSingle;
+            multiChart.BackColor = Color.FromArgb(8, 8, 16);
             multiChart.Dock = DockStyle.Fill;
             multiChart.Location = new Point(0, 0);
             multiChart.Name = "multiChart";
@@ -56,7 +55,7 @@
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            BackColor = Color.FromArgb(16, 8, 8);
+            BackColor = Color.FromArgb(8, 8, 16);
             ClientSize = new Size(800, 1235);
             Controls.Add(multiChart);
             Controls.Add(calderaControl);
