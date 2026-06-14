@@ -40,18 +40,22 @@ public:
   
 
   private:
-    uint64_t _offTimeTicks = 0;
-    uint64_t _lastSetTime = 0;
-    bool _validSetTime = false;
-
     struct TimingRecord {
       int pinsOn;
       uint64_t startTime;
       uint64_t endTime;
       uint64_t duration;
+
+      uint64_t weight;
     };
 
-    MyQueue<TimingRecord, 256> _timingQueue;
+    MyQueue<TimingRecord, 1024> _timingQueue;
+    void resetOffTiming();
+
+    uint64_t _offTimeTicks;
+    uint64_t _lastSetTime;
+    bool     _validSetTime;
+    uint64_t _totalWeight;
 
 };
 

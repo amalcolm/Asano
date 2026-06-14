@@ -42,8 +42,6 @@ StateType CHead::setNextState() {
   const bool reset = (m_sequencePosition == -1) || Pins::flashReset;
   if (reset) Pins::flashReset = false; // only use FlashReset once, and set it at start
 
-  const StateType oldState = reset ? UNSET : m_State;
-
   m_sequencePosition = (m_sequencePosition + 1) % m_sequence.size();
 
   const StateType newState = m_sequence[m_sequencePosition];
