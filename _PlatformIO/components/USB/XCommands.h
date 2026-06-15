@@ -65,6 +65,14 @@ struct XCMD_SetDebugFlags : public XCommand {
 
 static_assert(sizeof(XCMD_SetDebugFlags) == 8);
 
+struct XCMD_SetActiveState : public XCommand {
+  static constexpr uint8_t ID = 0x04;
+
+  uint32_t state; // bitfield for LEDs
+};
+
+static_assert(sizeof(XCMD_SetActiveState) == 12);
+
 
 // helpers for CommandFlags bitfield management,
 constexpr uint32_t      toU32     (CommandFlags  flags            ) { return static_cast<uint32_t>(flags);                   }

@@ -26,6 +26,7 @@ void CHead::applyState() {
   LED.writeState(m_State);
 
   HW = getHWforState();
+  if (ActiveHW == nullptr) ActiveHW = HW;
   HW->set();            // Apply hardware settings (digipots) for new state
 }
 

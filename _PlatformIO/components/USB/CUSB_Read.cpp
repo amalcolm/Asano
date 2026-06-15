@@ -2,6 +2,7 @@
 #include "XCommands.h"
 #include "CHead.h"
 #include "HWforState.h"
+#include "Helpers.h"
 #include <algorithm>
 #include <cstring>
 #include "Config.h"
@@ -9,10 +10,11 @@
 
 struct PayloadInfo { uint8_t id; size_t size; };
 
-const std::array<PayloadInfo, 3> s_payloads = {{
-  {XCMD_SetWipers::ID, sizeof(XCMD_SetWipers)},
-  {XCMD_SetState::ID,  sizeof(XCMD_SetState)},
-  {XCMD_SetDebugFlags::ID, sizeof(XCMD_SetDebugFlags)}
+const std::array<PayloadInfo, 4> s_payloads = {{
+  {XCMD_SetWipers::ID,      sizeof(XCMD_SetWipers)},
+  {XCMD_SetState::ID,       sizeof(XCMD_SetState)},
+  {XCMD_SetDebugFlags::ID,  sizeof(XCMD_SetDebugFlags)},
+  {XCMD_SetActiveState::ID, sizeof(XCMD_SetActiveState)}
 }};
 
 void CUSB::doRead() {
@@ -70,7 +72,8 @@ void CUSB::doRead() {
     switch (id) {
       case XCMD_SetWipers::ID: { XCMD_SetWipers cmd; std::memcpy(&cmd, pRead, packetSize);
 
-        HW->setWipers(cmd);
+        HWforState* targetHW = ActiveHW ? ActiveHW : HW;
+        if (targetHW) targetHW->setWipers(cmd);
         break;
       }
 
@@ -84,6 +87,13 @@ void CUSB::doRead() {
 
       case XCMD_SetDebugFlags::ID: { XCMD_SetDebugFlags cmd; std::memcpy(&cmd, pRead, packetSize);
         // not used currently, but must be present to handle command flags in headers
+        break;
+      }
+
+      case XCMD_SetActiveState::ID: { XCMD_SetActiveState cmd; std::memcpy(&cmd, pRead, packetSize);
+
+        if (cmd.state != UNSET && cmd.state != DIRTY)
+          ActiveHW = getHWforState(cmd.state);
         break;
       }
 

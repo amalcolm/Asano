@@ -74,6 +74,7 @@ namespace Asano.DataTools.Controls
         private void SP_DebugPacketReceived(DebugPacket packet)
         {   
             if (base.requestHold) return;
+            if (!IsActiveChartState(packet.State)) return;
 
             int max = Math.Min(packet.Count, MAX_SAMPLES);
 
@@ -147,6 +148,12 @@ namespace Asano.DataTools.Controls
 
             lock (_lock)
                 _latestHardware.CopyFrom(dataPacket);
+        }
+
+        private static bool IsActiveChartState(HeadState state)
+        {
+            HeadState? activeState = MyChart.ActiveChart?.ChartState;
+            return !activeState.HasValue || activeState.Value == state;
         }
 
         private readonly MyGLVertexBuffer _vertexBuffer = new(MAX_VERTICES);

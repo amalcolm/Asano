@@ -193,6 +193,7 @@ namespace Asano.Caldera
         public bool PostStateChange(int state, bool force = false)
         {
             _lastState = state;
+            WriteActiveStateCommand(state);
             var message = new StateChangedMessage((HeadState)state);
 
             return PostToViews(caldera =>
@@ -559,6 +560,9 @@ namespace Asano.Caldera
             var message = root.Deserialize<SetWipersMessage>();
             if (message?.Wipers == null) return;
 
+            if (TryGetActiveChartState(out var state))
+                WriteActiveStateCommand(state);
+
             Program.SerialPort?.Write(CreateSetWipersCommand(message.Wipers, message.CMDflags));
         }
 
@@ -783,7 +787,10 @@ namespace Asano.Caldera
             }
 
             if (restoreCommand != null)
+            {
+                WriteActiveStateCommand(state);
                 Program.SerialPort?.Write(restoreCommand);
+            }
         }
 
         private void ClearHeldWiperRestore()
@@ -802,6 +809,35 @@ namespace Asano.Caldera
             var voltages = new VoltagesChangedMessage();
             activeChart.CopyLatestCalderaMessages(target, voltages);
             return target.IsValid;
+        }
+
+        private static bool TryGetActiveChartState(out uint state)
+        {
+            state = 0;
+            var activeChart = MyChart.ActiveChart;
+            if (activeChart?.ChartState.HasValue != true) return false;
+
+            var chartState = unchecked((uint)activeChart.ChartState.Value);
+            if (chartState == unchecked((uint)HeadState.UNSET)) return false;
+
+            state = chartState;
+            return true;
+        }
+
+        private static void WriteActiveStateCommand(int state)
+        {
+            if (state < 0 || unchecked((uint)state) == unchecked((uint)HeadState.UNSET))
+                return;
+
+            WriteActiveStateCommand(unchecked((uint)state));
+        }
+
+        private static void WriteActiveStateCommand(uint state)
+        {
+            Program.SerialPort?.Write(new XCMD_SetActiveState
+            {
+                state = state,
+            });
         }
 
         private static XCMD_SetWipers CreateSetWipersCommand(WiperValues wipers, CommandFlags flags)

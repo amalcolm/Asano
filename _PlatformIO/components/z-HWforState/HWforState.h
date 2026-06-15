@@ -65,3 +65,4 @@ struct HWforState {
 };
 
 extern HWforState* HW;
+extern HWforState* ActiveHW;

@@ -90,4 +90,19 @@ namespace TheLib::Packets
             void set(CommandFlags value) { header.cmdFlags = value; }
         }
     };
+
+    [StructLayoutAttribute(LayoutKind::Sequential, Pack = 1)]
+    public ref struct XCMD_SetActiveState : IXCommand
+    {
+        literal Byte ID = 0x04;        virtual property Byte CommandID { Byte get() { return ID; } }
+        XCMD_Header header;
+
+        uint32_t state;
+
+        property CommandFlags cmdFlags
+        {
+            CommandFlags get() { return header.cmdFlags; }
+            void set(CommandFlags value) { header.cmdFlags = value; }
+        }
+    };
 }

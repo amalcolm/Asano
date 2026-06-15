@@ -54,19 +54,20 @@ bool Hardware::debugLayerOverride() {
   static CTeleCounter TC_Update{TeleGroup::HARDWARE, 1};
   static CTelePeriod  TP_Update{TeleGroup::HARDWARE, 2};
 
-  static C32bitTimer sampleTimer = C32bitTimer::From_S(3.1).setPeriodic(true); 
+  static C32bitTimer sampleTimer = C32bitTimer::From_Hz(5.0).setPeriodic(true);
 
   TP_Update.measure();
   TC_Update.increment();
 
-   if (firstCallInCycle && sampleTimer.passed()) {
-    if (HW->tools.testGetNoiseSample())
+  HWforState* targetHW = ActiveHW ? ActiveHW : HW;
+  if (firstCallInCycle && targetHW == HW && sampleTimer.passed()) {
+    if (targetHW->tools.testGetNoiseSample())
       Timer.sampleReady = true;
 
     return true;
   }
   firstCallInCycle = false;
- return false;
+  return false;
 }
 
 void Hardware::update() {

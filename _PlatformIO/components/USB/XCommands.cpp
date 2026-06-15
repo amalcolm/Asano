@@ -7,7 +7,10 @@
 void XCommand::processFlags() const {
   CFG::commandFlags = header.cmdFlags;
 
-  HW->tools.flags.holdWipers = this->hasFlag(CommandFlags::HoldWipers);
+  if (header.id != XCMD_SetWipers::ID) return;
+
+  HWforState* targetHW = ActiveHW ? ActiveHW : HW;
+  if (targetHW) targetHW->tools.flags.holdWipers = this->hasFlag(CommandFlags::HoldWipers);
 }
 
 void XCommand::honour() const {

@@ -13,6 +13,7 @@
 #include "PinHelpers.h"
 
 HWforState* HW = nullptr;
+HWforState* ActiveHW = nullptr;
 
 
 // =====================================================================================================
