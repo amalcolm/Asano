@@ -8,8 +8,9 @@
 #include "DataTypes.h"
 #include "CTimer.h"
 #include "Config.h"
+#include <limits>
 
-const uint64_t CHead::MAXUINT64 = static_cast<uint64_t>(-1);
+const int64_t CHead::MAXINT64 = std::numeric_limits<int64_t>::max();
 const ZTests zTest;
 
 

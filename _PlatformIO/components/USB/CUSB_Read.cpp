@@ -24,7 +24,6 @@ void CUSB::doRead() {
     return;
   }
 
-
   uint32_t bufferSize = static_cast<uint32_t>(m_readBuffer.size());
 
   uint32_t nBytesToRead = std::min(nAvailable, bufferSize - m_numBuffered);

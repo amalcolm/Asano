@@ -18,10 +18,12 @@ public:
   void setLevel(int newLevel);
   void offsetLevel(int offset);
 
+  void setUserLevel(int userLevel);
+
   inline int  getLevel() const { return _currentLevel;    }
   inline void invert()         { _inverted = !_inverted;  }
 
-  inline virtual void writeCurrentToPot() { _writeToPot(_currentLevel); }
+  void writeCurrentToPot();
   
   // equality relies on csPin
   bool operator==(const CDigiPot& other) const {
@@ -31,6 +33,7 @@ public:
 protected:
   int _csPin; 
   int _currentLevel = -1;
+  int _userLevel = -1;
   
   bool _inverted = false;
   

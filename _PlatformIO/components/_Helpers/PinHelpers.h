@@ -37,7 +37,7 @@ public:
   inline void on (int pin) { set  (pin); }
   inline void off(int pin) { clear(pin); }
 
-  void ensureOff(); // ensures all pins are off
+  inline void allOff() { write_raw(0x0000); }
 
 private:
   inline static bool _mcpInitialized = false;

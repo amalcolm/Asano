@@ -23,27 +23,16 @@ void LEDpins::write_raw(uint16_t data) {
   
   _current = data | _debugBits;
   int unsetPins = _numPinsOn;
-  uint64_t unsetTime = Timer.getConnectTicks();
+  int64_t unsetTime = Timer.getConnectTicks();
   mcp.writeGPIOAB(inverted  ? ~_current : _current);
-  uint64_t setTime = Timer.getConnectTicks();
+  int64_t setTime = Timer.getConnectTicks();
 
   if (Ready == false) return; 
   _numPinsOn = std::popcount(_current);
 
-  Timer.updateOffTime(unsetPins, unsetTime, _numPinsOn, setTime);
+  Timer.addLEDChange(unsetPins, _numPinsOn, unsetTime, setTime);
 }
 
-void LEDpins::ensureOff() {
-  if (_current == 0) return; // already off
-
-  uint64_t unsetTime = Timer.getConnectTicks();
-  mcp.writeGPIOAB(inverted ? 0xFFFF : 0x0000);
-  uint64_t setTime = Timer.getConnectTicks();
-
-  Timer.updateOffTime(_numPinsOn, unsetTime, 0, setTime);
-  _current = 0;
-  _numPinsOn = 0;
-}
 
 
 void LEDpins::set   (int pin) {  _debugBits |=  (1u << pin);  write_raw(_current); }

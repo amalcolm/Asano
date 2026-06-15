@@ -18,6 +18,25 @@ CTimer::CTimer() : CTimerBase() {
   restart();
 }
 
+int64_t CTimer::time() {
+  static uint32_t s_lastReading = 0;
+  static int64_t  s_offset      = 0;
+  static constexpr int64_t s_increment = int64_t{1} << 32;
+
+  uint32_t primask = __get_primask(); // save current interrupt state
+
+  uint32_t current = ARM_DWT_CYCCNT;
+
+  if (current < s_lastReading) s_offset += s_increment;
+
+  s_lastReading = current;
+
+  int64_t result = s_offset + static_cast<int64_t>(current) - s_calibration;
+
+  __set_primask(primask); // set previous interrupt state
+
+  return result;
+}
 
 void CTimer::callibrate() {
   s_calibration = 0;      // ensure no calibration offset

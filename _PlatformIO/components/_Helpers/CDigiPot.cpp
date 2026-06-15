@@ -41,6 +41,10 @@ void CDigiPot::setLevel(int newLevel) {
   _writeToPot(_currentLevel);
 };
 
+void CDigiPot::setUserLevel(int userLevel) {
+  _userLevel = std::clamp(userLevel, WIPER_MIN, WIPER_MAX);
+}
+
 void CDigiPot::offsetLevel(int offset) {
   int newLevel = std::clamp(_currentLevel + offset, WIPER_MIN, WIPER_MAX);
   if (newLevel == _currentLevel) return;
@@ -78,3 +82,13 @@ void CDigiPot::_writeToPot(int value) { if (_csPin < 0) return;
   }
   SPI.endTransaction();
 } 
+
+  void CDigiPot::writeCurrentToPot() { 
+  
+    if (_userLevel >= 0) {
+      _currentLevel = _userLevel;
+      _userLevel = -1;
+    }
+
+    _writeToPot(_currentLevel); 
+  }

@@ -30,3 +30,16 @@
 #define GPT_IR_OC2IE   (1u << 3)
 #define GPT_IR_OC3IE   (1u << 4)
 #endif
+
+static __inline__ __UINT32_TYPE__ __get_primask(void) __attribute__((always_inline));
+static __inline__ __UINT32_TYPE__ __get_primask(void) \
+{ __UINT32_TYPE__ primask = 0; \
+  __asm__ volatile ("MRS %[result], PRIMASK\n\t":[result]"=r"(primask)::); \
+  return primask;  // returns 0 if interrupts enabled, 1 if disabled
+}
+
+static __inline__ void __set_primask(__UINT32_TYPE__ setval) __attribute__((always_inline));
+static __inline__ void __set_primask(__UINT32_TYPE__ setval) \
+{ __asm__ volatile ("MSR PRIMASK, %[value]\n\t""dmb\n\t""dsb\n\t""isb\n\t"::[value]"r"(setval):);
+  __asm__ volatile ("" ::: "memory");
+}

@@ -2,11 +2,12 @@
 #include "C32bitTimer.h"
 #include "CA2DTimer.h"
 #include "CTimer.h"
+#include "MyQueue.h"
 
 class CMasterTimer : public CTimer {
   
 private:
-  inline static uint64_t s_connectTime = 0;
+  inline static int64_t s_connectTime = 0;
 
 public:
   const C32bitTimer state = C32bitTimer::From_uS(CFG::STATE_DURATION_uS     ).setPeriodic(true);
@@ -19,7 +20,7 @@ public:
   CMasterTimer();
   
          void     setConnectTime();
-  inline uint64_t getConnectTicks() { return  CTimer::time() - s_connectTime;                                 }
+  inline int64_t getConnectTicks() { return  CTimer::time() - s_connectTime;                                 }
   inline double   getConnectTime()  { return (CTimer::time() - s_connectTime) * CTimerBase::s_SecondsPerTick; }
 
   inline static double upTime() { return CTimer::time() * CTimerBase::s_SecondsPerTick; }
@@ -33,30 +34,28 @@ public:
   bool sampleReady = false;
   
 
-  void updateOffTime(int unsetPins, uint64_t unsetTime, int setPins, uint64_t setTime);
-  
-  void honourOffTime();
+  void addLEDChange(int fromPinCount, int toPinCount, int64_t unsetTime, int64_t setTime);
+  int64_t calculateOffTimeTicks() const;
+  void honourOffTime() const;
   
 
   private:
+    struct TimingRecord {
+      int pinsOn;
+      int64_t startTime;
+      int64_t endTime;
+      int64_t duration;
+
+      int64_t  weight;
+    };
+
+    MyQueue<TimingRecord, 1024> _timingQueue;
     void resetOffTiming();
-    void accountInterval(int pinsOn, uint64_t startTime, uint64_t endTime);
-    void accountDuration(int pinsOn, uint64_t duration);
-    void finishAccountingSecond(uint64_t nextSecondStart);
-    uint64_t getHonourDueTicks(uint64_t now) const;
-    void updateOffTelemetry(uint64_t now);
 
-    uint64_t _offTimeTicks;
-
-    uint64_t _accountingSecondStart;
-    uint64_t _lastSetTime;
+    int64_t _offTimeTicks;
+    int64_t _lastSetTime;
     bool     _validSetTime;
-    uint64_t _currentIncurredTicks;
-    uint64_t _currentHonouredTicks;
-    uint64_t _debtTicks;
-    uint64_t _honourTargetTicks;
-    uint64_t _honourPaidTicks;
-    uint64_t _honourWindowStart;
+    int64_t _totalWeight;
 
 };
 

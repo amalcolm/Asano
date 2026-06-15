@@ -48,6 +48,7 @@ double CFilteredSensor::read(int numSamples) { if (numSamples <= 0) ERROR("CFilt
 
   _lastValue = static_cast<int>(_lastV); // update sensor's lastValue for zone checking
   if (_inverted) _lastValue = 1023 - _lastValue;
+  _updateZone();
 
   return _lastV;
 }

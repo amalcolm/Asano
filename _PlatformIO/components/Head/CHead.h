@@ -72,7 +72,7 @@ class CHead {
     std::vector<StateType> m_sequence;
     int   m_sequencePosition = -1;
 
-    static const uint64_t MAXUINT64;
+    static const int64_t MAXINT64;
 
   private:
     void applyState();
