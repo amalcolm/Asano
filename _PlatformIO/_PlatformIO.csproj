@@ -5,11 +5,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Platforms>x64</Platforms>
+    <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
   </PropertyGroup>
 
   <Target Name="RemoveVisualStudioNestedGitStub"
           AfterTargets="Build"
-          Condition="Exists('$(MSBuildProjectDirectory)\.git\ms-persist.xml') and !Exists('$(MSBuildProjectDirectory)\.git\HEAD') and !Exists('$(MSBuildProjectDirectory)\.git\config')">
+          Condition="Exists('$(MSBuildProjectDirectory)\.git') and !Exists('$(MSBuildProjectDirectory)\.git\HEAD') and !Exists('$(MSBuildProjectDirectory)\.git\config')">
     <ItemGroup>
       <_VisualStudioNestedGitStub Include="$(MSBuildProjectDirectory)\.git\ms-persist.xml" />
       <_VisualStudioNestedGitStubDirectory Include="$(MSBuildProjectDirectory)\.git" />

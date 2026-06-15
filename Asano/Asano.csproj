@@ -8,6 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Platforms>AnyCPU;x64</Platforms>
 	<NoWarn>NU1701</NoWarn>
+    <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
   </PropertyGroup>
 
 	<Target Name="WriteBuildPaths" BeforeTargets="BeforeCompile">
@@ -16,6 +17,18 @@
 			<Compile Include="$(IntermediateOutputPath)BuildPaths.g.cs" />
 		</ItemGroup>
 	</Target>
+
+  <Target Name="RemovePlatformIOVisualStudioNestedGitStub"
+          AfterTargets="Build"
+          Condition="Exists('$(MSBuildProjectDirectory)\..\_PlatformIO\.git') and !Exists('$(MSBuildProjectDirectory)\..\_PlatformIO\.git\HEAD') and !Exists('$(MSBuildProjectDirectory)\..\_PlatformIO\.git\config')">
+    <ItemGroup>
+      <_PlatformIOVisualStudioNestedGitStub Include="$(MSBuildProjectDirectory)\..\_PlatformIO\.git\ms-persist.xml" />
+      <_PlatformIOVisualStudioNestedGitStubDirectory Include="$(MSBuildProjectDirectory)\..\_PlatformIO\.git" />
+    </ItemGroup>
+
+    <Delete Files="@(_PlatformIOVisualStudioNestedGitStub)" />
+    <RemoveDir Directories="@(_PlatformIOVisualStudioNestedGitStubDirectory)" />
+  </Target>
 
   <ItemGroup>
     <Compile Remove="obj\x64\Debug\net8.0-windows10.0.22000.0\BuildPaths.g.cs" />

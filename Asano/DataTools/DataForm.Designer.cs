@@ -55,7 +55,7 @@
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            BackColor = Color.FromArgb(8, 8, 16);
+            BackColor = Color.FromArgb(24, 23, 18);
             ClientSize = new Size(800, 1235);
             Controls.Add(multiChart);
             Controls.Add(calderaControl);

@@ -48,7 +48,7 @@
             _Options1.XAxisLabelClipRightPadding = 0F;
             _Options1.XAxisUnitScale = 1F;
             chart.AxesOptions = _Options1;
-            chart.BackColor = Color.DarkSlateGray;
+            chart.BackColor = Color.FromArgb(80, 32,24,10);
             chart.BorderStyle = BorderStyle.FixedSingle;
             chart.Dock = DockStyle.Fill;
             chart.EnableLabels = true;
