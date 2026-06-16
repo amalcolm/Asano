@@ -22,9 +22,41 @@ import { ModelStorage } from "../model/ModelStorage.js";
 const EMPTY_AXIS_RANGE = [0, 3.3];
 const STAGE_TRACK_MATH = MODEL_TRACKS.MATH;
 const STAGE_TRACK_PHYSICS = MODEL_TRACKS.PHYSICS;
+const MID_STEP_COMPONENT = "Mid Step";
 const MODEL_UPLOAD_STATE_IDLE = "idle";
 const MODEL_UPLOAD_STATE_UPLOADING = "uploading";
 const MODEL_UPLOAD_STATE_UPLOADED = "uploaded";
+const MODEL_UPLOAD_PAYLOAD_DIFF_AMP = "diffAmp";
+const MODEL_UPLOAD_PAYLOAD_MID_STEP = "midStep";
+const MODEL_UPLOAD_REQUIREMENTS = Object.freeze([
+  {
+    components: [DIFF_AMP_COMPONENT],
+    payload: MODEL_UPLOAD_PAYLOAD_DIFF_AMP,
+    requiredTracks: [STAGE_TRACK_MATH, STAGE_TRACK_PHYSICS],
+    sources: ["test1"],
+  },
+  {
+    components: [MID_STEP_COMPONENT],
+    payload: MODEL_UPLOAD_PAYLOAD_MID_STEP,
+    requiredTracks: [STAGE_TRACK_MATH],
+    sources: ["test4"],
+  },
+]);
+const MID_STEP_MODEL_SCHEMA = Object.freeze({
+  schemaVersion: 1,
+  id: "caldera.midStep.math.v1",
+  name: "Mid Step math model",
+  purpose: "Defines the pivot-state Mid Step model derived from Test4 calibration data.",
+  inputs: {
+    midVoltage: { description: "Calculated mid wiper voltage.", unit: "V" },
+    sensor1Estimate: { description: "Sensor1 estimate at the current mid voltage.", unit: "V" },
+  },
+  outputs: {
+    pivotMidVoltage: { description: "Shared mid-voltage pivot used by the finite-difference model.", unit: "V" },
+    pivotSensor1Estimate: { description: "Shared Sensor1 estimate at the pivot.", unit: "V" },
+    residual: { description: "Measured-minus-predicted Sensor2 delta per mid step.", unit: "V/count" },
+  },
+});
 const GAIN_MARKER_COLORS = Object.freeze([
   "#ff3b30",
   "#ff9500",
@@ -1743,7 +1775,7 @@ export class AnalysisPanel {
       return;
     }
 
-    const hasModelTools = this.hasComparableModelTracks();
+    const hasModelTools = this.hasUploadableModelTracks();
     const isUploading = this.modelUploadState === MODEL_UPLOAD_STATE_UPLOADING;
     const isUploaded = this.modelUploadState === MODEL_UPLOAD_STATE_UPLOADED;
     const isInstalledForLoadedCsv = this.isLoadedCsvModelInstalled();
@@ -1809,6 +1841,21 @@ export class AnalysisPanel {
   hasComparableModelTracks() {
     return this.hasModelTrack(STAGE_TRACK_MATH)
       && this.hasModelTrack(STAGE_TRACK_PHYSICS);
+  }
+
+  hasUploadableModelTracks() {
+    const requirement = this.getModelUploadRequirement();
+
+    return Boolean(requirement
+      && requirement.requiredTracks.every((track) => this.hasModelTrack(track)));
+  }
+
+  getModelUploadRequirement() {
+    const metadata = this.dataset.metadata ?? {};
+
+    return MODEL_UPLOAD_REQUIREMENTS.find((requirement) => (
+      matchesModelUploadRequirement(requirement, metadata)
+    )) ?? null;
   }
 
   handleInstallModelClick() {
@@ -2117,10 +2164,7 @@ export class AnalysisPanel {
     const activeModelType = normaliseText(modelType) ?? this.activeStageTrack ?? "unknown";
     const timestamp = getUploadTimestamp({ createdAt, date, time });
     const modelSnapshot = this.getCurrentModelSnapshotForUpload();
-    const derivedPhysicsModel = modelSnapshot?.ready
-      ? this.physicsModel.deriveFromMathModel(modelSnapshot)
-      : null;
-    const diffAmpModelPayload = createDifferentialAmpModelPayload(derivedPhysicsModel);
+    const modelPayload = this.createModelUploadPayload(modelSnapshot);
     return {
       schemaVersion: 1,
       createdAt: timestamp.createdAt,
@@ -2142,8 +2186,22 @@ export class AnalysisPanel {
         researcher: normaliseText(researcher) ?? "",
         revision: getPositiveInteger(revision, 1),
       },
-      payload: diffAmpModelPayload,
+      payload: modelPayload,
     };
+  }
+
+  createModelUploadPayload(modelSnapshot) {
+    const requirement = this.getModelUploadRequirement();
+
+    if (requirement?.payload === MODEL_UPLOAD_PAYLOAD_MID_STEP) {
+      return createMidStepModelPayload(modelSnapshot);
+    }
+
+    const derivedPhysicsModel = modelSnapshot?.ready
+      ? this.physicsModel.deriveFromMathModel(modelSnapshot)
+      : null;
+
+    return createDifferentialAmpModelPayload(derivedPhysicsModel);
   }
 
   showModelComparator(mode = "current") {
@@ -3285,6 +3343,8 @@ function getModelUploadButtonText({
 }
 
 const MODEL_UPLOAD_ALIGNED_OBJECT_PATHS = new Set([
+  "payload.model.pivot",
+  "payload.model.residual",
   "payload.constants.calibrated",
   "payload.constants.circuit",
   "payload.schema.inputs",
@@ -3455,6 +3515,51 @@ function isObjectLike(value) {
 
 function getJsonIndent(level) {
   return "  ".repeat(level);
+}
+
+function createMidStepModelPayload(modelSnapshot = null) {
+  const pivot = isPlainObject(modelSnapshot?.pivot) ? modelSnapshot.pivot : {};
+  const residual = isPlainObject(modelSnapshot?.residual) ? modelSnapshot.residual : {};
+
+  return {
+    schema: MID_STEP_MODEL_SCHEMA,
+    model: {
+      id: normaliseText(modelSnapshot?.id) ?? null,
+      kind: normaliseText(modelSnapshot?.kind) ?? "mid-step-math",
+      pivot: {
+        midVoltage: getFiniteNumberOrNull(pivot.midVoltage),
+        sensor1Estimate: getFiniteNumberOrNull(pivot.sensor1Estimate),
+      },
+      ready: modelSnapshot?.ready === true,
+      residual: {
+        maxAbs: getFiniteNumberOrNull(residual.maxAbs),
+        mean: getFiniteNumberOrNull(residual.mean),
+        rmse: getFiniteNumberOrNull(residual.rmse),
+      },
+    },
+  };
+}
+
+function matchesModelUploadRequirement(requirement, metadata = {}) {
+  const componentText = getUploadLookupText(metadata.component ?? metadata.name);
+  const sourceText = getUploadLookupText(metadata.source);
+  const components = (requirement.components ?? []).map(getUploadLookupText);
+  const sources = (requirement.sources ?? []).map(getUploadLookupText);
+
+  return Boolean(
+    (componentText && components.includes(componentText))
+      || (sourceText && sources.includes(sourceText)),
+  );
+}
+
+function getUploadLookupText(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function getFiniteNumberOrNull(value) {
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : null;
 }
 
 function getDefaultUploadName(filename, fallbackName) {

@@ -13,10 +13,10 @@ void setup() {
 //  zTest.FullTest,                 // Can use predefined sequences from ZTests.h
 //  Head.RED1 | Head.IR1,           // use OR ( | ) to combine LEDs
     
-    Head.ALL_OFF,
+//    Head.ALL_OFF,
     Head.RED1,
-    Head.IR1, 
-    Head.RED1 | Head.IR1,
+//    Head.IR1, 
+//    Head.RED1 | Head.IR1,
 });
 
   Hardware::begin();
