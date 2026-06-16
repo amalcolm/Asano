@@ -17,14 +17,25 @@ HWforState::~HWforState() = default;
 
 void HWforState::_readSensor2() {  if (Timer.sampleReady) return;
   static constexpr double STATE_DURATION = CFG::STATE_DURATION_uS * 0.000'001; // convert to seconds
+  static constexpr double MINIMUM_TIME_LEFT = 0.001; // 1 ms, don't start a read if less than this time is left in the state
   static constexpr double MINIMUM_READ_TIME = 0.000'1; // 0.1 ms
+
+  static constexpr double MIN_FINALSAMPLE_TIME = STATE_DURATION - MINIMUM_TIME_LEFT - MINIMUM_READ_TIME;
+
+  static constexpr int MAXIMUM_SHORT_READS = 6;
+
+  static int shortReadCount = 0;
+   
+
   static double read_duration = 16.667 * 0.000'001;
   
-  if (Timer.getStateTime() < 0.001) {
+  if (Timer.getStateTime() < MIN_FINALSAMPLE_TIME && shortReadCount < MAXIMUM_SHORT_READS) {
     sensor1.read(1); // priming filter with early reads
     sensor2.read(1);
+    shortReadCount++;
     return;
   }
+  shortReadCount = 0; // reset short read count for next state
 
   
 

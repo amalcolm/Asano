@@ -15,8 +15,8 @@ CMasterTimer::CMasterTimer() : CTimer() {
   resetOffTiming();
  }
  
-void CMasterTimer::syncAndChangeState() { 
-  if (state.passed()) {} // if we've passed the next state, sync to the following period marker
+void CMasterTimer::syncChangeState() { 
+  if (state.passed()) {} // ignore, or wait for next changtime, if needed
   uint32_t now = state.wait();
 
   Head.resetAt(now + HEAD_DELAY_TICKS);

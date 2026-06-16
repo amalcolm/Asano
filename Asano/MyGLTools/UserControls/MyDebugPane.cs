@@ -33,6 +33,15 @@ namespace Asano.MyGLTools.UserControls
 
         protected override void DrawText() => log.Draw();
 
+        protected override void OnResize(EventArgs e)
+        {   
+            base.OnResize(e);
+         
+            if (IsHandleCreated == false || log.isInitialized == false) return;
+            
+            GLThread?.Invoke(() => log.Init());
+        }
+
     }
 
 }

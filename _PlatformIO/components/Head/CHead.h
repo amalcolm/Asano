@@ -75,7 +75,7 @@ class CHead {
     static const int64_t MAXINT64;
 
   private:
-    void applyState();
+    void _applyState(StateType newState);
   
 };
 

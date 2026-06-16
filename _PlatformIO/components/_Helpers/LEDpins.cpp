@@ -65,6 +65,8 @@ void Pins::flash(int numFlashes) {
 void LEDpins::initMCP(){
   if (_mcpInitialized) return;
 
+  _mcpInitialized = true;   // avoid infinit recursion if MCP init fails and calls ERROR
+
   if (mcp.begin_I2C() == false) ERROR("MCP23017 not found.\n");
 
   Wire.setClock(400000);
@@ -74,7 +76,6 @@ void LEDpins::initMCP(){
     mcp.digitalWrite(i, _low);
   }
 
-  _mcpInitialized = true;  
 }
 
 // =====================================================================================================

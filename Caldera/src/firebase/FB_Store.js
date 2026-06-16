@@ -10,10 +10,10 @@ import {
 import { getAI, getGenerativeModel, GoogleAIBackend } from "firebase/ai";
 import { FB_Panel } from "./FB_Panel.js";
 import { ModelStorage } from "../model/ModelStorage.js";
+import { DIFF_AMP_COMPONENT } from "../model/components/diff-amp/DA_Adapter.js";
 
 const DEFAULT_APP_NAME = "[DEFAULT]";
 const DEFAULT_COLLECTION_NAME = "modelRuns";
-const DIFF_AMP_COMPONENT = "Diff.Amp.";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,

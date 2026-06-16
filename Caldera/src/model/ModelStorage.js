@@ -1,3 +1,5 @@
+import { DIFF_AMP_COMPONENT } from "./components/diff-amp/DA_Adapter.js";
+
 const KNOWN_MODELS_STORAGE_KEY = "caldera:knownModels:v1";
 const MODEL_STORAGE_PREFIX = "caldera:model:v1:";
 const KNOWN_MODELS_SCHEMA_VERSION = 1;
@@ -200,7 +202,7 @@ export class ModelStore {
 
   getComponentModels() {
     return {
-      diffAmp: this.getActiveModel("Diff.Amp."),
+      diffAmp: this.getActiveModel(DIFF_AMP_COMPONENT),
     };
   }
 }

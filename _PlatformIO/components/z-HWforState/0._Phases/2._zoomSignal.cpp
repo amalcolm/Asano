@@ -20,7 +20,12 @@ void HWforState::_zoomSignal() {
   }
 
   bool reverting = false;
+
+  int itteration = 0;
+
   while (phase == Phase::ZOOM) {
+    if (++itteration > 1000) ERROR("zoomSignal: too many iterations");
+
     flags.zoomLevel += 16;
     gain.setLevel(flags.zoomLevel);
     delayMicroseconds(10);

@@ -1,4 +1,5 @@
 ﻿
+using Asano.DataTools;
 using Asano.MyGLTools.Fonts;
 using Asano.MyGLTools.UserControls;
 using OpenTK.Mathematics;
@@ -26,6 +27,7 @@ namespace Asano.MyGLTools.Helpers
         int lineHeight;
         LineVertices Elipses;
 
+        public bool isInitialized { get; private set; } = false;
         public void Init()
         {
             var fr = control.fontRenderer;
@@ -44,6 +46,7 @@ namespace Asano.MyGLTools.Helpers
             Elipses = new LineVertices { Vertices = buf, Length = numVerts };
 
             control.AutoClear = false;
+            isInitialized = true;
         }
 
         public void Shutdown()
@@ -142,7 +145,31 @@ namespace Asano.MyGLTools.Helpers
                 else
                     str?.Dispose();
             }
+
+            if (UsedLines > 8 && LogForm.IsOpen == false)
+            {
+                parentControl ??= control.Parent;
+                if (parentControl != null)
+                    parentControl.Invoke(() =>
+                    {
+                        parentControl.Controls.Remove(control);
+                        LogForm.Open(control);
+                        LogForm.OnClose += LogForm_Close;
+                    });
+            }
         }
+
+        void LogForm_Close(object? sender, EventArgs e)
+        {
+             parentControl?.Invoke(() =>
+            {
+                LogForm.OnClose -= LogForm_Close;
+                parentControl.Controls.Add(control);
+                parentControl = null;
+            });
+        }
+
+        Control? parentControl = null;
 
         private void AddLine(AString str)
         {

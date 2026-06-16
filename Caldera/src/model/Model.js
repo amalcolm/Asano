@@ -1,7 +1,7 @@
 import { DigiPot, Slider, getPoweredDigipotTerminalVoltages } from "./components/DigiPot.js";
 import { Constants } from "./Constants.js";
-import { DifferentialAmp } from "./components/DifferentialAmp.js";
-import { createDifferentialAmpModelAdapter } from "./DifferentialAmpModelAdapter.js";
+import { DifferentialAmp } from "./components/diff-amp/DA_Component.js";
+import { createDifferentialAmpModelAdapter } from "./components/diff-amp/DA_Adapter.js";
 import { isValidSensorVoltage } from "./voltage.js";
 
 const THREE_POT_RAILS = Constants.THREE_POT_RAILS;

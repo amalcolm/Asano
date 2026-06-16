@@ -10,19 +10,19 @@ import {
   PHYSICS_STAGE_FIVE_ID,
   PHYSICS_STAGE_FOUR_ID,
   PHYSICS_STAGE_ONE_ID,
-  createDifferentialAmpModelPayload,
   getPhysicsStageData as getPhysicsStageModelData,
   getPhysicsStages,
 } from "./modelling/phys_DiffAmp.js";
 import { DifferentialAmpFormulaTester } from "./testing/math_DiffAmp.js";
-import { DifferentialAmpSensorModel } from "../helpers/DifferentialAmpSensorModel.js";
-import { DIFF_AMP_COMPONENT, createDifferentialAmpModelAdapter } from "../model/DifferentialAmpModelAdapter.js";
 import { ModelStorage } from "../model/ModelStorage.js";
+import { DIFF_AMP_COMPONENT, createDifferentialAmpModelAdapter } from "../model/components/diff-amp/DA_Adapter.js";
+import { createDifferentialAmpModelPayload } from "../model/components/diff-amp/DA_Payload.js";
+import { DifferentialAmpSensorModel } from "../model/components/diff-amp/DA_SensorModel.js";
+import { MID_STEP_COMPONENT, createMidStepModelPayload } from "../model/components/mid-step/MS_Payload.js";
 
 const EMPTY_AXIS_RANGE = [0, 3.3];
 const STAGE_TRACK_MATH = MODEL_TRACKS.MATH;
 const STAGE_TRACK_PHYSICS = MODEL_TRACKS.PHYSICS;
-const MID_STEP_COMPONENT = "Mid Step";
 const MODEL_UPLOAD_STATE_IDLE = "idle";
 const MODEL_UPLOAD_STATE_UPLOADING = "uploading";
 const MODEL_UPLOAD_STATE_UPLOADED = "uploaded";
@@ -42,21 +42,6 @@ const MODEL_UPLOAD_REQUIREMENTS = Object.freeze([
     sources: ["test4"],
   },
 ]);
-const MID_STEP_MODEL_SCHEMA = Object.freeze({
-  schemaVersion: 1,
-  id: "caldera.midStep.math.v1",
-  name: "Mid Step math model",
-  purpose: "Defines the pivot-state Mid Step model derived from Test4 calibration data.",
-  inputs: {
-    midVoltage: { description: "Calculated mid wiper voltage.", unit: "V" },
-    sensor1Estimate: { description: "Sensor1 estimate at the current mid voltage.", unit: "V" },
-  },
-  outputs: {
-    pivotMidVoltage: { description: "Shared mid-voltage pivot used by the finite-difference model.", unit: "V" },
-    pivotSensor1Estimate: { description: "Shared Sensor1 estimate at the pivot.", unit: "V" },
-    residual: { description: "Measured-minus-predicted Sensor2 delta per mid step.", unit: "V/count" },
-  },
-});
 const GAIN_MARKER_COLORS = Object.freeze([
   "#ff3b30",
   "#ff9500",
@@ -167,6 +152,7 @@ export class AnalysisPanel {
     this.installModelButton = null;
     this.installedModelStorageKey = null;
     this.modelUploadState = MODEL_UPLOAD_STATE_IDLE;
+    this.modelUploadId = null;
     this.uploadedModelRunId = null;
     this.sourceCsvFilename = null;
     this.isFormulaTesting = false;
@@ -1804,6 +1790,7 @@ export class AnalysisPanel {
   resetModelUploadState({ closeOverlay = false } = {}) {
     this.modelUploadState = MODEL_UPLOAD_STATE_IDLE;
     this.installedModelStorageKey = null;
+    this.modelUploadId = null;
     this.uploadedModelRunId = null;
 
     if (closeOverlay) {
@@ -1867,7 +1854,6 @@ export class AnalysisPanel {
     try {
       const modelType = this.getPreviewModelTrack();
       const packet = this.createModelUploadPacket({
-        model: formatModelType(modelType),
         modelType,
       });
       const result = this.modelStorage.installModelPacket(packet, {
@@ -1943,7 +1929,7 @@ export class AnalysisPanel {
     fields.time.value = timestamp.time;
     fields.process.value = details.process ?? "";
     fields.component.value = details.component ?? "";
-    fields.model.value = details.model ?? "";
+    fields.model.value = details.model ?? formatModelType(details.modelType);
     fields.name.value = details.name ?? "";
     fields.notes.value = details.notes ?? "";
     fields.researcher.value = details.researcher ?? "";
@@ -2078,7 +2064,6 @@ export class AnalysisPanel {
     const packet = this.createModelUploadPacket({
       component: this.modelUploadFields.component.value,
       date: this.modelUploadFields.date.value,
-      model: this.modelUploadFields.model.value,
       name: this.modelUploadFields.name.value,
       notes: this.modelUploadFields.notes.value,
       process: this.modelUploadFields.process.value,
@@ -2149,7 +2134,6 @@ export class AnalysisPanel {
     component = null,
     createdAt = null,
     date = null,
-    model = null,
     modelType = null,
     name = null,
     notes = null,
@@ -2168,7 +2152,6 @@ export class AnalysisPanel {
     return {
       schemaVersion: 1,
       createdAt: timestamp.createdAt,
-      kind: "caldera.modelRun",
       dataset: {
         category: metadata.category ?? "",
         component: datasetComponent,
@@ -2178,7 +2161,7 @@ export class AnalysisPanel {
       },
       details: {
         component: normaliseText(component) ?? datasetComponent,
-        model: normaliseText(model) ?? formatModelType(activeModelType),
+        modelId: this.getModelUploadId(),
         modelType: activeModelType,
         name: normaliseText(name) ?? getDefaultUploadName(sourceFilename, datasetComponent),
         notes: normaliseText(notes) ?? "",
@@ -2188,6 +2171,12 @@ export class AnalysisPanel {
       },
       payload: modelPayload,
     };
+  }
+
+  getModelUploadId() {
+    this.modelUploadId ??= createUploadModelId();
+
+    return this.modelUploadId;
   }
 
   createModelUploadPayload(modelSnapshot) {
@@ -3343,14 +3332,12 @@ function getModelUploadButtonText({
 }
 
 const MODEL_UPLOAD_ALIGNED_OBJECT_PATHS = new Set([
-  "payload.model.pivot",
-  "payload.model.residual",
   "payload.constants.calibrated",
-  "payload.constants.circuit",
+  "payload.constants.assumed",
   "payload.schema.inputs",
   "payload.schema.outputs",
+  "payload.schema.requiredConstants.assumed",
   "payload.schema.requiredConstants.calibrated",
-  "payload.schema.requiredConstants.circuit",
 ]);
 
 function formatModelUploadPacketPreview(packet) {
@@ -3517,29 +3504,6 @@ function getJsonIndent(level) {
   return "  ".repeat(level);
 }
 
-function createMidStepModelPayload(modelSnapshot = null) {
-  const pivot = isPlainObject(modelSnapshot?.pivot) ? modelSnapshot.pivot : {};
-  const residual = isPlainObject(modelSnapshot?.residual) ? modelSnapshot.residual : {};
-
-  return {
-    schema: MID_STEP_MODEL_SCHEMA,
-    model: {
-      id: normaliseText(modelSnapshot?.id) ?? null,
-      kind: normaliseText(modelSnapshot?.kind) ?? "mid-step-math",
-      pivot: {
-        midVoltage: getFiniteNumberOrNull(pivot.midVoltage),
-        sensor1Estimate: getFiniteNumberOrNull(pivot.sensor1Estimate),
-      },
-      ready: modelSnapshot?.ready === true,
-      residual: {
-        maxAbs: getFiniteNumberOrNull(residual.maxAbs),
-        mean: getFiniteNumberOrNull(residual.mean),
-        rmse: getFiniteNumberOrNull(residual.rmse),
-      },
-    },
-  };
-}
-
 function matchesModelUploadRequirement(requirement, metadata = {}) {
   const componentText = getUploadLookupText(metadata.component ?? metadata.name);
   const sourceText = getUploadLookupText(metadata.source);
@@ -3556,16 +3520,22 @@ function getUploadLookupText(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-function getFiniteNumberOrNull(value) {
-  const number = Number(value);
-
-  return Number.isFinite(number) ? number : null;
-}
-
 function getDefaultUploadName(filename, fallbackName) {
   const description = getFilenameDescription(filename);
 
   return description ?? normaliseText(fallbackName) ?? "model";
+}
+
+function createUploadModelId() {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return [
+    Date.now().toString(36),
+    Math.random().toString(36).slice(2, 10),
+    Math.random().toString(36).slice(2, 10),
+  ].join("-");
 }
 
 function formatModelType(modelType) {

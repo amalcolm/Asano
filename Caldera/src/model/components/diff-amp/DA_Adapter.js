@@ -5,7 +5,7 @@ export class DifferentialAmpModelAdapter {
     this.installedModel = installedModel;
     this.packet = installedModel?.packet ?? installedModel ?? null;
     this.constants = this.packet?.payload?.constants ?? null;
-    this.circuit = this.constants?.circuit ?? {};
+    this.assumed = this.constants?.assumed ?? this.constants?.circuit ?? {};
     this.calibrated = this.constants?.calibrated ?? {};
   }
 
@@ -25,11 +25,11 @@ export class DifferentialAmpModelAdapter {
   }
 
   get sourceResistanceOhms() {
-    return getKnownNumber(this.circuit.sourceResistanceOhms);
+    return getKnownNumber(this.assumed.sourceResistanceOhms);
   }
 
   get fixedFeedbackResistanceOhms() {
-    return getKnownNumber(this.circuit.fixedFeedbackResistanceOhms);
+    return getKnownNumber(this.assumed.fixedFeedbackResistanceOhms);
   }
 
   get gainZeroResidualResistanceOhms() {
@@ -49,16 +49,16 @@ export class DifferentialAmpModelAdapter {
   }
 
   get digipotResistanceOhms() {
-    return getKnownNumber(this.circuit.digipotResistanceOhms)
-      ?? getKnownNumber(this.circuit.digitpotResistanceOhms);
+    return getKnownNumber(this.assumed.digipotResistanceOhms)
+      ?? getKnownNumber(this.assumed.digitpotResistanceOhms);
   }
 
   get supplyVoltage() {
-    return getKnownNumber(this.circuit.supplyVoltage);
+    return getKnownNumber(this.assumed.supplyVoltage);
   }
 
   get wiperMax() {
-    return getKnownNumber(this.circuit.wiperMax);
+    return getKnownNumber(this.assumed.wiperMax);
   }
 
   getFixedFeedbackEffectiveResistanceOhms() {

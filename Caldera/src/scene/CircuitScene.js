@@ -1,7 +1,7 @@
-import { DifferentialAmpSensorModel } from "../helpers/DifferentialAmpSensorModel.js";
 import { SensorErrorReadouts } from "../helpers/SensorErrorReadouts.js";
 import { TickSound } from "../helpers/TickSound.js";
-import { createDifferentialAmpModelAdapter } from "../model/DifferentialAmpModelAdapter.js";
+import { createDifferentialAmpModelAdapter } from "../model/components/diff-amp/DA_Adapter.js";
+import { DifferentialAmpSensorModel } from "../model/components/diff-amp/DA_SensorModel.js";
 import { DifferentialAmp } from "./shapes/DifferentialAmp.js";
 import { TIA } from "./shapes/TIA.js";
 import { PhotoDiode } from "./shapes/PhotoDiode.js";

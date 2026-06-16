@@ -1,5 +1,5 @@
-import { Constants } from "../Constants.js";
-import { isKnownVoltage } from "../voltage.js";
+import { Constants } from "../../Constants.js";
+import { isKnownVoltage } from "../../voltage.js";
 
 export class DifferentialAmp {
   constructor({

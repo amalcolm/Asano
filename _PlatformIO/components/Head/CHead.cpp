@@ -22,11 +22,14 @@ void CHead::begin() {
   LED.clear();  // turn off all LEDs
 }
 
-void CHead::applyState() {
-  LED.writeState(m_State);
+void CHead::_applyState(StateType newState) {
 
-  HW = getHWforState();
+  HW = getHWforState(newState);
   if (ActiveHW == nullptr) ActiveHW = HW;
+
+  LED.writeState(m_State); // set LEDs for new state
+
+  m_State = newState;
   HW->set();            // Apply hardware settings (digipots) for new state
 }
 
@@ -39,7 +42,7 @@ void CHead::waitForReady() const {
 StateType CHead::setNextState() {
   if (m_sequencePosition < 0) Ready = true;
 
-  Timer.syncAndChangeState(); // wait on state timer, then align timers to the state change marker
+  Timer.syncChangeState(); // wait on state timer, then align timers to the state change marker
 
   const bool reset = (m_sequencePosition == -1) || Pins::flashReset;
   if (reset) Pins::flashReset = false; // only use FlashReset once, and set it at start
@@ -52,8 +55,7 @@ StateType CHead::setNextState() {
   A2D.setReadState(CA2D::ReadState::PREPARE);
 
   // always apply state even if it's the same state to ensure stability in timing and adherance to off time
-  m_State = newState;
-  applyState();
+  _applyState(newState);
 
   return m_State;
 }

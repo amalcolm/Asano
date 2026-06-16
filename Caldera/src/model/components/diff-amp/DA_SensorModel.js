@@ -1,6 +1,6 @@
-import { isKnownVoltage } from "../model/voltage.js";
-import { getPoweredDigipotTerminalVoltages } from "../model/components/DigiPot.js";
-import { Constants } from "../model/Constants.js";
+import { isKnownVoltage } from "../../voltage.js";
+import { getPoweredDigipotTerminalVoltages } from "../DigiPot.js";
+import { Constants } from "../../Constants.js";
 
 const DEFAULT_OFFSET_TERMINALS = getPoweredDigipotTerminalVoltages(Constants.OFFSET_RAILS);
 const DEFAULT_OFFSET_LOW_V = DEFAULT_OFFSET_TERMINALS.bottom;

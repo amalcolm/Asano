@@ -5,15 +5,15 @@ import { COMMAND_FLAGS, normaliseCommandFlags } from "./helpers/CommandFlags.js"
 import { DebugFlagsControl } from "./helpers/DebugFlagsControl.js";
 import { DebugSettingsControl } from "./helpers/DebugSettingsControl.js";
 import { FB_Store } from "./firebase/FB_Store.js";
-import { DIFF_AMP_COMPONENT, createDifferentialAmpModelAdapter } from "./model/DifferentialAmpModelAdapter.js";
 import { Model } from "./model/Model.js";
 import { ModelStore } from "./model/ModelStorage.js";
+import { DIFF_AMP_COMPONENT, createDifferentialAmpModelAdapter } from "./model/components/diff-amp/DA_Adapter.js";
+import { DifferentialAmpSensorModel } from "./model/components/diff-amp/DA_SensorModel.js";
 import { STATE_LED_ROWS, StateControl } from "./helpers/StateControl.js";
 import { TEST_PANEL_HTML, TestPanel } from "./analysis/TestPanel.js";
 import { TickSound } from "./helpers/TickSound.js";
 import { WebView } from "./WebView.js";
 import { WIPER_IDS, getModelWipers, normaliseWipers } from "./helpers/Wipers.js";
-import { DifferentialAmpSensorModel } from "./helpers/DifferentialAmpSensorModel.js";
 
 const BUTTON_TICK_FREQUENCY = 4096;
 const LED_BUTTON_OFF_TICK_FREQUENCY = 1024;

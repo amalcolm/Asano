@@ -27,7 +27,7 @@ public:
   inline double getStateTime()  { return state.getSeconds(); }
   inline double getStateTime(uint32_t now)  { return state.getSeconds(now); }
 
-  void syncAndChangeState(); // Sets m_stateChange and aligns A2D read timing
+  void syncChangeState(); // aligns A2D read timing
 
   bool addEvent(const enum EventKind kind, double time = -1.0);
 

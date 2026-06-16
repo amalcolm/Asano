@@ -1,5 +1,5 @@
-import { DifferentialAmpSensorModel } from "../helpers/DifferentialAmpSensorModel.js";
 import { getModelWipers } from "../helpers/Wipers.js";
+import { DifferentialAmpSensorModel } from "../model/components/diff-amp/DA_SensorModel.js";
 import { isValidSensorVoltage } from "../model/voltage.js";
 import { DEFAULT_MODEL_MAPPING } from "./ModelMapping.js";
 
