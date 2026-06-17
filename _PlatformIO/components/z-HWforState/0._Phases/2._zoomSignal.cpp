@@ -4,57 +4,77 @@
 #include "CUSB.h"
 #include <algorithm>
 
-void HWforState::_zoomSignal() { 
+void HWforState::_zoomSignal() {
   auto& flags = tools.flags;
-  
-  tools.readCheck(); if (phase != Phase::ZOOM) return; 
+
+  tools.readCheck(); if (phase != Phase::ZOOM) return;
 
   if (flags.zoomLevel == -1) {
     flags.zoomLevel = 15;
     gain.setLevel(flags.zoomLevel);
     // mid is assumed to be near sensor1Target at this point, from SEARCH
     offset.setLevel(128);
+    flags.zoomBalanceGain = -1;
+    flags.zoomBalanceStableReads = 0;
+    flags.zoomBalanceSteps = 0;
+    flags.zoomFinishAfterBalance = false;
     delayMicroseconds(10);
-
-    tools.seekTargets();
+    return;
   }
 
-  bool reverting = false;
+  if (!tools.balanceForZoom()) {
+    if (phase != Phase::ZOOM) {
+      flags.zoomLevel = -1;
+      flags.zoomBalanceGain = -1;
+      flags.zoomBalanceStableReads = 0;
+      flags.zoomBalanceSteps = 0;
+      flags.zoomFinishAfterBalance = false;
+    }
+    return;
+  }
 
-  int itteration = 0;
+  if (flags.zoomFinishAfterBalance) {
+    phase = Phase::MEASURE;
+  }
 
-  while (phase == Phase::ZOOM) {
-    if (++itteration > 1000) ERROR("zoomSignal: too many iterations");
+  if (phase != Phase::ZOOM) {
+    flags.zoomLevel = -1;
+    flags.zoomBalanceGain = -1;
+    flags.zoomBalanceStableReads = 0;
+    flags.zoomBalanceSteps = 0;
+    flags.zoomFinishAfterBalance = false;
+    return;
+  }
 
-    flags.zoomLevel += 16;
+  int previousZoomLevel = flags.zoomLevel;
+  flags.zoomLevel = std::min(flags.zoomLevel + 16, CDigiPot::WIPER_MAX);
+  gain.setLevel(flags.zoomLevel);
+  flags.zoomBalanceGain = -1;
+  flags.zoomBalanceStableReads = 0;
+  flags.zoomBalanceSteps = 0;
+  delayMicroseconds(10);
+
+  if (quickNoiseTest(40, sensor1.getPin()) > 20) {
+    flags.zoomLevel = previousZoomLevel;
     gain.setLevel(flags.zoomLevel);
+    flags.zoomBalanceGain = -1;
+    flags.zoomBalanceStableReads = 0;
+    flags.zoomBalanceSteps = 0;
+    flags.zoomFinishAfterBalance = true;
     delayMicroseconds(10);
-    
-    if (quickNoiseTest(40, sensor1.getPin()) > 20) {
-      reverting = true;
-      gain.setLevel(flags.zoomLevel - 16);
-      delayMicroseconds(10);
-    }
-
-    tools.readCheck(); if (phase != Phase::ZOOM) goto exit;
-
-    tools.seekTargets();
-
-    if (reverting) {
-      phase = Phase::MEASURE;
-      USB.printf("Noise found... reverting to gain: %d\n", gain.getLevel());
-    }
-
-    if (flags.zoomLevel == CDigiPot::WIPER_MAX) {
-      phase = Phase::MEASURE;
-    }
+    USB.printf("Noise found... reverting to gain: %d\n", gain.getLevel());
+    return;
   }
 
- exit:
-  if (phase != Phase::ZOOM)
-  {
-     flags.zoomLevel = -1;
+  if (flags.zoomLevel == CDigiPot::WIPER_MAX) {
+    phase = Phase::MEASURE;
+  }
 
-     tools.cache.set();
+  if (phase != Phase::ZOOM) {
+    flags.zoomLevel = -1;
+    flags.zoomBalanceGain = -1;
+    flags.zoomBalanceStableReads = 0;
+    flags.zoomBalanceSteps = 0;
+    flags.zoomFinishAfterBalance = false;
   }
 }

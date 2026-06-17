@@ -25,8 +25,15 @@ protected:
 
   Zone _updateZone();
 
-
   int _pin; 
   int _lastValue = 0;
   bool _inverted = false;
+
+  inline void copyFrom(const CSensor& other) {
+//  _pin = other._pin;                assummed
+//  _inverted = other._inverted;      assummed
+    _lastValue = other._lastValue;
+    zone = other.zone;
+    inZone = other.inZone;
+  }
 };

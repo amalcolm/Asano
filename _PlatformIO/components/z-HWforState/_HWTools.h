@@ -14,6 +14,10 @@ public:
     bool holdWipers = false;
     bool wipersChanged = true;
     int  zoomLevel = -1;
+    int  zoomBalanceGain = -1;
+    int  zoomBalanceStableReads = 0;
+    int  zoomBalanceSteps = 0;
+    bool zoomFinishAfterBalance = false;
 
     bool inZone = false;
 
@@ -26,7 +30,7 @@ public:
 
     double dS1_mid = -1.0;
     double dS2_mid = -1.0;
-    
+
     double dS2_offset = -1.0;
 
     void set(double s2 = -1.0);
@@ -35,7 +39,7 @@ public:
   void dbg();
 
   class CCircuit* _ptr_Circuit; // Pimpl to avoid including CCircuit in the header
-  class CCircuit& circuit; 
+  class CCircuit& circuit;
 
   // tests
   void testMidOffset();
@@ -51,6 +55,7 @@ public:
   inline void centreOffset(CSensor& sensor) { centre(sensor, hw.offset); }
 
   void seekTargets();
+  bool balanceForZoom();
   void seekTarget(CFilteredSensor& sensor, CDigiPot& pot);
 
 };

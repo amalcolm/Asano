@@ -41,4 +41,18 @@ private:
   int _maxV = 0;
 
   std::stack<CFilteredSensor> _tStack;
+
+  inline  void _copyFrom(const CFilteredSensor& other) {
+    CSensor::copyFrom(static_cast<const CSensor&>(other));
+    setT(other.getT());
+    _lastV = other._lastV;
+    _envOffset = other._envOffset;
+
+    _counter = other._counter;
+    _minForT = other._minForT;
+    _minV = other._minV;
+    _maxV = other._maxV;
+
+    // ignore _tStack, 
+  }
 };

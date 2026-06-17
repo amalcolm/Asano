@@ -70,8 +70,7 @@ namespace Asano.DataTools
             
             telemetry["-Time"] = new XY(x, x);  // - means label only, do not graph.  Also, output time (x) as value, hence x,x.
 
-            telemetry[_stateLabel_Raw] = new XY(x, y); 
-
+            telemetry[_stateLabel_Raw] = new XY(x, y);
             var stateData = Stats.TryGetValue(_state, out var sd) ? sd : Stats[_state] = new StateData();
 
             var ra = stateData.RA;
@@ -86,7 +85,7 @@ namespace Asano.DataTools
             {
                 uint delay = (ra_Size - 1) / 2;
                 uint bufferIndex = (_ra_index + delay) % ra_Size;
-                telemetry[_stateLabel_Signal] = new XY(_buffer[bufferIndex].x, _buffer[bufferIndex].y - ra.Average);
+//                telemetry[_stateLabel_Signal] = new XY(_buffer[bufferIndex].x, _buffer[bufferIndex].y - ra.Average);
             }
 
 

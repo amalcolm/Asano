@@ -1,24 +1,33 @@
 #include "_HWTools.h"
 #include "HWforState.h"
+#include "CCircuit.h"
+#include <algorithm>
+#include <cmath>
+
 
 void HWTools::adjustTopBot() {
- 
-  int WIPER_LOW  = CDigiPot::MIDPOINT - HWParams::MID_STEP;
-  int WIPER_HIGH = CDigiPot::MIDPOINT + HWParams::MID_STEP;
 
+  int currentMid = hw.mid.getLevel();
 
-  int direction = 0;
-  int wiperLevel = hw.mid.getLevel();
+  int direction = (currentMid < HWParams::SAFE_MIN_WIPER_LEVEL) ? -1 
+                : (currentMid > HWParams::SAFE_MAX_WIPER_LEVEL) ? +1
+                 : 0;
+  if (direction == 0)
+    return;
+  
 
-  if (wiperLevel < WIPER_LOW ) direction = +1;
-  else
-  if (wiperLevel > WIPER_HIGH) direction = -1;
+  int currentTop = hw.top.getLevel();
+  int currentBot = hw.bot.getLevel();
 
-  if (direction != 0) {
-    hw.top.offsetLevel(direction);
-    hw.bot.offsetLevel(direction);
-    hw.mid.offsetLevel(direction * HWParams::MID_STEP);
-    delayMicroseconds(10);
-  }
+  double targetVoltage = circuit.midVoltageVolts(currentTop, currentBot, currentMid);
 
+  int candidateTop = currentTop + direction; if (candidateTop > CDigiPot::WIPER_MAX) return;
+  int candidateBot = currentBot + direction; if (candidateBot < CDigiPot::WIPER_MIN) return;
+
+  int candidateMid = circuit.bestMidForVoltage(candidateTop, candidateBot, targetVoltage);
+
+  hw.top.setLevel(candidateTop);
+  hw.bot.setLevel(candidateBot);
+  hw.mid.setLevel(candidateMid);
+  delayMicroseconds(10);
 }

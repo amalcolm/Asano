@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <tuple>
 
 struct C3Pot {
   
@@ -15,15 +16,23 @@ struct C3Pot {
   inline static constexpr double DIGIPOT_TOP_VOLTAGE = DIGIPOT_BOT_VOLTAGE + _current * DIGIPOT_RESISTANCE;
   inline static constexpr double DIGIPOT_VOLTAGE_RANGE = DIGIPOT_TOP_VOLTAGE - DIGIPOT_BOT_VOLTAGE;
 
+  inline static constexpr double inv255 = 1.0 / 255.0;
   // all math is done at compile time
 
   double getMidVoltage(uint8_t mid, uint8_t top, uint8_t bot) const {
-    static constexpr double inv255 = 1.0 / 255.0;
 
     const double botVoltage = DIGIPOT_BOT_VOLTAGE + (bot * inv255) * DIGIPOT_VOLTAGE_RANGE;
     const double topVoltage = DIGIPOT_BOT_VOLTAGE + (top * inv255) * DIGIPOT_VOLTAGE_RANGE;
 
     return botVoltage + (mid * inv255) * (topVoltage - botVoltage);
+  }
+
+  std::tuple<double, double> getVoltageRange(uint8_t top, uint8_t bot) const {
+
+    const double botVoltage = DIGIPOT_BOT_VOLTAGE + (bot * inv255) * DIGIPOT_VOLTAGE_RANGE;
+    const double topVoltage = DIGIPOT_BOT_VOLTAGE + (top * inv255) * DIGIPOT_VOLTAGE_RANGE;
+
+    return std::make_tuple(botVoltage, topVoltage);
   }
 
 };

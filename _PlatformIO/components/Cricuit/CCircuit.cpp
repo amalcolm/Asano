@@ -9,7 +9,7 @@ namespace {
   constexpr double MID_STEP_PIVOT_SENSOR1_EST = 0.502983620865305;
   constexpr double MIN_MID_STEP_DENOMINATOR = 1e-12;
 
-  uint8_t clampWiper(int value) {
+  inline uint8_t clampWiper(int value) {
     if (value < 0) return 0;
     if (value > 255) return 255;
     return static_cast<uint8_t>(value);
@@ -49,6 +49,19 @@ double CCircuit::midVoltage(int top, int bot, int mid) const {
 double CCircuit::midVoltageVolts(int top, int bot, int mid) const {
   return _3Pot.getMidVoltage(clampWiper(mid), clampWiper(top), clampWiper(bot));
 }
+
+int CCircuit::bestMidForVoltage(int top, int bot, double targetVoltage) const {
+
+    auto [botVoltage, topVoltage] =  _3Pot.getVoltageRange(clampWiper(top), clampWiper(bot));
+
+    double offsetFromBot = targetVoltage - botVoltage;
+    if (offsetFromBot <= 0) return CDigiPot::WIPER_MIN; else if (offsetFromBot >= topVoltage - botVoltage) return CDigiPot::WIPER_MAX;
+
+    double dMid = offsetFromBot / (topVoltage - botVoltage) * CDigiPot::WIPER_MAX;
+    return static_cast<int>(std::round(dMid));
+
+  }
+
 
 double CCircuit::sensor2DeltaFromOffsetDelta(int offsetDelta) const {
   return _DA.sensor2DeltaFromOffsetDelta(offsetDelta, clampWiper(HW->gain.getLevel()));

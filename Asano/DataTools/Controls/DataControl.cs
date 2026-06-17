@@ -15,9 +15,11 @@ namespace Asano.DataTools.Controls
 
             MyColour colour = chart.BackColor;
             chart.BackColor = colour.Darken(0.3).ToColor();
+
+            Program.SerialPort.BlockPacketReceived += ProcessBlockPacket;
         }
 
-         
+
 
         private void ProcessBlockPacket(BlockPacket blockPacket)
         {
@@ -44,7 +46,6 @@ namespace Asano.DataTools.Controls
                 _extractors.Clear();
             };
 
-            Program.SerialPort.BlockPacketReceived += ProcessBlockPacket;
 
         }
 

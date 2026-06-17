@@ -78,15 +78,5 @@ void CFilteredSensor::popT() {
   CFilteredSensor copy = _tStack.top();
   _tStack.pop();
 
-  setT(copy.getT());
-  _lastV = copy.lastV();
-  _lastValue = copy.lastValue();
-  _envOffset = copy._envOffset;
-  _counter = copy._counter;
-  _minForT = copy._minForT;
-  _minV = copy._minV;
-  _maxV = copy._maxV;
-
-  CSensor::zone = copy.zone;
-  CSensor::inZone = copy.inZone;
+  this->_copyFrom(copy);
 }
