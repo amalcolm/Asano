@@ -218,15 +218,14 @@ namespace Asano.MyGLTools.UserControls
             };
         }
 
-        public void SP_DataReceived(IPacket packet)
+        public void SP_DataReceived(BlockPacket packet)
         {
             if (IsLoaded == false) return;  // ignore packets until control is fully loaded (i.e. GL.Init called, otherwise Task.Enqueue gets Inits out of order)
 
-            if (packet is not BlockPacket blockPacket) return;
-            if (blockPacket.Count == 0) return;
+            if (packet.Count == 0) return;
 
             bool singleStateMode = Config.DEBUG_MODE == "SINGLE_STATE";
-            uint labelState = (uint)blockPacket.State;
+            uint labelState = (uint)packet  .State;
             uint state = singleStateMode ? SingleStateKey : labelState;
 
             if (EnablePlots)
@@ -248,9 +247,9 @@ namespace Asano.MyGLTools.UserControls
                         else
                             return;
 
-                    Plots[state].Add(blockPacket);
+                    Plots[state].Add(packet);
                     foreach (var info in dataSelectorsToPlot)
-                        Plots[state | info.AdditionalMask].Add(blockPacket);
+                        Plots[state | info.AdditionalMask].Add(packet);
 
 
                 }
@@ -262,8 +261,7 @@ namespace Asano.MyGLTools.UserControls
 
             if (updateLabels)
             {
-                string description = blockPacket.State.Description();
-
+                string description = packet.State.Description();
                 CreateOrUpdateTextBlocksForLabel(state, description + " A2D %", "0.0%");
 
                 foreach (var info in dataSelectorsForLabels)
@@ -275,9 +273,9 @@ namespace Asano.MyGLTools.UserControls
 
 
 
-            if (blockPacket.Count > 0)
+            if (packet.Count > 0)
             {
-                ref DataPacket data = ref blockPacket.BlockData[blockPacket.Count - 1];
+                ref DataPacket data = ref packet.BlockData[packet.Count - 1];
 
                 float c0_percentage = (float)(data.Channel[0] * 100.0 * Config.ChannelScale);
 
@@ -287,8 +285,8 @@ namespace Asano.MyGLTools.UserControls
                     foreach (var info in dataSelectorsToOutput)
                         _latestValues[state | info.AdditionalMask] = data.get(info.Selector);
 
-                    LastWipersChange.CopyFrom(blockPacket);
-                    LastVoltagesChange.CopyFrom(blockPacket);
+                    LastWipersChange.CopyFrom(packet);
+                    LastVoltagesChange.CopyFrom(packet);
 
                     if (LastWipersChange.IsValid == false || LastVoltagesChange.IsValid == false)
                     {
