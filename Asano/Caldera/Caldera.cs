@@ -814,8 +814,8 @@ namespace Asano.Caldera
         private static bool TryGetActiveChartState(out uint state)
         {
             state = 0;
-            var activeChart = MyChart.ActiveChart;
-            if (activeChart?.ChartState.HasValue != true) return false;
+            var activeChart = MyChart.ActiveChart; if (activeChart == null) return false;
+            if (activeChart.ChartState.HasValue != true) return false;
 
             var chartState = unchecked((uint)activeChart.ChartState.Value);
             if (chartState == unchecked((uint)HeadState.UNSET)) return false;

@@ -9,7 +9,7 @@ void CSensor::begin() {}
 void CSensor::invert() { _inverted = !_inverted; }
 
 
-int CSensor::read() {  if (_pin < 0) return 0; // No sensor pin defined
+double CSensor::read() {  if (_pin < 0) return 0; // No sensor pin defined
   
   int rawValue = analogRead(_pin);
 

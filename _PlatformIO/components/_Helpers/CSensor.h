@@ -15,18 +15,18 @@ public:
   void begin();
   void invert();
 
-  int  read();
+  double read();
 
-  inline bool isInverted()   const { return _inverted;     }
-  inline int  lastValue()    const { return _lastValue;    }
-  inline int  getPin()       const { return _pin;          }
+  inline bool   isInverted()  const { return _inverted;     }
+  inline double  lastValue()  const { return _lastValue;    }
+  inline int        getPin()  const { return _pin;          }
 
 protected:
 
   Zone _updateZone();
 
   int _pin; 
-  int _lastValue = 0;
+  double _lastValue = 0;
   bool _inverted = false;
 
   inline void copyFrom(const CSensor& other) {

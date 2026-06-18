@@ -12,7 +12,8 @@ void setup() {
 //  Head.RED8, Head.IR8             // States defined in CHead.h, also includes ALL_ON / ALL_OFF
 //  zTest.FullTest,                 // Can use predefined sequences from ZTests.h
 //  Head.RED1 | Head.IR1,           // use OR ( | ) to combine LEDs
-    
+  
+//    zTest.FullTest,
     Head.ALL_OFF,
 //    Head.RED1,
 //    Head.IR1, 

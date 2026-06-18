@@ -46,6 +46,12 @@ void DataType::writeSerial(bool includeFrameMarkers) {
   if (includeFrameMarkers) USB.write(FRAME_END);
 }
 
+uint32_t clamp16bit(double value) {
+  if (value < 0) return 0;
+  if (value > 0xffff) return 0xffff;
+  return static_cast<uint32_t>(std::round(value));
+}
+
 void DataType::fillFromHardware(struct HWforState& HW, bool setTimestamp) {
   static uint8_t seq = 0;
   state = HW.state;
@@ -64,13 +70,13 @@ void DataType::fillFromHardware(struct HWforState& HW, bool setTimestamp) {
     (uint64_t(HW.gain  .getLevel() & 0xFFu) << 16) | 
     (0xFFFFu);
 
-  if (Timer.sampleReady)
-    sensorState = 
-      (uint32_t(HW.sensor1.lastValue()) << 16) |
-      uint32_t(HW.sensor2.lastValue());
-      else
-      sensorState = (uint32_t(analogRead(HW.sensor1.getPin())) << 16) |
-                    uint32_t(analogRead(HW.sensor2.getPin()));
+  if (Timer.sampleReady) {
+    sensorState = (clamp16bit(HW.sensor1.lastValue()) << 16) |
+                  (clamp16bit(HW.sensor2.lastValue())      );
+  } else {
+    sensorState = (uint32_t(analogRead(HW.sensor1.getPin())) << 16) |
+                  (uint32_t(analogRead(HW.sensor2.getPin()))      );
+  }
 
   double sv1 = HW.sensor1.lastV(); if (sv1 < 0) sv1 = static_cast<double>(analogRead(HW.sensor1.getPin()));
   double sv2 = HW.sensor2.lastV(); if (sv2 < 0) sv2 = static_cast<double>(analogRead(HW.sensor2.getPin()));   

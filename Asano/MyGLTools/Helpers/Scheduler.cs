@@ -67,8 +67,9 @@ namespace Asano.MyGLTools.Helpers
         private static readonly Stopwatch SW = new();
         public static double Time { get; private set; } = 0.0;
         private static int _resetVersion;
+        private static double latestPacketTime = 0.0;
 
-            
+        private static double TimeScale = 1.0;
         private static void Run()
         {
             var token = cts?.Token ?? throw new InvalidOperationException("Scheduler not started.");
@@ -77,7 +78,18 @@ namespace Asano.MyGLTools.Helpers
 
             while (token.IsCancellationRequested == false)
             {
-                Time = SW.Elapsed.TotalSeconds;
+                double latestTime = latestPacketTime;
+                double currentTime = SW.Elapsed.TotalSeconds;
+
+                double newRatio = latestTime / currentTime;
+
+                double t = 0.0001;
+
+                TimeScale = (1-t) * TimeScale + t * newRatio;
+
+
+
+                Time = SW.Elapsed.TotalSeconds * TimeScale;
 
                 while (_pendingThreads.TryDequeue(out var pending))
                     _threads.Add(pending);
@@ -90,15 +102,15 @@ namespace Asano.MyGLTools.Helpers
 
                 if (!IsPaused)
                 {
-                    foreach (var t in _threads)
+                    foreach (var thread in _threads)
                     {
-                        if (t?.IsDisposed ?? true)
+                        if (thread?.IsDisposed ?? true)
                             continue;
 
                         try
                         {
-                            if (t.RequestFrame())
-                                t.WaitForFrame(token);
+                            if (thread.RequestFrame())
+                                thread.WaitForFrame(token);
                         }
                         catch (Exception ex)
                         {
@@ -128,6 +140,12 @@ namespace Asano.MyGLTools.Helpers
                     StartScheduler();
             }
         }
+        public static void UpdateLatestTime(double time)
+        {
+            if (time > latestPacketTime)
+                latestPacketTime = time;
+        }
+
 
         private static readonly WipersChangedMessage     lastWipersChangeSent   = new();
         private static readonly VoltagesChangedMessage lastVoltagesChangeSent   = new();

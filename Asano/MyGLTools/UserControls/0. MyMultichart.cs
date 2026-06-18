@@ -80,6 +80,9 @@ namespace Asano.MyGLTools.UserControls
                 return;
             }
 
+            Scheduler.UpdateLatestTime( blockPacket.BlockData[^1].TimeStamp );
+
+
             MyChart? chart = SingleStateMode ? GetSingleStateChart(blockPacket.State)
                                              : GetOrAddChart(blockPacket.State);
             chart?.SP_DataReceived(blockPacket);
