@@ -21,6 +21,7 @@ namespace Asano.MyGLTools.Fonts
         public FontFile  Font  {get => _font;      set { if (_font  != value) { _font  = value; Changed(nameof(Font )); } } }
         public float     X     {get => _x;         set { if (_x     != value) { _x     = value; Changed(nameof(X    )); } } }
         public float     Y     {get => _y;         set { if (_y     != value) { _y     = value; Changed(nameof(Y    )); } } }
+        public float     Scale {get => _scale;     set { if (_scale != value) { _scale = value; Changed(nameof(Scale)); } } }
         public TextAlign Align {get => _align;     set { if (_align != value) { _align = value; Changed(nameof(Align)); } } }
 
         public ReadOnlySpan<char> Span => _buffer.AsSpan(0, _length);
@@ -187,6 +188,7 @@ namespace Asano.MyGLTools.Fonts
         private FontFile  _font;
         private float     _x;
         private float     _y;
+        private float     _scale = 1.0f;
         private TextAlign _align;
         private string    _valueFormat;
 
@@ -228,14 +230,15 @@ namespace Asano.MyGLTools.Fonts
 
         public ReadOnlySpan<FontVertex> GetVertices(float scaling = 1.0f)
         {
-            if (_hasChanged || _lastScaling != scaling)
+            float effectiveScaling = scaling * _scale;
+            if (_hasChanged || _lastScaling != effectiveScaling)
             {
                 EnsureVertexCapacity(_length);
 
-                _vertexCount = FontVertex.BuildString(_vertices, 0, Span, Font, X, Y, scaling, Align);
+                _vertexCount = FontVertex.BuildString(_vertices, 0, Span, Font, X, Y, effectiveScaling, Align);
 
                 Bounds = CalculateBoundsFromVertices();
-                _lastScaling = scaling;
+                _lastScaling = effectiveScaling;
                 _hasChanged = false;
             }
       

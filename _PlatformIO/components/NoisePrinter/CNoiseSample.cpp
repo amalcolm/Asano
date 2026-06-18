@@ -22,9 +22,8 @@ int quickNoiseTest(int numSamples, int sensorPin) {
   return max - min;
 }
 
-void FillBufferWithNoise(TimedSample* buffer, size_t size, int sensorPin, double period) {
+void FillBufferWithNoise(TimedSample* buffer, size_t size, int sensorPin, double period, double startTime) {
   C32bitTimer& noiseTimer = getTimer(period);
-
   if (period < 0.0) 
     analogReadAveraging(0);
  
@@ -39,6 +38,16 @@ void FillBufferWithNoise(TimedSample* buffer, size_t size, int sensorPin, double
   }
 
   analogReadAveraging(4); // restore default averaging
+
+  if (startTime > 0.0) {
+    uint32_t startTick = startTime * CTimerBase::getTicksPerSecond();
+    for (size_t i = 0; i < size; i++) {
+      buffer[i].startTick += startTick;
+      buffer[i].endTick += startTick;
+    }
+
+  }
+
 }
 
 

@@ -124,6 +124,13 @@ namespace Asano.DataTools.Controls
                 Clear();
                 return;
             }
+            
+            int msMax = (int)(lastX * 1000.0f + 0.05f);
+            float remainder = (lastX * 1000.0f) - msMax;
+
+            if (remainder < 0.1f)
+                lastX = msMax * 0.001f + 0.0002f;
+
 
             float noiseRange = Math.Max(0.0f, maxY - minY);
             float midY = mean;

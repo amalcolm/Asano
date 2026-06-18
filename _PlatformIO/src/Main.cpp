@@ -30,6 +30,8 @@ void setup() {
 void loop() {
   Head.setNextState();              // Set the LEDs for the next state
 
+  if (Hardware::noiseSampleTest()) return;
+
   USB.update();                     // Send USB data from the previous state
 
   Head.waitForReady();              // Wait until Head is ready AND sets A2D to start reading

@@ -53,43 +53,28 @@ namespace Asano.MyGLTools.Helpers
         {
             cts = new CancellationTokenSource();
             SW.Restart();
-            Interlocked.Increment(ref _resetVersion);
+            Clock.Reset();
             Task.Run(Run, cts.Token);
         }
 
         public static void Reset()
         {
             SW.Restart();
-            Interlocked.Increment(ref _resetVersion);
+            Clock.Reset();
         }
 
 
         private static readonly Stopwatch SW = new();
-        public static double Time { get; private set; } = 0.0;
-        private static int _resetVersion;
-        private static double latestPacketTime = 0.0;
+        private static readonly SchedulerClock Clock = new();
+        public static double Time => Clock.Time;
 
-        private static double TimeScale = 1.0;
         private static void Run()
         {
             var token = cts?.Token ?? throw new InvalidOperationException("Scheduler not started.");
-            double nextFrameTime = SW.Elapsed.TotalSeconds;
-            int resetVersion = _resetVersion;
 
             while (token.IsCancellationRequested == false)
             {
-                double latestTime = latestPacketTime;
-                double currentTime = SW.Elapsed.TotalSeconds;
-
-                double newRatio = latestTime / currentTime;
-
-                double t = 0.0001;
-
-                TimeScale = (1-t) * TimeScale + t * newRatio;
-
-
-
-                Time = SW.Elapsed.TotalSeconds * TimeScale;
+                Clock.Advance(SW.Elapsed.TotalSeconds);
 
                 while (_pendingThreads.TryDequeue(out var pending))
                     _threads.Add(pending);
@@ -142,8 +127,7 @@ namespace Asano.MyGLTools.Helpers
         }
         public static void UpdateLatestTime(double time)
         {
-            if (time > latestPacketTime)
-                latestPacketTime = time;
+            Clock.UpdateFromPacket(time, SW.Elapsed.TotalSeconds);
         }
 
 

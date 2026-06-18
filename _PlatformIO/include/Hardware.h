@@ -10,7 +10,8 @@ struct Hardware {
     static bool canUpdate();
     static void update();
 
+    static bool noiseSampleTest();
+
   private:
-    static bool debugLayerOverride();
     inline static bool firstCallInCycle = true;
 };

@@ -47,8 +47,8 @@ HWforState* getHWforState(StateType state) {
   if (state == DIRTY) state = Head.getState();
   
   for (auto& hw : stateHWs)
-      if (hw.state == state)
-       return &hw;
+    if (hw.state == state)
+      return &hw;
   
   stateHWs.emplace_back(state);
   if (Ready)

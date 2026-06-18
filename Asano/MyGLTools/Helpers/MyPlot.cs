@@ -2,6 +2,7 @@
 using OpenTK.Mathematics;
 using TheLib;
 using System.Diagnostics;
+using Asano.MyGLTools.Fonts;
 using Asano.MyGLTools.UserControls;
 
 namespace Asano.MyGLTools.Helpers
@@ -154,6 +155,12 @@ namespace Asano.MyGLTools.Helpers
             {
                 DBG = "Not Visible";
             }
+        }
+
+        public void RenderText(FontRenderer fontRenderer)
+        {
+            if (Visible)
+                _subPlot.RenderText(fontRenderer);
         }
 
         public void SetScaling(float minY, float maxY)

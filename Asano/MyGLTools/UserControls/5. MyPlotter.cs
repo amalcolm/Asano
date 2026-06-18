@@ -38,7 +38,7 @@ namespace Asano.MyGLTools.UserControls
         private float _currentViewRight = 0.0f;
 //        private float _maxTime = 0.0f;
 
-        private readonly double RightEdgeBufferSeconds = 0.004;
+        private const float RightEdgeBufferPixels = 5.0f;
 
         private DateTime lastTime = DateTime.Now;
         private readonly TimeSpan timeBetweenDebug = TimeSpan.MaxValue;
@@ -54,16 +54,7 @@ namespace Asano.MyGLTools.UserControls
             if (Plots.Count == 0) return;
 
             // 0. Take a snapshot of the current plots
-            MyPlot[] plotsSnapshot;
-            lock (PlotsLock)
-            {
-                if (_plotsDirty)
-                {
-                    _plotsSnapshot = [.. Plots.Values];
-                    _plotsDirty = false;
-                }
-                plotsSnapshot = _plotsSnapshot;
-            }
+            MyPlot[] plotsSnapshot = GetPlotsSnapshot();
 /*
             // 1. Get the latest time from all plots
             float maxTime = float.MinValue;
@@ -76,7 +67,7 @@ namespace Asano.MyGLTools.UserControls
 
             if (_maxTime == float.MinValue) return;
 */
-            _currentViewRight = (float)(Scheduler.Time + RightEdgeBufferSeconds);
+            _currentViewRight = (float)(Scheduler.Time + GetRightEdgeBufferSeconds());
 
 
             // 4. Define the _viewport based on the smoothed position.
@@ -113,11 +104,39 @@ namespace Asano.MyGLTools.UserControls
         }
 
         protected override void DrawText()
-            => fontRenderer?.RenderText(Debug, 10, 10);
+        {
+            fontRenderer?.RenderText(Debug, 10, 10);
+
+            if (fontRenderer == null) return;
+
+            MyPlot[] plotsSnapshot = GetPlotsSnapshot();
+            for (int i = 0; i < plotsSnapshot.Length; i++)
+                plotsSnapshot[i].RenderText(fontRenderer);
+        }
 
         protected virtual bool UseLegacyMouseWheelZoom => true;
 
         protected virtual RectangleF PrepareViewPort(RectangleF viewPort) => viewPort;
+
+        private double GetRightEdgeBufferSeconds()
+        {
+            int width = Math.Max(1, GLDisplaySize.Width);
+            return Window * RightEdgeBufferPixels / width;
+        }
+
+        private MyPlot[] GetPlotsSnapshot()
+        {
+            lock (PlotsLock)
+            {
+                if (_plotsDirty)
+                {
+                    _plotsSnapshot = [.. Plots.Values];
+                    _plotsDirty = false;
+                }
+
+                return _plotsSnapshot;
+            }
+        }
 
         private void MyGL_MouseWheel(object? sender, MouseEventArgs e)
         {

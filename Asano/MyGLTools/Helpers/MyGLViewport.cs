@@ -16,6 +16,8 @@ namespace Asano.MyGLTools.Helpers
         private int _transformLoc  = -1;
         protected bool _canUpdate = false;
         protected MyPlotterBase _myPlotter = myPlotter;
+        protected Rectangle ParentViewportRect => _parentRect;
+        protected Rectangle ViewportRect => _vpRect;
 
         public virtual void Init()
         {

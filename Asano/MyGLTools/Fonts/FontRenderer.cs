@@ -63,7 +63,20 @@ namespace Asano.MyGLTools.Fonts
             => RenderText(text.AsSpan(), x, y, font, textAlign);
 
         public void RenderText(TextBlock block)
-            => RenderText(block.Span, block.X, block.Y, block.Font, block.Align);
+        {
+            _currentVertexCount = 0;
+
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, block.Font.TextureId);
+
+            var blockVerticesSpan = block.GetVertices(Scaling);
+            EnsureVertexCapacity(blockVerticesSpan.Length);
+            blockVerticesSpan.CopyTo(_vertices.AsSpan(0, blockVerticesSpan.Length));
+            _currentVertexCount = blockVerticesSpan.Length;
+
+            BindVertices();
+            Render();
+        }
 
         public void RenderText(TextBlock[] blocks)
         {

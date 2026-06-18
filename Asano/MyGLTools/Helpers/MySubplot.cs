@@ -1,4 +1,6 @@
-﻿using TheLib;
+﻿using OpenTK.Mathematics;
+using TheLib;
+using Asano.MyGLTools.Fonts;
 using Asano.MyGLTools.UserControls;
 
 namespace Asano.MyGLTools.Helpers
@@ -15,6 +17,15 @@ namespace Asano.MyGLTools.Helpers
 
         private readonly MyGLVertexBuffer _gridBuffer = new(8192);
         private bool _gridDirty = true;
+        private readonly MyMeasure _stateDurationMeasure = new();
+        private readonly MyMeasure _firstMeasurementMeasure = new();
+        private readonly MyMeasure _sampleIntervalMeasure = new();
+        private readonly MyMeasure _lastIntervalMeasure = new();
+        private const float MinGoodDataIntervalSeconds = 0.000_001f;
+        private float _firstMeasurementX = float.NaN;
+        private float _secondMeasurementX = float.NaN;
+        private float _lastIntervalStartX = float.NaN;
+        private float _lastIntervalEndX = float.NaN;
         
         
         public int GridDivisions { get; set; } = (int)Math.Round(Config.STATE_DURATION_uS * 0.000_001f);
@@ -38,6 +49,12 @@ namespace Asano.MyGLTools.Helpers
             _waveBuffer_TMP.Init();
 
             _gridBuffer.Init();
+            _stateDurationMeasure.Init();
+            _firstMeasurementMeasure.Init();
+            _sampleIntervalMeasure.Init();
+            _lastIntervalMeasure.Init();
+            UpdateStateDurationMeasure();
+            UpdateDataMeasures();
         }
 
         public override void Shutdown()
@@ -49,6 +66,10 @@ namespace Asano.MyGLTools.Helpers
             _waveBuffer_EV.Dispose();
 
             _waveBuffer_TMP.Dispose();
+            _stateDurationMeasure.Dispose();
+            _firstMeasurementMeasure.Dispose();
+            _sampleIntervalMeasure.Dispose();
+            _lastIntervalMeasure.Dispose();
         }
 
         /// <summary>
@@ -63,6 +84,8 @@ namespace Asano.MyGLTools.Helpers
                 {
                     base.OutRect = value;
                     _gridDirty = true;
+                    UpdateStateDurationMeasure();
+                    UpdateDataMeasures();
                 }
             }
         }
@@ -74,6 +97,8 @@ namespace Asano.MyGLTools.Helpers
             _waveBuffer_EV .SetSubPlotData(block, FieldEnum.Events , 1.0);
 
             _waveBuffer_TMP.SetSubPlotData(block, FieldEnum.Sensor1, 1.0);
+
+            SetDataMeasures(block);
         }
 
         public void Render()
@@ -97,7 +122,132 @@ namespace Asano.MyGLTools.Helpers
             // Draw events as vertical lines
             _waveBuffer_EV.DrawLines();
 
+            _firstMeasurementMeasure.Render(ViewportRect, OutRect);
+            _sampleIntervalMeasure.Render(ViewportRect, OutRect);
+            _lastIntervalMeasure.Render(ViewportRect, OutRect);
+
+            ResetViewport(CreateParentPixelTransform());
+
+            _stateDurationMeasure.RenderOverlay(ViewportRect, OutRect);
+
             ResetViewport(_myPlotter.getPlotTransform());  // clean restore to parent viewport
+        }
+
+        public void RenderText(FontRenderer fontRenderer)
+        {
+            if (_waveBuffer_C0.VertexCount <= 0) return;
+
+            _stateDurationMeasure.RenderText(fontRenderer, ViewportRect, OutRect);
+            _firstMeasurementMeasure.RenderText(fontRenderer, ViewportRect, OutRect);
+            _sampleIntervalMeasure.RenderText(fontRenderer, ViewportRect, OutRect);
+            _lastIntervalMeasure.RenderText(fontRenderer, ViewportRect, OutRect);
+        }
+
+        private void UpdateStateDurationMeasure()
+        {
+            RectangleF r = OutRect;
+            float y = r.Bottom + Math.Max(20.0f, r.Height * 0.035f);
+
+            _stateDurationMeasure.SetRange(r.Left, r.Right, y);
+            _stateDurationMeasure.SetValue((r.Right - r.Left) * 1000.0, "ms");
+        }
+
+        private void SetDataMeasures(BlockPacket block)
+        {
+            if (block.Count <= 0)
+            {
+                _firstMeasurementX = float.NaN;
+                _secondMeasurementX = float.NaN;
+                _lastIntervalStartX = float.NaN;
+                _lastIntervalEndX = float.NaN;
+                UpdateDataMeasures();
+                return;
+            }
+
+            _firstMeasurementX = (float)block.BlockData[0].StateTime;
+            _secondMeasurementX = block.Count >= 2
+                ? (float)block.BlockData[1].StateTime
+                : float.NaN;
+
+            if (TryGetLastDataInterval(block, out float lastIntervalStartX, out float lastIntervalEndX))
+            {
+                _lastIntervalStartX = lastIntervalStartX;
+                _lastIntervalEndX = lastIntervalEndX;
+            }
+            else
+            {
+                _lastIntervalStartX = float.NaN;
+                _lastIntervalEndX = float.NaN;
+            }
+
+            UpdateDataMeasures();
+        }
+
+        private void UpdateDataMeasures()
+        {
+            RectangleF r = OutRect;
+            float bottomY = r.Top + Math.Max(20.0f, r.Height * 0.035f);
+            float topY = r.Bottom - Math.Max(20.0f, r.Height * 0.035f);
+
+            if (float.IsFinite(_firstMeasurementX))
+            {
+                float x = Math.Clamp(_firstMeasurementX, r.Left, r.Right);
+                _firstMeasurementMeasure.Visible = x > r.Left + 0.000001f;
+
+                if (_firstMeasurementMeasure.Visible)
+                {
+                    _firstMeasurementMeasure.SetRange(r.Left, x, bottomY);
+                    _firstMeasurementMeasure.SetValue((x - r.Left) * 1000.0, "ms");
+                }
+            }
+            else
+            {
+                _firstMeasurementMeasure.Visible = false;
+            }
+
+            _sampleIntervalMeasure.Visible = float.IsFinite(_firstMeasurementX) && float.IsFinite(_secondMeasurementX);
+            if (_sampleIntervalMeasure.Visible)
+            {
+                _sampleIntervalMeasure.SetRange(_firstMeasurementX, _secondMeasurementX, topY);
+                _sampleIntervalMeasure.SetValue(Math.Abs(_secondMeasurementX - _firstMeasurementX) * 1000.0, "ms");
+            }
+
+            _lastIntervalMeasure.Visible = float.IsFinite(_lastIntervalStartX)
+                && float.IsFinite(_lastIntervalEndX)
+                && (_lastIntervalStartX != _firstMeasurementX || _lastIntervalEndX != _secondMeasurementX);
+
+            if (!_lastIntervalMeasure.Visible) return;
+
+            _lastIntervalMeasure.SetRange(_lastIntervalStartX, _lastIntervalEndX, topY);
+            _lastIntervalMeasure.SetValue(Math.Abs(_lastIntervalEndX - _lastIntervalStartX) * 1000.0, "ms");
+        }
+
+        private static bool TryGetLastDataInterval(BlockPacket block, out float startX, out float endX)
+        {
+            startX = float.NaN;
+            endX = float.NaN;
+
+            for (int endIndex = block.Count - 1; endIndex >= 1; endIndex--)
+            {
+                double start = block.BlockData[endIndex - 1].StateTime;
+                double end = block.BlockData[endIndex].StateTime;
+
+                if (Math.Abs(end - start) < MinGoodDataIntervalSeconds) continue;
+
+                startX = (float)start;
+                endX = (float)end;
+                return true;
+            }
+
+            return false;
+        }
+
+        private Matrix4 CreateParentPixelTransform()
+        {
+            int width = Math.Max(1, ParentViewportRect.Width);
+            int height = Math.Max(1, ParentViewportRect.Height);
+
+            return Matrix4.CreateOrthographicOffCenter(0.0f, width, 0.0f, height, -1.0f, 1.0f);
         }
 
 

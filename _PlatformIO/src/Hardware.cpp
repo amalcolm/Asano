@@ -14,7 +14,7 @@ void Hardware::begin() {
     SPI .begin();  // initialise SPI
 
     // Initialize USB
-    USB .begin().printf("CPU Frequency: %.0f Mhz\r\n", F_CPU / 1000000.0f);
+    USB .begin().printf("CPU Frequency: %.3lf Mhz\n", F_CPU / 1000000.0);
 
 
     // initialize buttons and LEDs
@@ -28,9 +28,13 @@ void Hardware::begin() {
     delay(1); // Allow time for hardware to stabilize (ample)
 
     // ensure A2D has a valid getLastDataTime();
-    while (A2D.poll() == false)
+    for (int i = 0; A2D.poll() == false; i++) {
+      if (i > 100)
+        ERROR("A2D did not have valid data.\n");  // doesn't return
+        
       delayMicroseconds(5);
-
+    }
+    
     Timer.restart();
 }
 
@@ -50,14 +54,8 @@ bool Hardware::canUpdate() {
   return doUpdate;
 }
 
-bool Hardware::debugLayerOverride() {
-  static CTeleCounter TC_Update{TeleGroup::HARDWARE, 1};
-  static CTelePeriod  TP_Update{TeleGroup::HARDWARE, 2};
-
+bool Hardware::noiseSampleTest() {
   static C32bitTimer sampleTimer = C32bitTimer::From_Hz(5.0).setPeriodic(true);
-
-  TP_Update.measure();
-  TC_Update.increment();
 
   HWforState* targetHW = ActiveHW ? ActiveHW : HW;
   if (firstCallInCycle && targetHW == HW && sampleTimer.passed()) {
@@ -70,9 +68,14 @@ bool Hardware::debugLayerOverride() {
   return false;
 }
 
-void Hardware::update() {
 
-  if ((debugLayerOverride())) return;
+void Hardware::update() {
+  static CTeleCounter TC_Update{TeleGroup::HARDWARE, 1};
+  static CTelePeriod  TP_Update{TeleGroup::HARDWARE, 2};
+
+  TP_Update.measure();
+  TC_Update.increment();
+
 
   if (A2D.poll() == false) { yield(); return; }
 

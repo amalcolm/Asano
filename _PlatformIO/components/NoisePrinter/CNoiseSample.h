@@ -2,6 +2,6 @@
 #include "DataTypes.h"
 #include <stddef.h>
 
-void FillBufferWithNoise(TimedSample* buffer, size_t size, int sensorPin, double period = 0.0);
+void FillBufferWithNoise(TimedSample* buffer, size_t size, int sensorPin, double period = 0.0, double startTime = 0.0);
 
 int quickNoiseTest(int numSamples, int sensorPin);
