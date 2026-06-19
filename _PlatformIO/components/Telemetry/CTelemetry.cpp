@@ -6,7 +6,6 @@
 
 std::vector<CTelemetry*> CTelemetry::s_pool;
 size_t CTelemetry::s_capacity = 0;
-bool CTelemetry::s_suppressNextLog = false;
 
 CTelemetry* CTelemetry::Rent() {
   if (s_pool.empty()) {
@@ -93,18 +92,13 @@ void CTelemetry::_register(CTelemetry* tele) {
   getAllTelemetries().push_back(tele);
 }
 
-void CTelemetry::suppressNextLog() {
-  s_suppressNextLog = true;
-}
-
 
 void CTelemetry::logAll() {
-  bool output = USB.isHandshakeComplete() && !s_suppressNextLog;
+  bool output = USB.isHandshakeComplete();
 
   for (CTelemetry* telemetry : getAllTelemetries()) {
     telemetry->value = telemetry->getValue();
     if (output) telemetry->writeSerial(true);
   }
 
-  s_suppressNextLog = false;
 }

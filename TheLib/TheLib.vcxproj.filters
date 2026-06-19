@@ -12,8 +12,14 @@
     <Filter Include="Source Files\Packets">
       <UniqueIdentifier>{2b313421-8c9c-4ca1-bd27-2271544bb84c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\CSV">
+      <UniqueIdentifier>{4ac13a2c-6d4e-4392-a3cb-c41817d552da}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source Files\Math">
       <UniqueIdentifier>{9d84e017-16b1-49d9-a612-0099d8d3b026}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\CSV\Header Files">
+      <UniqueIdentifier>{0f01fec8-df09-4cdb-9663-9123a3a32164}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -110,6 +116,36 @@
     <ClInclude Include="src\ScreenHelper.h">
       <Filter>Source Files\Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\CSV\CBufferedCsvFile.h">
+      <Filter>Source Files\CSV\Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CSV\CCsvFormatter.h">
+      <Filter>Source Files\CSV\Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CSV\CCsvNames.h">
+      <Filter>Source Files\CSV\Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CSV\CCsvSample.h">
+      <Filter>Source Files\CSV\Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CSV\CCsvRecorder.h">
+      <Filter>Source Files\CSV\Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CSV\CCsvSampleQueue.h">
+      <Filter>Source Files\CSV\Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CSV\CCsvSession.h">
+      <Filter>Source Files\CSV\Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CSV\CCsvSessionPaths.h">
+      <Filter>Source Files\CSV\Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CSV\CCsvStateNames.h">
+      <Filter>Source Files\CSV\Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CSV\CEnvelopeCsvWriter.h">
+      <Filter>Source Files\CSV\Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AssemblyInfo.cpp" />
@@ -181,6 +217,33 @@
     </ClCompile>
     <ClCompile Include="src\CTimerBase.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CSV\CBufferedCsvFile.cpp">
+      <Filter>Source Files\CSV</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CSV\CCsvFormatter.cpp">
+      <Filter>Source Files\CSV</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CSV\CCsvNames.cpp">
+      <Filter>Source Files\CSV</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CSV\CCsvRecorder.cpp">
+      <Filter>Source Files\CSV</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CSV\CCsvSampleQueue.cpp">
+      <Filter>Source Files\CSV</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CSV\CCsvSession.cpp">
+      <Filter>Source Files\CSV</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CSV\CCsvSessionPaths.cpp">
+      <Filter>Source Files\CSV</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CSV\CCsvStateNames.cpp">
+      <Filter>Source Files\CSV</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CSV\CEnvelopeCsvWriter.cpp">
+      <Filter>Source Files\CSV</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

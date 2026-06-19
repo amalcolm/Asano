@@ -59,8 +59,8 @@ bool Hardware::noiseSampleTest() {
 
   HWforState* targetHW = ActiveHW ? ActiveHW : HW;
   if (firstCallInCycle && targetHW == HW && sampleTimer.passed()) {
-    if (targetHW->tools.testGetNoiseSample())
-      Timer.sampleReady = true;
+    targetHW->tools.testGetNoiseSample();
+    USB.update();
 
     return true;
   }

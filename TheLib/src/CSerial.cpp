@@ -47,6 +47,9 @@ CSerial::~CSerial() {
 
 
 void CSerial::InvokeConnectionChanged(bool state) {
+    if (!state)
+        m_csvRecorder.CloseCurrentSession();
+
     ConnectionHandler handler = nullptr;
     void* context = nullptr;
     {
@@ -121,6 +124,8 @@ void CSerial::InvokeDataReceived(CPacket& packet) {
 
         if (kind == PacketKind::Block && dataPacket.block.state == CDataPacket::STATE_UNSET)
             continue;
+
+        m_csvRecorder.OnDecodedPacket(dataPacket);
 
         // Invoke outside the lock
         if (handler) {

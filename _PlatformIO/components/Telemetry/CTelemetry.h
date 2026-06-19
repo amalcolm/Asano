@@ -68,12 +68,10 @@ public:
 
 
     static void _register(CTelemetry* tele);
-    static void suppressNextLog();
     static void logAll();
 
 private:
     static std::deque<CTelemetry*>& getAllTelemetries();
-    static bool s_suppressNextLog;
 };
 
 #include "0. CTeleValue.h"

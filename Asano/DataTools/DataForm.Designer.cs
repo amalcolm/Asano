@@ -28,13 +28,14 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(DataForm));
             multiChart = new MyMultichart();
             calderaControl = new Asano.Caldera.CalderaControl();
             SuspendLayout();
             // 
             // multiChart
             // 
-            multiChart.BackColor = Color.FromArgb(8, 8, 16);
+            multiChart.BackColor = Color.FromArgb(24, 23, 18);
             multiChart.Dock = DockStyle.Fill;
             multiChart.Location = new Point(0, 0);
             multiChart.Name = "multiChart";
@@ -45,6 +46,7 @@
             // 
             calderaControl.BackColor = Color.FromArgb(16, 16, 8);
             calderaControl.Dock = DockStyle.Bottom;
+            calderaControl.ForeColor = Color.Silver;
             calderaControl.Location = new Point(0, 813);
             calderaControl.Name = "calderaControl";
             calderaControl.Size = new Size(800, 422);
@@ -59,10 +61,10 @@
             ClientSize = new Size(800, 1235);
             Controls.Add(multiChart);
             Controls.Add(calderaControl);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Location = new Point(3840, -400);
             Name = "DataForm";
             StartPosition = FormStartPosition.Manual;
-            Text = "MyTallForm";
             ResumeLayout(false);
         }
 

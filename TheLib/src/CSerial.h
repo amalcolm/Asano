@@ -2,6 +2,7 @@
 #pragma managed(push, off)
 #include "CHandleGuard.h"
 #include "Packets/CPackets.h"
+#include "CSV/CCsvRecorder.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -76,6 +77,7 @@ private:
     ConnectionHandler m_connectionHandler;
 
     void* m_userData;
+    NativeCsv::CCsvRecorder m_csvRecorder;
 
     void InvokeConnectionChanged(bool state);
     void InvokeErrorOccurred(const std::exception& ex);

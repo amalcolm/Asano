@@ -1,12 +1,10 @@
 using Asano.MyGLTools.Helpers;
-using Asano.DataTools.Csv;
 
 namespace Asano
 {
     internal static class Program
     {
         public static readonly MySerialPort SerialPort = new();
-        public static readonly SessionRecorder CsvRecorder = new(SerialPort);
 
         public static bool IsRunning = false;
         public static Caldera.Caldera? Caldera = null;
@@ -42,7 +40,6 @@ namespace Asano
             IsRunning = false;
             SocketWatcher.StopListening();
 
-            CsvRecorder.Dispose();
             SerialPort.Dispose();
         }
     }

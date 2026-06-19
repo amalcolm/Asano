@@ -10,7 +10,7 @@ bool HWTools::testGetNoiseSample() {
   static constexpr double readPeriod    = readPeriod_uS * 0.000'001; // convert to seconds
   static constexpr double stateDuration = CFG::STATE_DURATION_uS * 0.000'001; // convert to seconds
 
-  double timeLeft = stateDuration - Timer.getStateTime();
+  double timeLeft = stateDuration - Timer.getStateTime() - 0.000'010;
 
   int numSamples = timeLeft / readPeriod;
   if (numSamples <= 0) return false;
@@ -21,8 +21,6 @@ bool HWTools::testGetNoiseSample() {
   dbg->count = numSamples;
   FillBufferWithNoise(dbg->data, dbg->count, SP.Sensor2, readPeriod, Timer.getStateTime());
   USB.buffer(dbg);
-  USB.suppressNextDataOutput();
-  CTelemetry::suppressNextLog();
 
   return true;
 }
