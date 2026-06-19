@@ -61,55 +61,8 @@ void CUSB::doRead() {
 
     if (pWrite - pRead < packetSize) break; // wait for more data
 
-    XCommand* cmd = reinterpret_cast<XCommand*>(pRead);
-    bool handledCommand = true;
-  
-    switch (id) {
-      case XCMD_SetActiveState::ID: { XCMD_SetActiveState cmd; std::memcpy(&cmd, pRead, packetSize);
+    XCommand::process(pRead, packetSize);
 
-        if (cmd.state != UNSET && cmd.state != DIRTY) 
-          ActiveHW = getHWforState(cmd.state);
-        break;
-    } }
-
-    cmd->processFlags();
-  
-
-    switch (id) {
-      case XCMD_SetWipers::ID: { XCMD_SetWipers cmd; std::memcpy(&cmd, pRead, packetSize);
-
-        HWforState* targetHW = ActiveHW ? ActiveHW : HW;
-        if (targetHW) targetHW->setWipers(cmd);
-        break;
-      }
-
-      case XCMD_SetState::ID:  { XCMD_SetState cmd; std::memcpy(&cmd, pRead, packetSize);
-
-        Head.setStateForDebug(cmd.state);
-
-        USB.writeDebugState(cmd.state);
-        break;
-      }
-
-      case XCMD_SetDebugFlags::ID: { XCMD_SetDebugFlags cmd; std::memcpy(&cmd, pRead, packetSize);
-        // not used currently, but must be present to handle command flags in headers
-        break;
-      }
-
-      case XCMD_SetActiveState::ID: { XCMD_SetActiveState cmd; std::memcpy(&cmd, pRead, packetSize);
-        // handled above, but must be present here to avoid unhandled command
-
-        break;
-      }
-
-      default:
-        handledCommand = false;
-        break;
-    }
-
-    if (handledCommand) {
-      cmd->honour();
-    }
     pRead += packetSize;
   }
 

@@ -1,4 +1,5 @@
 #pragma once
+#include <stddef.h>
 #include <stdint.h>
 #include "Config.h" 
 static const uint8_t XCMD_MAGIC[4] = {0x58, 0x43, 0x00, 0xFF};
@@ -28,6 +29,8 @@ struct XCommand {
     bool hasFlag(CommandFlags flag) const;
     void processFlags() const;
     void honour() const;
+
+    static void process(uint8_t* pRead, size_t packetSize);
 };
 
 
