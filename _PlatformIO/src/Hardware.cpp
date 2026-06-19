@@ -55,7 +55,7 @@ bool Hardware::canUpdate() {
 }
 
 bool Hardware::noiseSampleTest() {
-  static C32bitTimer sampleTimer = C32bitTimer::From_Hz(5.0).setPeriodic(true);
+  static C32bitTimer sampleTimer = C32bitTimer::From_S(3.0).setPeriodic(true);
 
   HWforState* targetHW = ActiveHW ? ActiveHW : HW;
   if (firstCallInCycle && targetHW == HW && sampleTimer.passed()) {

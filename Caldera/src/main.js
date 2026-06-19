@@ -1,7 +1,7 @@
 import { AnalysisPanel } from "./analysis/AnalysisPanel.js";
 import { AnalysisDataset } from "./analysis/AnalysisDataset.js";
 import { CircuitScene } from "./scene/CircuitScene.js";
-import { COMMAND_FLAGS, normaliseCommandFlags } from "./helpers/CommandFlags.js";
+import { COMMAND_FLAGS } from "./helpers/CommandFlags.js";
 import { DebugFlagsControl } from "./helpers/DebugFlagsControl.js";
 import { DebugSettingsControl } from "./helpers/DebugSettingsControl.js";
 import { FB_Store } from "./firebase/FB_Store.js";
@@ -170,10 +170,8 @@ function mountCircuitView() {
   const model = new Model({ componentModels });
   const webView = new WebView(model);
   const storedSettings = readStoredSettings();
-  const initialCommandFlags = getInitialCommandFlags(storedSettings);
+  const initialCommandFlags = webView.getCommandFlags();
   let lastManualWiperCommandKey = null;
-
-  webView.setCommandFlags(initialCommandFlags);
 
   document.querySelector("#app").innerHTML = `
     <div class="firebase-panel">
@@ -364,7 +362,6 @@ function mountCircuitView() {
   const commandFlagsControl = new DebugFlagsControl({
     initialCommandFlags,
     inputs: debugFlagInputs,
-    onChange: () => saveStoredSettings(),
     status: debugFlagsStatus,
     testButtons: debugTestButtons,
     testStatus: debugTestsStatus,
@@ -475,6 +472,10 @@ function mountCircuitView() {
     updateAnalysisButton(openAnalysisButton, activeViews);
   });
 
+  webView.on("hostConfig", () => {
+    commandFlagsControl.setCommandFlags(webView.getCommandFlags(), { post: false });
+  });
+
   webView.postGetWipers();
   webView.postGetActiveViews();
   updateWiperDebug(null, { applied: false });
@@ -486,7 +487,6 @@ function mountCircuitView() {
       : circuitScene.getSettings();
     const storedSettings = {
       ...sceneSettings,
-      commandFlags: commandFlagsControl.getSettings(),
       stateControl: stateControl.getSettings(),
     };
 
@@ -1029,18 +1029,6 @@ function readStoredSettings() {
   } catch {
     return null;
   }
-}
-
-function getInitialCommandFlags(settings) {
-  const storedCommandFlags = settings?.commandFlags?.flags ?? settings?.commandFlags;
-
-  if (storedCommandFlags !== undefined) {
-    return normaliseCommandFlags(storedCommandFlags);
-  }
-
-  return settings?.freezeWipers?.frozen === true
-    ? COMMAND_FLAGS.HOLD_WIPERS
-    : COMMAND_FLAGS.NONE;
 }
 
 function getStoredHoldWipersOnLedChange(settings) {

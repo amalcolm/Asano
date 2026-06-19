@@ -75,10 +75,10 @@ namespace Asano.Caldera
 
         private bool _needsRefresh = true;
         private int _lastState = -1;
+        private CommandFlags _currentCommandFlags = (CommandFlags)Config.COMMAND_FLAGS;
         private readonly object _pendingHeldWipersLock = new();
         private readonly WipersChangedMessage _pendingHeldWipers = new();
         private uint? _pendingHeldWipersState;
-        private CommandFlags _pendingHeldWipersFlags = CommandFlags.None;
         private readonly object _blockPacketSubscriptionLock = new();
         private bool _observingBlockPackets;
 
@@ -170,7 +170,9 @@ namespace Asano.Caldera
                 case ConnectionState.HandshakeSuccessful:
                     _ready = true;
                     _needsRefresh = true;
+                    _currentCommandFlags = (CommandFlags)Config.COMMAND_FLAGS;
                     ObserveBlockPackets();
+                    PostHostConfig();
                     break;
                 case ConnectionState.Disconnected:
                     _ready = false;
@@ -276,6 +278,23 @@ namespace Asano.Caldera
             }
         }
 
+        private bool PostHostConfig()
+        {
+            var json = JsonSerializer.Serialize(new
+            {
+                type = "hostConfig",
+                postSettingsChanges = false,
+                cmdFlags = (uint)_currentCommandFlags,
+            });
+
+            return TryPostJson(json);
+        }
+
+        private void SetCurrentCommandFlags(CommandFlags flags)
+        {
+            _currentCommandFlags = flags;
+        }
+
         private void WebView_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
         {
             if (!e.IsSuccess) { _ready = false; return; }
@@ -317,6 +336,7 @@ namespace Asano.Caldera
             switch (typeElement.GetString())
             {
                 case "ready":
+                    PostHostConfig();
                     _needsRefresh = true;
                     if (_lastState >= 0)
                     {
@@ -555,15 +575,17 @@ namespace Asano.Caldera
                 caldera.TryPostJson(latestTestStatusMessage);
         }
 
-        private static void HandleSetWipersMessage(JsonElement root)
+        private void HandleSetWipersMessage(JsonElement root)
         {
             var message = root.Deserialize<SetWipersMessage>();
             if (message?.Wipers == null) return;
 
+            SetCurrentCommandFlags(message.CMDflags);
+
             if (TryGetActiveChartState(out var state))
                 WriteActiveStateCommand(state);
 
-            Program.SerialPort?.Write(CreateSetWipersCommand(message.Wipers, message.CMDflags));
+            Program.SerialPort?.Write(CreateSetWipersCommand(message.Wipers, _currentCommandFlags));
         }
 
         private void HandleGetSateMessage()
@@ -592,13 +614,15 @@ namespace Asano.Caldera
             var message = root.Deserialize<SetStateMessage>();
             if (message == null) return;
 
+            SetCurrentCommandFlags(message.CMDflags);
+
             XCMD_SetState xCMD = new()
             {
-                cmdFlags = message.CMDflags,
+                cmdFlags = _currentCommandFlags,
                 state    = (uint)message.State,
             };
 
-            ScheduleHeldWiperRestore(message.CMDflags, xCMD.state);
+            ScheduleHeldWiperRestore(xCMD.state);
 
             Program.SerialPort?.Write(xCMD);
         }
@@ -608,12 +632,14 @@ namespace Asano.Caldera
             var message = root.Deserialize<SetDebugFlagsMessage>();
             if (message == null) return;
 
+            SetCurrentCommandFlags(message.CMDflags);
+
             if (message.HasTestFlag)
                 TestStarted?.Invoke(this, message);
 
             XCMD_SetDebugFlags xCMD = new()
             {
-                cmdFlags = message.CMDflags,
+                cmdFlags = _currentCommandFlags,
             };
 
             Program.SerialPort?.Write(xCMD);
@@ -746,8 +772,10 @@ namespace Asano.Caldera
                 : Path.ChangeExtension(filename, ".csv") ?? $"{filename}.csv";
         }
 
-        private void ScheduleHeldWiperRestore(CommandFlags flags, uint state)
+        private void ScheduleHeldWiperRestore(uint state)
         {
+            var flags = _currentCommandFlags;
+
             if (!HasCommandFlag(flags, CommandFlags.HoldWipers)
                 || HasCommandFlag(flags, CommandFlags.Run__findSignal))
             {
@@ -765,7 +793,6 @@ namespace Asano.Caldera
             lock (_pendingHeldWipersLock)
             {
                 _pendingHeldWipers.CopyFrom(wipers);
-                _pendingHeldWipersFlags = flags;
                 _pendingHeldWipersState = state;
             }
 
@@ -776,13 +803,21 @@ namespace Asano.Caldera
         {
             XCMD_SetWipers? restoreCommand = null;
             var state = unchecked((uint)(int)blockPacket.State);
+            var flags = _currentCommandFlags;
 
             lock (_pendingHeldWipersLock)
             {
                 if (_pendingHeldWipersState != state || !_pendingHeldWipers.IsValid)
                     return;
 
-                restoreCommand = CreateSetWipersCommand(_pendingHeldWipers.Wipers, _pendingHeldWipersFlags);
+                if (!HasCommandFlag(flags, CommandFlags.HoldWipers)
+                    || HasCommandFlag(flags, CommandFlags.Run__findSignal))
+                {
+                    _pendingHeldWipersState = null;
+                    return;
+                }
+
+                restoreCommand = CreateSetWipersCommand(_pendingHeldWipers.Wipers, flags);
                 _pendingHeldWipersState = null;
             }
 
@@ -824,7 +859,7 @@ namespace Asano.Caldera
             return true;
         }
 
-        private static void WriteActiveStateCommand(int state)
+        private void WriteActiveStateCommand(int state)
         {
             if (state < 0 || unchecked((uint)state) == unchecked((uint)HeadState.UNSET))
                 return;
@@ -832,10 +867,11 @@ namespace Asano.Caldera
             WriteActiveStateCommand(unchecked((uint)state));
         }
 
-        private static void WriteActiveStateCommand(uint state)
+        private void WriteActiveStateCommand(uint state)
         {
             Program.SerialPort?.Write(new XCMD_SetActiveState
             {
+                cmdFlags = _currentCommandFlags,
                 state = state,
             });
         }

@@ -2,14 +2,14 @@
 #include "HWforState.h"
 #include "_HWTools.h"
 #include "Config.h"
+#include "Helpers.h"
 
 
 void XCommand::processFlags() const {
   CFG::commandFlags = header.cmdFlags;
 
-  if (header.id != XCMD_SetWipers::ID) return;
-
   HWforState* targetHW = ActiveHW ? ActiveHW : HW;
+
   if (targetHW) targetHW->tools.flags.holdWipers = this->hasFlag(CommandFlags::HoldWipers);
 }
 

@@ -15,9 +15,9 @@ void setup() {
   
 //    zTest.FullTest,
     Head.ALL_OFF,
-    Head.RED1,
-    Head.IR1, 
-    Head.RED1 | Head.IR1,
+//    Head.RED1,
+//    Head.IR1, 
+//    Head.RED1 | Head.IR1,
 });
 
   Hardware::begin();

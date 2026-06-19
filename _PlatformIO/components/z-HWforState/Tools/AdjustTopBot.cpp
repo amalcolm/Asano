@@ -26,10 +26,6 @@ void HWTools::adjustTopBot() {
 
   int candidateMid = circuit.bestMidForVoltage(candidateTop, candidateBot, targetVoltage);
 
-  double newVoltage = circuit.midVoltageVolts(candidateTop, candidateBot, candidateMid);
-  USB.printf("avoiding mid saturation: t=%d->%d, b=%d->%d, m=%d->%d, v=%.3lf->%.3lf\n",
-    currentTop, candidateTop, currentBot, candidateBot, currentMid, candidateMid, targetVoltage, newVoltage);
-
   hw.top.setLevel(candidateTop);
   hw.bot.setLevel(candidateBot);
   hw.mid.setLevel(candidateMid);

@@ -61,11 +61,17 @@ void CUSB::doRead() {
 
     if (pWrite - pRead < packetSize) break; // wait for more data
 
-    XCMD_Header header;
-    std::memcpy(&header, pRead, sizeof(header));
+    XCommand* cmd = reinterpret_cast<XCommand*>(pRead);
     bool handledCommand = true;
   
-    XCommand* cmd = reinterpret_cast<XCommand*>(pRead);
+    switch (id) {
+      case XCMD_SetActiveState::ID: { XCMD_SetActiveState cmd; std::memcpy(&cmd, pRead, packetSize);
+
+        if (cmd.state != UNSET && cmd.state != DIRTY) 
+          ActiveHW = getHWforState(cmd.state);
+        break;
+    } }
+
     cmd->processFlags();
   
 
@@ -91,9 +97,8 @@ void CUSB::doRead() {
       }
 
       case XCMD_SetActiveState::ID: { XCMD_SetActiveState cmd; std::memcpy(&cmd, pRead, packetSize);
+        // handled above, but must be present here to avoid unhandled command
 
-        if (cmd.state != UNSET && cmd.state != DIRTY)
-          ActiveHW = getHWforState(cmd.state);
         break;
       }
 

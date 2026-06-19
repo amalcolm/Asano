@@ -145,7 +145,6 @@ namespace Asano.MyGLTools.Helpers
         public static void RequestWipersRefresh()
         {
             forceNextWipersPost.Set();
-            Program.SerialPort?.Write(new XCMD_SetWipers());
         }
 
         private static void PostToCaldera()

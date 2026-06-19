@@ -9,10 +9,6 @@ void HWforState::setWipers(XCMD_SetWipers& cmd) {
   bool holdRequested = cmd.hasFlag(CommandFlags::HoldWipers);
   flags.holdWipers = holdRequested;
 
-  if (!holdRequested && cmd.top == 0 && cmd.bot == 0) { // release hold
-    return;
-  }
-
   int midChange = cmd.mid - mid.getLevel();
   if (midChange != 0) {
     double change = tools.circuit.sensor2DeltaFromMidDelta(midChange, sensor2.lastV());

@@ -16,6 +16,7 @@ namespace TheLib
         static UInt32  MAX_BLOCKSIZE         =    164;  // max number of DataType entries in a BlockType
 		static UInt32  MAX_EVENTS_PER_BLOCK  =    400;  // max number of EventType entries in a BlockType
         static String^ DEBUG_MODE            =  "OFF";  // "OFF", "SINGLE_STATE"
+        static UInt32  COMMAND_FLAGS         =      0;  // command flags last reported by the device
 
         static String^ ProgramVersion = "v1.6.0";
         static String^ DeviceVersion  = String::Empty;

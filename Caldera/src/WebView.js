@@ -7,11 +7,14 @@ const DEFAULT_HOST_CONFIG = {
 export class WebView {
   constructor(model) {
     this.model = model;
-    this.commandFlags = COMMAND_FLAGS.NONE;
     this.hostConfig = {
       ...DEFAULT_HOST_CONFIG,
       ...window.calderaHost,
     };
+    this.commandFlags = normaliseCommandFlags(
+      this.hostConfig.commandFlags ?? this.hostConfig.cmdFlags ?? COMMAND_FLAGS.NONE,
+    );
+    this.hostConfig.commandFlags = this.commandFlags;
     this.handlersByType = new Map();
     this.webview = window.chrome?.webview ?? null;
 
@@ -187,6 +190,7 @@ export class WebView {
 
   setCommandFlags(flags) {
     this.commandFlags = normaliseCommandFlags(flags);
+    this.hostConfig.commandFlags = this.commandFlags;
     return this.commandFlags;
   }
 
@@ -217,6 +221,11 @@ export class WebView {
   applyHostConfig(message) {
     if ("postSettingsChanges" in message) {
       this.hostConfig.postSettingsChanges = message.postSettingsChanges === true;
+    }
+
+    const commandFlags = getProperty(message, "cmdFlags", "commandFlags");
+    if (commandFlags !== undefined) {
+      this.setCommandFlags(commandFlags);
     }
   }
 }
