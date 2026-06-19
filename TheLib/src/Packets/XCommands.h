@@ -12,8 +12,8 @@ namespace TheLib::Packets
 
     public enum class CommandFlags : uint32_t {
         None = 0,
-        RunDebugUpdate = 0x01,
         HoldWipers     = 0x02,
+        RunDebug       = 0x80,
 
         Run__findSignal  = 0x100,
 		RunGetNoiseSample = 0x200,

@@ -23,7 +23,7 @@ void HWTools::centre(CSensor& sensor, CDigiPot& pot) {
   for (int iterations = 0; iterations < MAX_ITERATIONS; ++iterations) {
     lastDelta = delta;
 
-    pot.offsetLevel(direction);
+    pot.changeBy(direction);
     delayMicroseconds(5); 
 
     if (useSensor2) {
@@ -39,7 +39,7 @@ void HWTools::centre(CSensor& sensor, CDigiPot& pot) {
   }
 
   if (abs(lastDelta) < abs(delta)) {
-    pot.offsetLevel(-direction); // revert if it made it worse
+    pot.changeBy(-direction); // revert if it made it worse
     delayMicroseconds(5);
     if (useSensor2) {
       readCheck(); // final check if signal is lost after adjustment

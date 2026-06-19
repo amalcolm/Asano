@@ -46,7 +46,7 @@ void HWTools::seekTargets() {
       seeking = true;
     }
     if (std::abs(s1_midDelta_steps) > 0) {
-      hw.mid.offsetLevel(-s1_midDelta_steps);
+      hw.mid.changeBy(-s1_midDelta_steps);
       delayMicroseconds(10);
     }
 
@@ -62,7 +62,7 @@ void HWTools::seekTargets() {
     }
 
     if (std::abs(s2_offsetDelta_steps) > 0) {
-      hw.offset.offsetLevel(-s2_offsetDelta_steps);
+      hw.offset.changeBy(-s2_offsetDelta_steps);
       delayMicroseconds(10);
     }
 
@@ -91,7 +91,7 @@ void HWTools::seekTarget(CFilteredSensor& sensor, CDigiPot& pot) {
     int midDelta_steps = static_cast<int>(std::round(distance / delta));
 
     if (std::abs(midDelta_steps) > 0) {
-      pot.offsetLevel(-midDelta_steps);
+      pot.changeBy(-midDelta_steps);
       delayMicroseconds(10);
     }
   }

@@ -45,7 +45,7 @@ void CDigiPot::setUserLevel(int userLevel) {
   _userLevel = std::clamp(userLevel, WIPER_MIN, WIPER_MAX);
 }
 
-void CDigiPot::offsetLevel(int offset) {
+void CDigiPot::changeBy(int offset) {
   int newLevel = std::clamp(_currentLevel + offset, WIPER_MIN, WIPER_MAX);
   if (newLevel == _currentLevel) return;
 

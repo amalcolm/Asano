@@ -8,7 +8,7 @@ import {
 
 const COMMAND_FLAG_BY_ID = Object.freeze({
   holdWipers: COMMAND_FLAGS.HOLD_WIPERS,
-  update: COMMAND_FLAGS.RUN_DEBUG_UPDATE,
+  runDebug: COMMAND_FLAGS.RUN_DEBUG,
 });
 
 const DEBUG_TEST_COMMAND_FLAG_BY_ID = Object.freeze({

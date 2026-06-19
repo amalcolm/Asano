@@ -1,7 +1,7 @@
 export const COMMAND_FLAGS = Object.freeze({
   NONE: 0,
-  RUN_DEBUG_UPDATE: 0x01,
   HOLD_WIPERS: 0x02,
+  RUN_DEBUG: 0x80,
   RUN_FIND_SIGNAL: 0x100,
   RUN_GET_NOISE_SAMPLE: 0x200,
 });

@@ -234,14 +234,20 @@ function mountCircuitView() {
                 <span>Command flags</span>
                 <span data-debug-flags-status>0x00000000</span>
               </div>
-              <label class="debug-panel__option">
-                <input type="checkbox" data-debug-flag="holdWipers" />
-                <span>HoldWipers</span>
-              </label>
-              <label class="debug-panel__option">
-                <input type="checkbox" data-debug-flag="update" />
-                <span>Update</span>
-              </label>
+              <div class="debug-panel__flag-columns">
+                <div class="debug-panel__flag-column">
+                  <label class="debug-panel__option">
+                    <input type="checkbox" data-debug-flag="holdWipers" />
+                    <span>HoldWipers</span>
+                  </label>
+                </div>
+                <div class="debug-panel__flag-column">
+                  <label class="debug-panel__option">
+                    <input type="checkbox" data-debug-flag="runDebug" />
+                    <span>RunDebug</span>
+                  </label>
+                </div>
+              </div>
             </section>
             <section class="debug-panel__section debug-panel__section--tests">
               <div class="debug-panel__header">

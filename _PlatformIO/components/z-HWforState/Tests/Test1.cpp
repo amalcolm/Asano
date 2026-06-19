@@ -9,11 +9,11 @@ void HWTools::testMidOffset() {
      
   int s2_HILO = s2_preSkew > 0 ? +1 : -1;
   
-  hw.offset.offsetLevel(s2_HILO * 4);
+  hw.offset.changeBy(s2_HILO * 4);
 
   double s2_postOffset = hw.sensor2.read(10) - HWParams::SENSOR2_TARGET;
 
-  hw.mid.offsetLevel(-s2_HILO * 4);
+  hw.mid.changeBy(-s2_HILO * 4);
 
   double s2_postSkew = hw.sensor2.read(10) - HWParams::SENSOR2_TARGET;
 
@@ -22,8 +22,8 @@ void HWTools::testMidOffset() {
 
   USB.printf("deltaOffset: %f, deltaSkew: %f\n", deltaOffset, deltaSkew);
 
-  hw.offset.offsetLevel(-s2_HILO * 4);
-  hw.mid.offsetLevel(s2_HILO * 4);
+  hw.offset.changeBy(-s2_HILO * 4);
+  hw.mid.changeBy(s2_HILO * 4);
 
   hw.sensor2.setT(_t);
 }

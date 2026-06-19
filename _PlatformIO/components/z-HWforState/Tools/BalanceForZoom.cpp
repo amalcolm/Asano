@@ -106,14 +106,14 @@ bool HWTools::balanceForZoom() {
     axis = 'm';
     command = clampCommand(hw.mid, directionFor(before.e1) * MID_STEP);
     if (command != 0) {
-      hw.mid.offsetLevel(command);
+      hw.mid.changeBy(command);
       delayMicroseconds(10);
     }
   } else {
     axis = 'o';
     command = clampCommand(hw.offset, directionFor(before.e2) * OFFSET_STEP);
     if (command != 0) {
-      hw.offset.offsetLevel(command);
+      hw.offset.changeBy(command);
       delayMicroseconds(10);
     }
   }

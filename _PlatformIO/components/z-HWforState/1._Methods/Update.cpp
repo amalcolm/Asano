@@ -9,7 +9,7 @@ void HWforState::update() { if (!Ready) return; else if (tools.flags.begun == fa
 
   _update();
 
-  if (CFG::hasCommandFlag(CommandFlags::RunDebugUpdate)) 
+  if (CFG::hasCommandFlag(CommandFlags::RunDebug))
     tools.dbg();  // defined in _DBG.cpp
   
   Timer.addEvent(EventKind::HW_UPDATE_COMPLETE);

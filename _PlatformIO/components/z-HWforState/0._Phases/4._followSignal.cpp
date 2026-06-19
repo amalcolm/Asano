@@ -44,7 +44,7 @@ void HWforState::_followSignal() {
     int command = clampCommand(mid, directionFor(e1));
     if (command != 0) {
       double change = tools.circuit.sensor2DeltaFromMidDelta(command, sensor2.lastV());
-      mid.offsetLevel(command);
+      mid.changeBy(command);
       compensateSensor2Estimate(*this, change);
       delayMicroseconds(10);
     } else {
@@ -59,7 +59,7 @@ void HWforState::_followSignal() {
     int command = clampCommand(offset, directionFor(e2));
     if (command != 0) {
       double change = tools.circuit.sensor2DeltaFromOffsetDelta(command);
-      offset.offsetLevel(command);
+      offset.changeBy(command);
       compensateSensor2Estimate(*this, change);
       delayMicroseconds(10);
     } else {

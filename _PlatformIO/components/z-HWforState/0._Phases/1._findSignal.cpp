@@ -48,7 +48,7 @@ void HWforState::_findSignal() {
     {
       case false:
         if (HILO == initialHILO)
-          mid.offsetLevel( -HILO );
+          mid.changeBy( -HILO );
         else
           signalFound = true;
         break;
@@ -57,8 +57,8 @@ void HWforState::_findSignal() {
       case true:  // called once signal is found
 
         switch (HILO) {
-          case -1: top.offsetLevel(-1); break;
-          case +1: bot.offsetLevel(+1); break;
+          case -1: top.changeBy(-1); break;
+          case +1: bot.changeBy(+1); break;
         }
 
 
@@ -68,7 +68,7 @@ void HWforState::_findSignal() {
           int sign = (delta > 0) - (delta < 0);
           delta = sign * std::clamp(abs(delta) * 1/4, 1, 3);
 
-          mid.offsetLevel( -delta  );  // drag mid to centre
+          mid.changeBy( -delta  );  // drag mid to centre
         }
         break;
     }

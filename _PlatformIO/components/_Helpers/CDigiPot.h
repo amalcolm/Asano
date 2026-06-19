@@ -16,7 +16,7 @@ public:
   void reset(int level);
 
   void setLevel(int newLevel);
-  void offsetLevel(int offset);
+  void changeBy(int offset);
 
   void setUserLevel(int userLevel);
 
