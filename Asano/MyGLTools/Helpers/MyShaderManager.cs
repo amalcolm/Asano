@@ -2,7 +2,7 @@
 
 namespace Asano.MyGLTools.Helpers
 {
-    internal static class ShaderManager
+    internal static class MyShaderManager
     {
         private const string ShaderDirectoryName = "Shaders";
         private static readonly ThreadLocal<Dictionary<string, int>> _allShaderPrograms = new(

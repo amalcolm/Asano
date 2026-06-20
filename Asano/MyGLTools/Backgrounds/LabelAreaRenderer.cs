@@ -21,7 +21,7 @@ namespace Asano.MyGLTools.Backgrounds
 
         private void InitBackground(string texturePath)
         {
-            _bgShaderProgram = ShaderManager.Get("back");
+            _bgShaderProgram = MyShaderManager.Get("back");
             _bgVao = GL.GenVertexArray();
             _bgVbo = GL.GenBuffer();
 

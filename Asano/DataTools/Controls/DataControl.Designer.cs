@@ -28,7 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
-            MyGLTools.Helpers.PlotAxesRenderer._Options _Options1 = new MyGLTools.Helpers.PlotAxesRenderer._Options();
+            MyGLTools.Helpers.MyAxesRenderer._Options _Options1 = new MyGLTools.Helpers.MyAxesRenderer._Options();
             chart = new Asano.MyGLTools.UserControls.MyChart();
             SuspendLayout();
             // 
@@ -39,7 +39,7 @@
             _Options1.AxesVisible = true;
             _Options1.AxisColour = Color.FromArgb(80, 255, 255, 255);
             _Options1.GridColour = Color.FromArgb(8, 255, 255, 255);
-            _Options1.GridSettings = MyGLTools.Helpers.PlotAxesRenderer.GridFlags.VerticalLines | MyGLTools.Helpers.PlotAxesRenderer.GridFlags.XaxisLabels;
+            _Options1.GridSettings = MyGLTools.Helpers.MyAxesRenderer.GridFlags.VerticalLines | MyGLTools.Helpers.MyAxesRenderer.GridFlags.XaxisLabels;
             _Options1.GridVisible = true;
             _Options1.LabelColor = Color.FromArgb(80, 255, 255, 255);
             _Options1.LabelPadding = 60F;

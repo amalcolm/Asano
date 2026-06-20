@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Asano.MyGLTools.Helpers
 {
-    internal class SocketWatcher
+    internal class MySocketWatcher
     {
         private static UdpClient listener = default!;
         private const int Port = 11000;

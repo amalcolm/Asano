@@ -28,7 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
-            Helpers.PlotAxesRenderer._Options _Options1 = new Helpers.PlotAxesRenderer._Options();
+            Helpers.MyAxesRenderer._Options _Options1 = new Helpers.MyAxesRenderer._Options();
             tlpCharts = new TableLayoutPanel();
             chart0 = new MyChart();
             tlpCharts.SuspendLayout();
@@ -56,7 +56,7 @@
             _Options1.AxesVisible = true;
             _Options1.AxisColour = Color.FromArgb(40, 255, 255, 255);
             _Options1.GridColour = Color.FromArgb(4, 255, 255, 255);
-            _Options1.GridSettings = Helpers.PlotAxesRenderer.GridFlags.VerticalLines | Helpers.PlotAxesRenderer.GridFlags.XaxisLabels;
+            _Options1.GridSettings = Helpers.MyAxesRenderer.GridFlags.VerticalLines | Helpers.MyAxesRenderer.GridFlags.XaxisLabels;
             _Options1.GridVisible = true;
             _Options1.LabelColor = Color.FromArgb(20, 255, 255, 255);
             _Options1.LabelPadding = 60F;

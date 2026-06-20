@@ -104,12 +104,12 @@ namespace Asano.MyGLTools.UserControls
         private void MyGL_MouseDown(object? sender, MouseEventArgs e)
         {
             if (ShouldPauseSchedulerOnMouseDown(e))
-                Scheduler.IsPaused = true;
+                MyScheduler.IsPaused = true;
         }
 
         private void MyGL_MouseUp(object? sender, MouseEventArgs e)
         {
-            Scheduler.IsPaused = false;
+            MyScheduler.IsPaused = false;
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -141,9 +141,9 @@ namespace Asano.MyGLTools.UserControls
             GL.Disable(EnableCap.DepthTest);
             GL.DepthMask(false);
 
-            _defaultShaderProgram = ShaderManager.Get("_default");
+            _defaultShaderProgram = MyShaderManager.Get("_default");
 
-            _textShaderProgram = ShaderManager.Get("msdf");
+            _textShaderProgram = MyShaderManager.Get("msdf");
             font = GetFont("Roboto-Medium.json");
             fontRenderer.Font = font;
             fontRenderer.Init();
@@ -325,7 +325,7 @@ namespace Asano.MyGLTools.UserControls
                     foreach (var font in cache.Values)
                         GL.DeleteTexture(font.TextureId);
 
-                    ShaderManager.Dispose();
+                    MyShaderManager.Dispose();
                 }
             }
         }

@@ -8,7 +8,7 @@ using Asano.MyGLTools.UserControls;
 
 namespace Asano.MyGLTools.Helpers
 {
-    public static class Scheduler
+    public static class MyScheduler
     {
         private static readonly List<MyGLThread> _threads = [];
         private static readonly object _lock = new();
@@ -65,7 +65,7 @@ namespace Asano.MyGLTools.Helpers
 
 
         private static readonly Stopwatch SW = new();
-        private static readonly SchedulerClock Clock = new();
+        private static readonly MySchedulerClock Clock = new();
         public static double Time => Clock.Time;
 
         private static void Run()

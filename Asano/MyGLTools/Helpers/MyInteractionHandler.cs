@@ -12,7 +12,7 @@
         void SetInteractionX(float left, float width);
     }
 
-    internal sealed class PlotInteractionHandler(IPlotInteractionHost host)
+    internal sealed class MyInteractionHandler(IPlotInteractionHost host)
     {
         private const float ZoomFactor = 1.15f;
 
@@ -56,7 +56,7 @@
             _heldWorldX = ScreenToWorldX(e.X);
             _isDragging = true;
             _host.BeginInteraction();
-            Scheduler.IsPaused = false;
+            MyScheduler.IsPaused = false;
 
             if (_control != null)
                 _control.Capture = true;
@@ -72,7 +72,7 @@
             }
 
             MoveHeldXToMouse(e.X);
-            Scheduler.IsPaused = false;
+            MyScheduler.IsPaused = false;
         }
 
         private void MouseUp(object? sender, MouseEventArgs e)
@@ -106,7 +106,7 @@
 
             _host.BeginInteraction();
             _host.SetInteractionX(left, newWidth);
-            Scheduler.IsPaused = false;
+            MyScheduler.IsPaused = false;
         }
 
         private void MoveHeldXToMouse(int mouseX)

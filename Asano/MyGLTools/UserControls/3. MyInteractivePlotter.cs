@@ -4,7 +4,7 @@ namespace Asano.MyGLTools.UserControls
 {
     public class MyInteractivePlotterBase : MyPlotterBaseWithAxes, IPlotInteractionHost
     {
-        private readonly PlotInteractionHandler _interaction;
+        private readonly MyInteractionHandler _interaction;
         private bool _hasInteractionXRange;
 
         public float MinInteractionXRange { get; set; } = 0.000001f;
@@ -77,7 +77,7 @@ namespace Asano.MyGLTools.UserControls
 
     public partial class MyInteractivePlotter : MyPlotterWithAxes, IPlotInteractionHost
     {
-        private readonly PlotInteractionHandler _interaction;
+        private readonly MyInteractionHandler _interaction;
         private bool _hasInteractionXRange;
 
         public float MinInteractionXRange { get; set; } = 0.000001f;

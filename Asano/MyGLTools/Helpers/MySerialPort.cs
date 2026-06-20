@@ -86,7 +86,7 @@ namespace Asano.MyGLTools.Helpers
   
                 case ConnectionState.Disconnected:
 
-                    if (SocketWatcher.ReceivedDisconnect)
+                    if (MySocketWatcher.ReceivedDisconnect)
                     {
                         Log.Add(AString.FromString("Disconnected by request, waiting for reconnect..."));
                         return;

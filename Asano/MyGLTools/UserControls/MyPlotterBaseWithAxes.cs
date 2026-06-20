@@ -4,9 +4,9 @@ namespace Asano.MyGLTools.UserControls
 {
     public partial class MyPlotterBaseWithAxes : MyPlotterBase
     {
-        private readonly PlotAxesRenderer _axes = new();
+        private readonly MyAxesRenderer _axes = new();
 
-        public PlotAxesRenderer._Options AxesOptions { get => _axes.Options; set => _axes.Options = value; }
+        public MyAxesRenderer._Options AxesOptions { get => _axes.Options; set => _axes.Options = value; }
 
         protected override void Init()
         {
@@ -48,10 +48,10 @@ namespace Asano.MyGLTools.UserControls
         protected virtual RectangleF GetAxesViewPort() => GetMetricsViewPort();
 
         protected override RectangleF GetPlotViewPort()
-            => PlotAxesRenderer.AddLabelPadding(ViewPort, GLDisplaySize, AxesOptions.LabelPadding);
+            => MyAxesRenderer.AddLabelPadding(ViewPort, GLDisplaySize, AxesOptions.LabelPadding);
 
         protected RectangleF RemoveLabelPadding(RectangleF viewPort)
-            => PlotAxesRenderer.RemoveLabelPadding(viewPort, GLDisplaySize, AxesOptions.LabelPadding);
+            => MyAxesRenderer.RemoveLabelPadding(viewPort, GLDisplaySize, AxesOptions.LabelPadding);
 
         protected override bool BeginPlotClip()
         {

@@ -40,7 +40,7 @@ namespace Asano.MyGLTools.UserControls
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
-            Scheduler.TargetFrameRate = this.GetCurrentRefreshRate();
+            MyScheduler.TargetFrameRate = this.GetCurrentRefreshRate();
         }
 
         public bool IsRunning => _state == FormState.Running;
@@ -80,7 +80,7 @@ namespace Asano.MyGLTools.UserControls
                 return;
             }
 
-            Scheduler.UpdateLatestTime( blockPacket.BlockData[blockPacket.Count - 1].TimeStamp );
+            MyScheduler.UpdateLatestTime( blockPacket.BlockData[blockPacket.Count - 1].TimeStamp );
 
 
             MyChart? chart = SingleStateMode ? GetSingleStateChart(blockPacket.State)

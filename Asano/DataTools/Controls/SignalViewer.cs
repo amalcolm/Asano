@@ -291,7 +291,7 @@ namespace Asano.DataTools.Controls
         private float GetMidYScreenRatio()
         {
             float clientHeight = Math.Max(1.0f, Height);
-            float axisY = Math.Clamp(PlotAxesRenderer.XAxisLineY, 0.0f, clientHeight);
+            float axisY = Math.Clamp(MyAxesRenderer.XAxisLineY, 0.0f, clientHeight);
             float midY = axisY + (clientHeight - axisY) * 0.5f;
 
             return Math.Clamp(midY / clientHeight, 0.05f, 0.95f);

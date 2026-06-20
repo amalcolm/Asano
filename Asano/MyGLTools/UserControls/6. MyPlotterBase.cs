@@ -24,7 +24,7 @@ namespace Asano.MyGLTools.UserControls
 
         protected override void Init()
         {
-            _plotShaderProgram = ShaderManager.Get("plot");
+            _plotShaderProgram = MyShaderManager.Get("plot");
             _plotTransformLocation = GL.GetUniformLocation(_plotShaderProgram, "uTransform");
         }
 

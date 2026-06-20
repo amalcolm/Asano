@@ -56,7 +56,7 @@ namespace Asano.MyGLTools.Helpers
 
             _glControl = glControl;
 
-            Scheduler.Register(this);
+            MyScheduler.Register(this);
 
             _thread = new(Run)
             {
@@ -226,7 +226,7 @@ namespace Asano.MyGLTools.Helpers
 
             _cts.Dispose();
             GC.SuppressFinalize(this);
-            Scheduler.Unregister(this);
+            MyScheduler.Unregister(this);
         }
     }
 }

@@ -1,6 +1,6 @@
 ﻿namespace Asano.MyGLTools.Helpers
 {
-    internal sealed class SchedulerClock
+    internal sealed class MySchedulerClock
     {
         private const double ClockScaleSmoothing = 0.02;
         private const double ClockPhaseSmoothing = 0.08;

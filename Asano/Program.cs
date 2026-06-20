@@ -31,14 +31,14 @@ namespace Asano
             IsRunning = true;
             
 
-            SocketWatcher.SP = SerialPort;
+            MySocketWatcher.SP = SerialPort;
 
-            SocketWatcher.StartListening();
+            MySocketWatcher.StartListening();
 
             Application.Run(new MainForm());
             
             IsRunning = false;
-            SocketWatcher.StopListening();
+            MySocketWatcher.StopListening();
 
             SerialPort.Dispose();
         }

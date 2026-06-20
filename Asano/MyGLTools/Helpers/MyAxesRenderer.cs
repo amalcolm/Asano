@@ -3,7 +3,7 @@ using Asano.MyGLTools.Fonts;
 
 namespace Asano.MyGLTools.Helpers
 {
-    public sealed class PlotAxesRenderer
+    public sealed class MyAxesRenderer
     {
         private const int MaxXTicks = 64;
         private const int MaxXLabels = 128;
@@ -71,7 +71,7 @@ namespace Asano.MyGLTools.Helpers
         private readonly MyGLVertexBuffer _lineBuffer = new(VertexCapacity);
         private Vertex[] _vertices = new Vertex[VertexCapacity];
 
-        private XAxisLabelCache? _xLabelCache;
+        private MyLabelCache? _xLabelCache;
         private readonly TextBlock[] _yLabels = new TextBlock[MaxYTicks];
         private readonly float[] _yLabelTicks = new float[MaxYTicks];
         private MyColour _AxisColour;
@@ -89,7 +89,7 @@ namespace Asano.MyGLTools.Helpers
         {
             _lineBuffer.Init();  
 
-            _xLabelCache = new XAxisLabelCache(MaxXLabels, font, Options.XFormat);
+            _xLabelCache = new MyLabelCache(MaxXLabels, font, Options.XFormat);
 
             for (int i = 0; i < _yLabels.Length; i++)
                 _yLabels[i] = new TextBlock("0", 0, 0, font, TextAlign.Right, Options.YFormat);

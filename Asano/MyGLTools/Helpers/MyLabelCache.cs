@@ -3,7 +3,7 @@ using Asano.MyGLTools.Fonts;
 
 namespace Asano.MyGLTools.Helpers
 {
-    internal sealed class XAxisLabelCache : IDisposable
+    internal sealed class MyLabelCache : IDisposable
     {
         private const int PreallocatedCharsPerLabel = 24;
 
@@ -20,7 +20,7 @@ namespace Asano.MyGLTools.Helpers
         private float _lastUnitScale;
         private bool _lastIsTime;
 
-        public XAxisLabelCache(int capacity, FontFile? font, string format)
+        public MyLabelCache(int capacity, FontFile? font, string format)
         {
             _labels = new TextBlock[capacity];
             _tickIndices = new int[capacity];

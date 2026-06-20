@@ -67,7 +67,7 @@ namespace Asano.MyGLTools.UserControls
 
             if (_maxTime == float.MinValue) return;
 */
-            _currentViewRight = (float)(Scheduler.Time + GetRightEdgeBufferSeconds());
+            _currentViewRight = (float)(MyScheduler.Time + GetRightEdgeBufferSeconds());
 
 
             // 4. Define the _viewport based on the smoothed position.
@@ -100,7 +100,7 @@ namespace Asano.MyGLTools.UserControls
                     }
                     break;
             }
-            Scheduler.Reset();
+            MyScheduler.Reset();
         }
 
         protected override void DrawText()

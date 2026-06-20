@@ -2,7 +2,7 @@
 
 namespace Asano.MyGLTools.Helpers
 {
-    internal abstract class TextLabel : IDisposable
+    internal abstract class MyTextLabel : IDisposable
     {
         protected TextBlock? TextBlock { get; private set; }
 

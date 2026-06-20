@@ -2,7 +2,7 @@
 
 namespace Asano.MyGLTools.Helpers
 {
-    internal sealed class MyMeasure : TextLabel
+    internal sealed class MyMeasure : MyTextLabel
     {
         public enum TextPlacementMode
         {

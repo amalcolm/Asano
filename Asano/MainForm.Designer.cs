@@ -32,7 +32,7 @@ namespace Asano
         private void InitializeComponent()
         {
             components = new System.ComponentModel.Container();
-            PlotAxesRenderer._Options _Options1 = new PlotAxesRenderer._Options();
+            MyAxesRenderer._Options _Options1 = new MyAxesRenderer._Options();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             cbPorts = new ComboBox();
             labPorts = new Label();
@@ -127,7 +127,7 @@ namespace Asano
             _Options1.AxesVisible = true;
             _Options1.AxisColour = Color.FromArgb(80, 255, 255, 255);
             _Options1.GridColour = Color.FromArgb(8, 255, 255, 255);
-            _Options1.GridSettings = PlotAxesRenderer.GridFlags.VerticalLines | PlotAxesRenderer.GridFlags.HorizontalLines | PlotAxesRenderer.GridFlags.YaxisLabels | PlotAxesRenderer.GridFlags.XaxisLabels;
+            _Options1.GridSettings = MyAxesRenderer.GridFlags.VerticalLines | MyAxesRenderer.GridFlags.HorizontalLines | MyAxesRenderer.GridFlags.YaxisLabels | MyAxesRenderer.GridFlags.XaxisLabels;
             _Options1.GridVisible = true;
             _Options1.LabelColor = Color.FromArgb(80, 255, 255, 255);
             _Options1.LabelPadding = 70F;
