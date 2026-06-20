@@ -46,13 +46,14 @@ struct BlockType {
   double   timestamp;
   uint32_t state;
   uint32_t count;
-  DataType data[CFG::MAX_BLOCKSIZE];
+  DataType* data;
 
   uint32_t numEvents;
-  EventType events[CFG::MAX_EVENTS_PER_BLOCK];
+  EventType* events;
 
 
   BlockType();
+  ~BlockType();
 
   void clear();
   
@@ -75,21 +76,40 @@ struct TimedSample {
   int32_t endTick;
 };
 
-struct DebugType {
-  static constexpr uint32_t DEBUG_BLOCKSIZE = 4096;
-  static constexpr uint32_t FRAME_START = 0xED01FAB4;
-  static constexpr uint32_t FRAME_END   = 0xED02FAB4;
+struct RawSignalType {
+ static constexpr uint32_t FRAME_START = 0xED51FAB4;
+ static constexpr uint32_t FRAME_END   = 0xED52FAB4;
+
+ static constexpr uint32_t MAX_SAMPLES = 16384;
+
   double timestamp;
   StateType state;
 
   uint32_t count;
-  TimedSample data[DEBUG_BLOCKSIZE];
-
-  DebugType() : timestamp(0.0), state(UNSET), count(0) {}
-  DebugType(StateType s) : timestamp(0.0), state(s), count(0) {}
+  TimedSample* data;
+  RawSignalType() : count(0), data(new TimedSample[MAX_SAMPLES]) {}
+ ~RawSignalType() { delete[] data; }
 
   void clear() { timestamp = 0.0; state = UNSET; count = 0; }
 
   void writeSerial(bool includeFrameMarkers = true);
 };
 
+
+
+
+
+struct DebugType {
+  static constexpr uint32_t FRAME_START = 0xED01FAB4;
+  static constexpr uint32_t FRAME_END   = 0xED02FAB4;
+  double timestamp;
+  StateType state;
+
+ 
+  DebugType() : timestamp(0.0), state(UNSET) {}
+  DebugType(StateType s) : timestamp(0.0), state(s) {}
+
+  void clear() { timestamp = 0.0; state = UNSET; }
+
+  void writeSerial(bool includeFrameMarkers = true);
+};

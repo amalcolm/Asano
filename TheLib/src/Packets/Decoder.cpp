@@ -105,18 +105,26 @@ namespace TheLib
 				return telePkt;
 			}
 
+			case PacketKind::RawSignal:
+			{
+				RawSignalPacket^ rawSignalPkt = RawSignalPacket::Rent();
+				rawSignalPkt->TimeStamp = nativePacket.rawSignal.timeStamp;
+				rawSignalPkt->State     = static_cast<HeadState>(nativePacket.rawSignal.state);
+				rawSignalPkt->Count     = nativePacket.rawSignal.count;
+				for (size_t i = 0; i < nativePacket.rawSignal.count; ++i)
+				{
+					rawSignalPkt->Data[i].StartTick = nativePacket.rawSignal.data[i].startTick;
+					rawSignalPkt->Data[i].Sample    = nativePacket.rawSignal.data[i].sample;
+					rawSignalPkt->Data[i].EndTick   = nativePacket.rawSignal.data[i].endTick;
+				}
+				return rawSignalPkt;
+			}
+
 			case PacketKind::Debug:
 			{
 				DebugPacket^ debugPkt = DebugPacket::Rent();
 				debugPkt->TimeStamp = nativePacket.debug.timeStamp;
 				debugPkt->State     = static_cast<HeadState>(nativePacket.debug.state);
-				debugPkt->Count     = nativePacket.debug.count;
-				for (size_t i = 0; i < nativePacket.debug.count; ++i)
-				{
-					debugPkt->Data[i].StartTick = nativePacket.debug.data[i].startTick;
-					debugPkt->Data[i].Sample    = nativePacket.debug.data[i].sample;
-					debugPkt->Data[i].EndTick   = nativePacket.debug.data[i].endTick;
-				}
 				return debugPkt;
 			}
 

@@ -200,31 +200,56 @@ namespace TheLib
 	}
 
 
+	int RawSignalPacket::MAX_SAMPLES::get() { return CRawSignalPacket::MAX_SAMPLES; }
 
-    DebugPacket::DebugPacket()
+    RawSignalPacket::RawSignalPacket()
     {
-		Data = gcnew array<CDebugData>(CDebugPacket::MAX_DEBUG_DATA);
+		Data = gcnew array<SignalData>(CRawSignalPacket::MAX_SAMPLES);
         Reset();
 	}
-    DebugPacket^ DebugPacket::Rent()
+    RawSignalPacket^ RawSignalPacket::Rent()
     {
-        DebugPacket^ p; if (s_pool->TryDequeue(p)) return p;
-        return gcnew DebugPacket();
+        RawSignalPacket^ p; if (s_pool->TryDequeue(p)) return p;
+        return gcnew RawSignalPacket();
     }
     
-    void DebugPacket::Cleanup()
+    void RawSignalPacket::Cleanup()
     {
         Reset();
         s_pool->Enqueue(this);
 	}
 
+    RawSignalPacket::~RawSignalPacket() { Cleanup(); GC::SuppressFinalize(this); }
+    RawSignalPacket::!RawSignalPacket() {}
+    void RawSignalPacket::Reset()
+    {
+        State = HeadState::None;
+        TimeStamp = 0.0;
+        Count = 0;
+        // Data array is reused, and no need to clean it.
+	}
+
+
+    DebugPacket::DebugPacket()
+    {
+        Reset();
+    }
+    DebugPacket^ DebugPacket::Rent()
+    {
+        DebugPacket^ p; if (s_pool->TryDequeue(p)) return p;
+        return gcnew DebugPacket();
+	}
+    void DebugPacket::Cleanup()
+    {
+        Reset();
+        s_pool->Enqueue(this);
+    }
     DebugPacket::~DebugPacket() { Cleanup(); GC::SuppressFinalize(this); }
     DebugPacket::!DebugPacket() {}
     void DebugPacket::Reset()
     {
         State = HeadState::None;
         TimeStamp = 0.0;
-        Count = 0;
         // Data array is reused, and no need to clean it.
 	}
 }

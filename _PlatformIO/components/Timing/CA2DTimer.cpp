@@ -18,7 +18,7 @@ void CA2DTimer::reset(uint32_t start, uint32_t period) {
   _period = period;
 }
 */
-void CA2DTimer::sync() const {
+void CA2DTimer::sync() {
 
 //  if (CFG::A2D_USE_CONTINUOUS_MODE) 
     A2D.waitForNextDataReady();

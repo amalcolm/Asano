@@ -1,4 +1,9 @@
 #pragma once
+
+#pragma managed(push, off)
+#include "CPackets.h"
+#pragma managed(pop)
+
 #pragma managed(push, on)
 
 #include "..\AString.h"
@@ -260,35 +265,58 @@ namespace TheLib
         property float     Value;
 
         property UInt32    Key;
+
     protected:
         TelemetryPacket();
         static ConcurrentQueue<TelemetryPacket^>^ s_pool = gcnew ConcurrentQueue<TelemetryPacket^>();
 	};
 
-    public value struct CDebugData
+    public value struct SignalData
     {
         int32_t StartTick;
 		int32_t Sample;
         int32_t EndTick;
 	};
 
-    public ref class DebugPacket : IPacket, IDisposable
+    public ref class RawSignalPacket : IPacket, IDisposable
     {
     public:
-        static DebugPacket^ Rent();
+        static property int MAX_SAMPLES { int get(); }
+
+        static RawSignalPacket^ Rent();
         virtual void Cleanup();
-        ~DebugPacket();
-        !DebugPacket();
+        ~RawSignalPacket();
+        !RawSignalPacket();
 
         void Reset();
         virtual property HeadState State;
         virtual property double    TimeStamp;
         property int       Count;
-        property array<CDebugData>^ Data;
+        property array<SignalData>^ Data;
+
+    protected:
+        RawSignalPacket();
+        static ConcurrentQueue<RawSignalPacket^>^ s_pool = gcnew ConcurrentQueue<RawSignalPacket^>();
+    };
+
+
+
+    public ref class DebugPacket : IPacket, IDisposable
+	{
+        public:
+        static DebugPacket^ Rent();
+        virtual void Cleanup();
+        ~DebugPacket();
+        !DebugPacket();
+        
+        void Reset();
+        virtual property HeadState State;
+        virtual property double    TimeStamp;
+
     protected:
         DebugPacket();
         static ConcurrentQueue<DebugPacket^>^ s_pool = gcnew ConcurrentQueue<DebugPacket^>();
-    };
+	};
 }
 
 #pragma managed(pop)

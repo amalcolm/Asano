@@ -22,6 +22,7 @@ class CUSB : public CSerialWrapper {
     int m_numBuffered = 0;  // number of bytes currently buffered in m_readBuffer
 
     volatile bool m_debugOutputWaiting = false;
+    volatile bool m_rawSignalWaiting = false;
 
   public:
     CUSB() { m_pDebugToFill = &m_DebugA; m_pDebugToSend = &m_DebugB; };
@@ -36,8 +37,10 @@ class CUSB : public CSerialWrapper {
     inline void buffer(BlockType*  block    ) { m_pBlock = block; }
     inline void buffer(CTelemetry* telemetry) { m_telemetryBuffer.write(telemetry); }
     inline void buffer(DebugType*  debug    ) { if (debug != m_pDebugToFill) *m_pDebugToFill = *debug; m_debugOutputWaiting = true; }
+    inline void buffer(RawSignalType* signal) { if (signal != &m_RawSignal) m_RawSignal = *signal; m_rawSignalWaiting = true; }
 
     DebugType*  getDebugBuffer();
+    RawSignalType* getRawSignalBuffer();
     
     CTeleTimer TT_USBWrite{TeleGroup::USB, 0x0001};
     CTeleTimer TT_USBRead {TeleGroup::USB, 0x0002};
@@ -70,7 +73,6 @@ class CUSB : public CSerialWrapper {
     }
 
     void writeDebugState(StateType state);
-    void doWriteDebug();
 
 
   private:
@@ -81,6 +83,8 @@ class CUSB : public CSerialWrapper {
     void doWriteBlock();
     void doWriteText();
     void doWriteTelemetry();
+    void doWriteDebug();
+    void doWriteRawSignal();
 
     DebugType           m_DebugA;
     DebugType           m_DebugB;
@@ -88,6 +92,7 @@ class CUSB : public CSerialWrapper {
     DebugType* volatile m_pDebugToFill;
     DebugType* volatile m_pDebugToSend;
 
+    RawSignalType       m_RawSignal;
     
 };
 

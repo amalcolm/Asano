@@ -12,6 +12,7 @@ namespace Asano.MyGLTools.Helpers
         public delegate void BlockPacketHandler(BlockPacket packet);
         public delegate void TextPacketHandler(TextPacket packet);
         public delegate void TelemetryPacketHandler(TelemetryPacket packet);
+        public delegate void RawSignalPacketHandler(RawSignalPacket packet);
         public delegate void DebugPacketHandler(DebugPacket packet);
         public delegate void ErrorHandler(Exception exception);
         public delegate void ParsedParametersReceivedHandler(Dictionary<string, double> parameters);
@@ -20,6 +21,7 @@ namespace Asano.MyGLTools.Helpers
         public event BlockPacketHandler? BlockPacketReceived;
         public event TextPacketHandler? TextPacketReceived;
         public event TelemetryPacketHandler? TelemetryPacketReceived;
+        public event RawSignalPacketHandler? RawSignalPacketReceived;
         public event DebugPacketHandler? DebugPacketReceived;
         public event ErrorHandler? ErrorOccurred;
         public event ParsedParametersReceivedHandler? ParsedParametersReceived;
@@ -56,6 +58,7 @@ namespace Asano.MyGLTools.Helpers
             cts.Cancel();
             Close();
             _serialPort?.Dispose();
+            GC.SuppressFinalize(this);
         }
 
         
@@ -104,11 +107,12 @@ namespace Asano.MyGLTools.Helpers
         {
             switch (packet)
             {
-                case BlockPacket    blockPacket:      BlockPacketReceived?.Invoke(blockPacket); break;
-                case TelemetryPacket telePacket:  TelemetryPacketReceived?.Invoke( telePacket); break;
-                case DebugPacket    debugPacket:      DebugPacketReceived?.Invoke(debugPacket); break;
+                case BlockPacket      blockPacket:      BlockPacketReceived?.Invoke( blockPacket); break;
+                case TelemetryPacket   telePacket:  TelemetryPacketReceived?.Invoke(  telePacket); break;
+                case RawSignalPacket signalPacket:  RawSignalPacketReceived?.Invoke(signalPacket); break;
+                case DebugPacket      debugPacket:      DebugPacketReceived?.Invoke( debugPacket); break;
 
-                case TextPacket      textPacket:  AddTextPacket(textPacket); break;
+                case TextPacket        textPacket:  AddTextPacket(textPacket); break;
             }
         }
 

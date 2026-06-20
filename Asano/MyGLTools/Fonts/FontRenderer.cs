@@ -132,10 +132,14 @@ namespace Asano.MyGLTools.Fonts
 
             for (int i = 0; i < count; i++)
             {
-                var blockVerticesSpan = blocks[i].GetVertices(Scaling);
-                EnsureVertexCapacity(_currentVertexCount + blockVerticesSpan.Length);
-                CopyVertices(blockVerticesSpan, _vertices.AsSpan(_currentVertexCount), offsetX[i], offsetY[i]);
-                _currentVertexCount += blockVerticesSpan.Length;
+                TextBlock block = blocks[i];
+                lock (block)
+                {
+                    var blockVerticesSpan = block.GetVertices(Scaling);
+                    EnsureVertexCapacity(_currentVertexCount + blockVerticesSpan.Length);
+                    CopyVertices(blockVerticesSpan, _vertices.AsSpan(_currentVertexCount), offsetX[i], offsetY[i]);
+                    _currentVertexCount += blockVerticesSpan.Length;
+                }
             }
 
             BindVertices();

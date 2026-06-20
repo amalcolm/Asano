@@ -45,14 +45,16 @@ namespace
                                            + sizeof(uint16_t) // id
                                            + sizeof(float);   // value
 
-    constexpr size_t kDebugPayloadSize     = sizeof(uint32_t)  // startTick
-                                           + sizeof(uint16_t)  // sample
-                                           + sizeof(uint16_t)  // reserved
+    constexpr size_t kRawSignalPayloadSize = sizeof(uint32_t)  // startTick
+                                           + sizeof(uint32_t)  // sample
                                            + sizeof(uint32_t); // endTick
 
-    constexpr size_t kDebugHeaderSize      = sizeof(double)    // timeStamp
+    constexpr size_t kRawSignalHeaderSize  = sizeof(double)    // timeStamp
 	                                       + sizeof(uint32_t)  // state
 		                                   + sizeof(uint32_t); // count
+
+    constexpr size_t kDebugHeaderSize      = sizeof(double)    // timeStamp
+                                    	   + sizeof(uint32_t);  // state
 
 	constexpr uint8_t kFrameStart[2] = {0xB4, 0xFA}; // common start bytes of all framing
 
@@ -79,18 +81,20 @@ namespace
     inline FrameParseResult readFloat (const uint8_t* payload, float   & out) noexcept;
     inline FrameParseResult readDouble(const uint8_t* payload, double  & out) noexcept;
 
-    FrameParseResult readDataPayload (const uint8_t* payload, size_t payloadBytes, CDecodedPacket& out, size_t& consumed) noexcept;
-    FrameParseResult readBlockPayload(const uint8_t* payload, size_t payloadBytes, CDecodedPacket& out, size_t& consumed) noexcept;
-    FrameParseResult readTextPayload (const uint8_t* payload, size_t payloadBytes, CDecodedPacket& out, size_t& consumed) noexcept;
-	FrameParseResult readTelePayload (const uint8_t* payload, size_t payloadBytes, CDecodedPacket& out, size_t& consumed) noexcept;
-	FrameParseResult readDebugPayload(const uint8_t* payload, size_t payloadBytes, CDecodedPacket& out, size_t& consumed) noexcept;
+    FrameParseResult readDataPayload  (const uint8_t* payload, size_t payloadBytes, CDecodedPacket& out, size_t& consumed) noexcept;
+    FrameParseResult readBlockPayload (const uint8_t* payload, size_t payloadBytes, CDecodedPacket& out, size_t& consumed) noexcept;
+    FrameParseResult readTextPayload  (const uint8_t* payload, size_t payloadBytes, CDecodedPacket& out, size_t& consumed) noexcept;
+	FrameParseResult readTelePayload  (const uint8_t* payload, size_t payloadBytes, CDecodedPacket& out, size_t& consumed) noexcept;
+	FrameParseResult readSignalPayload(const uint8_t* payload, size_t payloadBytes, CDecodedPacket& out, size_t& consumed) noexcept;
+	FrameParseResult readDebugPayload (const uint8_t* payload, size_t payloadBytes, CDecodedPacket& out, size_t& consumed) noexcept;
 
 
-    FrameParseResult quickFrameCheck   (const uint8_t* buf, size_t len, CDecodedPacket& out, size_t& usedBytes) noexcept;
-    FrameParseResult tryParseDataFrame (const uint8_t* buf, size_t len, CDecodedPacket& out, size_t& usedBytes) noexcept;
-    FrameParseResult tryParseBlockFrame(const uint8_t* buf, size_t len, CDecodedPacket& out, size_t& usedBytes) noexcept;
-	FrameParseResult tryParseTeleFrame (const uint8_t* buf, size_t len, CDecodedPacket& out, size_t& usedBytes) noexcept;
-	FrameParseResult tryParseDebugFrame(const uint8_t* buf, size_t len, CDecodedPacket& out, size_t& usedBytes) noexcept;
+    FrameParseResult quickFrameCheck    (const uint8_t* buf, size_t len, CDecodedPacket& out, size_t& usedBytes) noexcept;
+    FrameParseResult tryParseDataFrame  (const uint8_t* buf, size_t len, CDecodedPacket& out, size_t& usedBytes) noexcept;
+    FrameParseResult tryParseBlockFrame (const uint8_t* buf, size_t len, CDecodedPacket& out, size_t& usedBytes) noexcept;
+	FrameParseResult tryParseTeleFrame  (const uint8_t* buf, size_t len, CDecodedPacket& out, size_t& usedBytes) noexcept;
+	FrameParseResult tryParseSignalFrame(const uint8_t* buf, size_t len, CDecodedPacket& out, size_t& usedBytes) noexcept;
+	FrameParseResult tryParseDebugFrame (const uint8_t* buf, size_t len, CDecodedPacket& out, size_t& usedBytes) noexcept;
 
     static PacketKind classify(const uint8_t* buf, size_t n) noexcept;
 
@@ -235,6 +239,7 @@ bool CDecoder::IsKnownFrameHeaderAt(const std::vector<uint8_t>& buf, size_t i)
     case 0xD1: // Data packet
     case 0xB1: // Block packet
     case 0x71: // Telemetry packet
+	case 0x51: // Raw Signal packet
 	case 0x01: // Debug packet
         return true;
 
@@ -264,6 +269,7 @@ namespace
             case      CDataPacket::frameStart: return PacketKind::Data;
             case     CBlockPacket::frameStart: return PacketKind::Block;
             case CTelemetryPacket::frameStart: return PacketKind::Telemetry;
+			case CRawSignalPacket::frameStart: return PacketKind::RawSignal;
 			case     CDebugPacket::frameStart: return PacketKind::Debug;
             default: return PacketKind::Unknown;
         }
@@ -286,10 +292,11 @@ namespace
         // All good
         switch (classify(buf, len))
         {
-            case PacketKind::Data     : return tryParseDataFrame (buf, len, out, usedBytes);
-            case PacketKind::Block    : return tryParseBlockFrame(buf, len, out, usedBytes);
-            case PacketKind::Telemetry: return tryParseTeleFrame (buf, len, out, usedBytes); 
-            case PacketKind::Debug    : return tryParseDebugFrame(buf, len, out, usedBytes);
+            case PacketKind::Data     : return tryParseDataFrame  (buf, len, out, usedBytes);
+            case PacketKind::Block    : return tryParseBlockFrame (buf, len, out, usedBytes);
+            case PacketKind::Telemetry: return tryParseTeleFrame  (buf, len, out, usedBytes); 
+			case PacketKind::RawSignal: return tryParseSignalFrame(buf, len, out, usedBytes);
+            case PacketKind::Debug    : return tryParseDebugFrame (buf, len, out, usedBytes);
             default                   : return FrameParseResult::InvalidHeader;
         }
     }
@@ -368,23 +375,40 @@ namespace
         return result;
     }
 
-    FrameParseResult tryParseDebugFrame(const uint8_t* buf, size_t n, CDecodedPacket& out, size_t& usedBytes) noexcept
+    FrameParseResult tryParseSignalFrame(const uint8_t* buf, size_t n, CDecodedPacket& out, size_t& usedBytes) noexcept
     {
         usedBytes = 0;
-        constexpr size_t minNeed = kFrameSize + kDebugHeaderSize + kFrameSize;                          if (n < minNeed) return FrameParseResult::IncompletePacket;
-        uint32_t start = 0; readU32(buf + 0, start);                                                    if (start != CDebugPacket::frameStart) return FrameParseResult::InvalidHeader;
-        uint32_t count = 0; readU32(buf + kFrameSize + sizeof(double) + sizeof(uint32_t), count);       if (count > CDebugPacket::MAX_DEBUG_DATA) return FrameParseResult::InvalidHeader;
+        constexpr size_t minNeed = kFrameSize + kRawSignalHeaderSize + kFrameSize;                      if (n < minNeed) return FrameParseResult::IncompletePacket;
+        uint32_t start = 0; readU32(buf + 0, start);                                                    if (start != CRawSignalPacket::frameStart) return FrameParseResult::InvalidHeader;
+        uint32_t count = 0; readU32(buf + kFrameSize + sizeof(double) + sizeof(uint32_t), count);       if (count > CRawSignalPacket::MAX_SAMPLES) return FrameParseResult::InvalidHeader;
 
-		const size_t payloadBytes = kDebugHeaderSize + static_cast<size_t>(count) * kDebugPayloadSize;
+		const size_t payloadBytes = kRawSignalHeaderSize + static_cast<size_t>(count) * kRawSignalPayloadSize;
 		const size_t need = kFrameSize + payloadBytes + kFrameSize;                                     if (n < need) return FrameParseResult::IncompletePacket;
+		uint32_t end = 0; readU32(buf + kFrameSize + payloadBytes, end);                                if (end != CRawSignalPacket::frameEnd) return FrameParseResult::InvalidFooter;
 
-        FrameParseResult result = readDebugPayload(buf + kFrameSize, kDebugHeaderSize + count * kDebugPayloadSize, out, usedBytes);
+        FrameParseResult result = readSignalPayload(buf + kFrameSize, kRawSignalHeaderSize + count * kRawSignalPayloadSize, out, usedBytes);
 
         if (result == FrameParseResult::ValidPacket)
 			usedBytes = kFrameSize + usedBytes + kFrameSize;
 
 		return result;
     }
+
+    FrameParseResult tryParseDebugFrame(const uint8_t* buf, size_t n, CDecodedPacket& out, size_t& usedBytes) noexcept
+    {
+        usedBytes = 0;
+        constexpr size_t minNeed = kFrameSize + kDebugHeaderSize + kFrameSize;                          if (n < minNeed) return FrameParseResult::IncompletePacket;
+        uint32_t start = 0; readU32(buf + 0, start);                                                    if (start != CDebugPacket::frameStart) return FrameParseResult::InvalidHeader;
+
+        const size_t need = kFrameSize + kDebugHeaderSize + kFrameSize;                                 if (n < need) return FrameParseResult::IncompletePacket;
+        uint32_t end = 0; readU32(buf + kFrameSize + kDebugHeaderSize, end);                            if (end != CDebugPacket::frameEnd) return FrameParseResult::InvalidFooter;
+
+        FrameParseResult result = readDebugPayload(buf + kFrameSize, kDebugHeaderSize, out, usedBytes);
+        if (result == FrameParseResult::ValidPacket)
+            usedBytes = kFrameSize + usedBytes + kFrameSize;
+        return result;
+    }
+
     /// Readers
     
     FrameParseResult readDataPayload(const uint8_t* payload, size_t payloadBytes, CDecodedPacket& out, size_t& consumed) noexcept
@@ -515,6 +539,33 @@ namespace
         return FrameParseResult::ValidPacket;
 	}
 
+    FrameParseResult readSignalPayload(const uint8_t* payload, size_t payloadBytes, CDecodedPacket& out, size_t& consumed) noexcept
+    {
+                                                                                                        if (payloadBytes < kRawSignalHeaderSize) return FrameParseResult::IncompleteHeader;
+        CRawSignalPacket dp{};
+        size_t offset = 0;
+        readDouble(payload + offset, dp.timeStamp); offset += sizeof(double);
+        readU32   (payload + offset, dp.state    ); offset += sizeof(uint32_t);
+        readU32   (payload + offset, dp.count    ); offset += sizeof(uint32_t);                         if (dp.count > CRawSignalPacket::MAX_SAMPLES) return FrameParseResult::InvalidHeader;
+
+        const size_t dataBytes = static_cast<size_t>(dp.count) * kRawSignalPayloadSize;
+        const size_t need = kRawSignalHeaderSize + dataBytes;
+        if (payloadBytes < need) return FrameParseResult::IncompletePacket;
+        for (uint32_t i = 0; i < dp.count; ++i)
+        {
+            CSignalData& sd = dp.data[i];
+
+            readI32(payload + offset, sd.startTick); offset += sizeof(int32_t);
+            readI32(payload + offset, sd.sample   ); offset += sizeof(int32_t);
+			// ignore reserved field, not transmitted
+            readI32(payload + offset, sd.endTick  ); offset += sizeof(int32_t);
+        }
+        consumed = need;
+        out.rawSignal = dp;
+        out.kind = PacketKind::RawSignal;
+		return FrameParseResult::ValidPacket;
+    }
+
     FrameParseResult readDebugPayload(const uint8_t* payload, size_t payloadBytes, CDecodedPacket& out, size_t& consumed) noexcept
     {
                                                                                                         if (payloadBytes < kDebugHeaderSize) return FrameParseResult::IncompleteHeader;
@@ -522,24 +573,10 @@ namespace
         size_t offset = 0;
         readDouble(payload + offset, dp.timeStamp); offset += sizeof(double);
         readU32   (payload + offset, dp.state    ); offset += sizeof(uint32_t);
-        readU32   (payload + offset, dp.count    ); offset += sizeof(uint32_t);                         if (dp.count > CDebugPacket::MAX_DEBUG_DATA) return FrameParseResult::InvalidHeader;
-
-        const size_t dataBytes = static_cast<size_t>(dp.count) * kDebugPayloadSize;
-        const size_t need = kDebugHeaderSize + dataBytes;
-        if (payloadBytes < need) return FrameParseResult::IncompletePacket;
-        for (uint32_t i = 0; i < dp.count; ++i)
-        {
-            CDebugData& dd = dp.data[i];
-
-            readI32(payload + offset, dd.startTick); offset += sizeof(int32_t);
-            readI32(payload + offset, dd.sample   ); offset += sizeof(int32_t);
-			// ignore reserved field, not transmitted
-            readI32(payload + offset, dd.endTick  ); offset += sizeof(int32_t);
-        }
-        consumed = need;
+        consumed = offset;
         out.debug = dp;
-        out.kind = PacketKind::Debug;
-		return FrameParseResult::ValidPacket;
+		out.kind = PacketKind::Debug;
+        return FrameParseResult::ValidPacket;
     }
 }
 

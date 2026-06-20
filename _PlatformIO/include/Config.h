@@ -9,7 +9,7 @@ public:
     inline static constexpr bool ADS1299_USE_24BIT = false; // if false, use 10-bit mode TEENSY 4.1 sensors
 
     // hardware timing constants (in microseconds / hertz)
-    inline static constexpr double STATE_DURATION_uS       =  5'000;  // time for each state. loop will be slightly longer than this
+    inline static constexpr double STATE_DURATION_uS       =  4'000;  // time for each state. loop will be slightly longer than this
 
     inline static constexpr double HEAD_SETTLE_TIME_uS     =  1'500;  // delay between Head change and first A2D read
     

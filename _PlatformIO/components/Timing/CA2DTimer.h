@@ -7,7 +7,7 @@ class CA2DTimer : public C32bitTimer {
 
 //    void reset(uint32_t start, uint32_t period);
 
-    void sync() const override;
+    void sync() override;
 
     void setDataReady(uint32_t tick);
 

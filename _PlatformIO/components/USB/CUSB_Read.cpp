@@ -3,10 +3,12 @@
 #include "CHead.h"
 #include "HWforState.h"
 #include "Helpers.h"
-#include <algorithm>
-#include <cstring>
 #include "Config.h"
 #include "Setup.h"
+#include "C32bitTimer.h"
+#include "CMemoryInfo.h"
+#include <algorithm>
+#include <cstring>
 
 struct PayloadInfo { uint8_t id; size_t size; };
 
@@ -17,14 +19,23 @@ const std::array<PayloadInfo, 4> s_payloads = {{
   {XCMD_SetActiveState::ID, sizeof(XCMD_SetActiveState)}
 }};
 
+C32bitTimer T32_MemoryCheck = C32bitTimer::From_mS(400).setPeriodic(false);
+
 void CUSB::doRead() {
+  if (T32_MemoryCheck.passed()) { CMemoryInfo::print(); T32_MemoryCheck.stop(); }
+
   uint32_t nAvailable = Serial.available();
   if (nAvailable == 0) return;
 
   if (m_handshakeComplete == false) {
     doHandshake();
+
+    T32_MemoryCheck.reset();
     return;
   }
+
+    
+  
 
   uint32_t bufferSize = static_cast<uint32_t>(m_readBuffer.size());
 

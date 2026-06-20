@@ -18,7 +18,9 @@ void CUSB::doWrite() {
   // Always write (and clear) any buffered telemetry
   doWriteTelemetry();
 
+  doWriteRawSignal();
   doWriteDebug();
+
 
 }
 
@@ -77,14 +79,31 @@ void CUSB::doWriteTelemetry() {
 }
 
 
+RawSignalType* CUSB::getRawSignalBuffer() {
+  m_RawSignal.clear();
+  m_RawSignal.timestamp = Timer.getConnectTime();
+  m_RawSignal.state = Head.getState();
+  return &m_RawSignal;
+}
+
+
+void CUSB::doWriteRawSignal() { if (m_rawSignalWaiting == false) return;
+
+  m_rawSignalWaiting = false;
+  
+  if (m_handshakeComplete) 
+    m_RawSignal.writeSerial();
+};
+
+
+
 DebugType* CUSB::getDebugBuffer() { if (m_debugOutputWaiting) return nullptr;
   m_pDebugToFill->state = Head.getState();
   m_pDebugToFill->timestamp = Timer.getConnectTime();
   return m_pDebugToFill;
 }
 
-void CUSB::doWriteDebug() {
-  if (m_debugOutputWaiting == false) return;
+void CUSB::doWriteDebug() { if (m_debugOutputWaiting == false) return;
 
   noInterrupts();
   {
@@ -108,7 +127,5 @@ void CUSB::writeDebugState(StateType state) {
 
   m_pDebugToFill->timestamp = Timer.getConnectTime();
   m_pDebugToFill->state = state;
-  m_pDebugToFill->count = 0; // ensure no sample data is sent
   m_debugOutputWaiting = true;
 }
-

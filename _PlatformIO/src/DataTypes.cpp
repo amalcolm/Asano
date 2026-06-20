@@ -90,7 +90,15 @@ void DataType::fillFromHardware(struct HWforState& HW, bool setTimestamp) {
 
 
 
-BlockType::BlockType() : timestamp(0.0), state(UNSET), count(0), data(), numEvents(0), events() {}
+BlockType::BlockType() : timestamp(0.0), state(UNSET), count(0), numEvents(0) {
+  data   = new DataType[CFG::MAX_BLOCKSIZE];
+  events = new EventType[CFG::MAX_EVENTS_PER_BLOCK];
+}
+
+BlockType::~BlockType() {
+  delete[] data;
+  delete[] events;
+}
 
 void BlockType::clear() {
   timestamp = 0.0;
@@ -153,18 +161,28 @@ void BlockType::debugSerial() {
   USB.printf("\n");
 }
 
-void DebugType::writeSerial(bool includeFrameMarkers) {
+void RawSignalType::writeSerial(bool includeFrameMarkers) {
   if (includeFrameMarkers) USB.write(FRAME_START);
 
   USB.write(timestamp);
   USB.write(state);
   USB.write(count);
-  for (uint32_t i = 0; i < count && i < DEBUG_BLOCKSIZE; i++) {
+  for (uint32_t i = 0; i < count && i < MAX_SAMPLES; i++) {
     TimedSample& item = data[i];
     USB.write(item.startTick);
     USB.write(item.sample);
     USB.write(item.endTick);
   }
 
+  if (includeFrameMarkers) USB.write(FRAME_END);
+}
+
+
+void DebugType::writeSerial(bool includeFrameMarkers) {
+  if (includeFrameMarkers) USB.write(FRAME_START);
+
+  USB.write(timestamp);
+  USB.write(state);
+ 
   if (includeFrameMarkers) USB.write(FRAME_END);
 }

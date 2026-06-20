@@ -9,9 +9,10 @@ namespace Asano.DataTools.Controls
 {
     public partial class SignalViewer : MyInteractivePlotterBase
     {
-        private const int MAX_SAMPLES = 4096;
+        private static readonly int MAX_SAMPLES = RawSignalPacket.MAX_SAMPLES;
+        private static readonly int MAX_VERTICES = MAX_SAMPLES * VERTICES_PER_SAMPLE;
+
         private const int VERTICES_PER_SAMPLE = 6;
-        private const int MAX_VERTICES = MAX_SAMPLES * VERTICES_PER_SAMPLE;
         private const string XAxisUnit = "mS";
         private const float XAxisUnitRightMargin = 8.0f;
         private const float XAxisUnitBottomMargin = -8.0f;
@@ -48,7 +49,7 @@ namespace Asano.DataTools.Controls
             BackColor = Color.MistyRose;
             Setup(initAction: Init, shutdownAction: Shutdown);
             SP.BlockPacketReceived += SP_BlockPacketReceived;
-            SP.DebugPacketReceived += SP_DebugPacketReceived;
+            SP.RawSignalPacketReceived += SP_RawSignalPacketReceived;
         }
 
 
@@ -71,26 +72,65 @@ namespace Asano.DataTools.Controls
             }
         }
 
-        private void SP_DebugPacketReceived(DebugPacket packet)
+        static readonly float uS_to_ticks = 600.0f; 
+        static float MeanAfterSettle(RawSignalPacket packet, out int cutIndex)
+        {
+            int settleTick = (int)(Config.HEAD_SETTLE_TIME_uS * uS_to_ticks);
+            int count = packet.Count;
+
+            if (count <= 0)
+            {
+                cutIndex = 0;
+                return float.NaN;
+            }
+
+            int lo = 0;
+            int hi = count;
+
+            while (lo < hi)
+            {
+                int mid = lo + ((hi - lo) >> 1);
+
+                if (packet.Data[mid].StartTick <= settleTick)
+                    lo = mid + 1;
+                else
+                    hi = mid;
+            }
+
+            cutIndex = lo;
+
+            if (cutIndex >= count)
+                return float.NaN;
+
+            double sum = 0.0;
+
+            for (int i = cutIndex; i < count; i++)
+                sum += packet.Data[i].Sample;
+
+            return (float)(sum / (count - cutIndex));
+        }
+        private void SP_RawSignalPacketReceived(RawSignalPacket packet)
         {   
             if (base.requestHold) return;
             if (!IsActiveChartState(packet.State)) return;
 
-            int max = Math.Min(packet.Count, MAX_SAMPLES);
+            
+            float mean = MeanAfterSettle(packet, out int cutIndex);
 
-            double total = 0.0;
-            for (int i = 0; i < max; i++)
-                total += packet.Data[i].Sample;
+//            List<NoiseSampleSnapshot> samples = new(MAX_SAMPLES);
 
-            float mean = (float)(total / max);
-            List<NoiseSampleSnapshot> samples = new(max);
-
+            float maxX = packet.Data[packet.Count - 1].EndTick * ticksToSeconds;
             float minY = float.MaxValue, maxY = float.MinValue;
             float lastX = 0.0f;
             int verts = 0;
 
             MyColour colour = Color.SeaShell;
             MyColour transparent = colour with { a = 0.4f };
+
+             
+            float minDX = this.Width > 0 ? (maxX / this.Width) * 1.5f : 0.001f;
+            int max = Math.Min(packet.Count, cutIndex + MAX_SAMPLES);
+
             for (int i = 0; i < max; i++)
             {
                 float y = packet.Data[i].Sample;
@@ -98,7 +138,10 @@ namespace Asano.DataTools.Controls
 
                 float x1 = packet.Data[i].StartTick * ticksToSeconds;
                 float x2 = packet.Data[i].EndTick * ticksToSeconds;
-                samples.Add(new NoiseSampleSnapshot(x1, x2, packet.Data[i].Sample));
+
+                if (x2 - x1 < minDX) x2 = x1 + minDX;
+                
+//                samples.Add(new NoiseSampleSnapshot(x1, x2, packet.Data[i].Sample));
 
                 float y1 = MathF.Min(mean, y);
                 float y2 = MathF.Max(mean, y);
@@ -114,6 +157,7 @@ namespace Asano.DataTools.Controls
 
                 lastX = x2;
 
+                if (i < cutIndex) continue; // skip for min/max calculation
                 if (y < minY) minY = y;
                 if (y > maxY) maxY = y;
             }
@@ -141,7 +185,7 @@ namespace Asano.DataTools.Controls
             lock (_lock)
             {
                 _noiseRange = noiseRange;
-                _latestNoise = new NoiseSnapshot(packet.TimeStamp, packet.State, _latestHardware, samples);
+//                _latestNoise = new NoiseSnapshot(packet.TimeStamp, packet.State, _latestHardware, samples);
                 _vertexBuffer.Set(ref vertices, vertexCount);
                 SetAutomaticViewPort(new RectangleF(0.0f, topY, lastX, height));
             }
@@ -173,10 +217,10 @@ namespace Asano.DataTools.Controls
         {
             base.Init();
             _vertexBuffer.Init();
-            _xAxisUnitLabel = new TextBlock(XAxisUnit, 0, 0, font, TextAlign.Right);
-            _noiseRangeLabel = new TextBlock(NoiseRangeLabel, 0, 0, font, TextAlign.Right);
+            _xAxisUnitLabel       = new TextBlock(XAxisUnit, 0, 0, font, TextAlign.Right);
+            _noiseRangeLabel      = new TextBlock(NoiseRangeLabel, 0, 0, font, TextAlign.Right);
             _noiseRangeValueLabel = new TextBlock("0", 0, 0, font, TextAlign.Right, NoiseRangeFormat);
-            _noiseRangeBlocks = [_noiseRangeValueLabel, _noiseRangeLabel];
+            _noiseRangeBlocks     = [_noiseRangeValueLabel, _noiseRangeLabel];
 
             _vertexBuffer.Set(ref vertices, vertexCount);
 
@@ -199,12 +243,9 @@ namespace Asano.DataTools.Controls
             _ready = false;
             cmStrip.Closed -= cmStrip_Closed;
 
-            if (Program.SerialPort != null)
-            {
-                Program.SerialPort.BlockPacketReceived -= SP_BlockPacketReceived;
+            SP.BlockPacketReceived -= SP_BlockPacketReceived;
+            SP.RawSignalPacketReceived -= SP_RawSignalPacketReceived;
 
-                Program.SerialPort.DebugPacketReceived -= SP_DebugPacketReceived;
-            }
             _xAxisUnitLabel?.Dispose();
             _noiseRangeLabel?.Dispose();
             _noiseRangeValueLabel?.Dispose();

@@ -88,23 +88,33 @@ struct CTelemetryPacket
     uint32_t key{};
 };
 
-struct CDebugData
+struct CSignalData
 {
     int32_t  startTick{};
     int32_t  sample{};
     int32_t  endTick{};
 };
 
+struct CRawSignalPacket
+{
+    static constexpr Frame frameStart = 0xED'51'FA'B4;  // 51/52 = Raw Signal Packet
+    static constexpr Frame frameEnd   = 0xED'52'FA'B4;
+
+    static constexpr size_t MAX_SAMPLES = 16384;
+    double timeStamp{};
+	uint32_t state{};
+  
+    uint32_t count{}; // number of valid entries in signals
+    CSignalData data[MAX_SAMPLES]{};
+  };
+
 struct CDebugPacket
 {
-	static constexpr size_t MAX_DEBUG_DATA = 4096;
 
     static constexpr Frame frameStart = 0xED'01'FA'B4;  // 01/02 = Debug Packet
     static constexpr Frame frameEnd   = 0xED'02'FA'B4;
     double   timeStamp{};
     uint32_t state{};
-    uint32_t count{};
-    CDebugData data[MAX_DEBUG_DATA]{};
 };
 
 #pragma pack(pop)
@@ -123,7 +133,7 @@ static_assert(offsetof(CBlockPacket, blockData) ==
 
 
 // ----------------------------- Tagged result ---------------------------------
-enum class PacketKind : uint8_t { Unknown = 0, Data = 1, Block = 2, Telemetry = 3, Text = 4, Debug = 5 };
+enum class PacketKind : uint8_t { Unknown = 0, Data = 1, Block = 2, Telemetry = 3, Text = 4, RawSignal = 5, Debug = 6 };
 
 struct CDecodedPacket
 {
@@ -133,6 +143,7 @@ struct CDecodedPacket
         CBlockPacket     block;
         CTextPacket      text;
 		CTelemetryPacket telemetry;
+		CRawSignalPacket rawSignal;
 		CDebugPacket     debug;
     };
 
