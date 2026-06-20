@@ -37,6 +37,13 @@ namespace Asano.DataTools.Controls
         private float _noiseRange = 0.0f;
         private DataPacket _latestHardware = DataPacket.Rent();
         private NoiseSnapshot _latestNoise = NoiseSnapshot.Empty;
+        private RawSignalSnapshot _latestSignal = RawSignalSnapshot.Empty;
+        private bool _verticesDirty = true;
+        private RectangleF _lastVertexPlotViewPort = RectangleF.Empty;
+        private Size _lastVertexDisplaySize = Size.Empty;
+        private bool _signalPointerDown;
+        private bool _signalPointerMoved;
+        private Point _signalPointerDownAt;
 
         public SignalViewer()
         {
@@ -66,24 +73,26 @@ namespace Asano.DataTools.Controls
             lock (_lock)
             {
                 vertexCount = 0;
-                GLThread?.Enqueue(() => _vertexBuffer.Set(ref vertices, vertexCount));
+                _latestSignal = RawSignalSnapshot.Empty;
                 _latestNoise = NoiseSnapshot.Empty;
                 _noiseRange = 0.0f;
+                _verticesDirty = true;
+                _lastVertexPlotViewPort = RectangleF.Empty;
+                _lastVertexDisplaySize = Size.Empty;
+                GLThread?.Enqueue(() => _vertexBuffer.Set(ref vertices, vertexCount));
             }
         }
 
         static readonly float uS_to_ticks = 600.0f; 
-        static float MeanAfterSettle(RawSignalPacket packet, out int cutIndex)
+        private static RawSignalSnapshot CreateSignalSnapshot(RawSignalPacket packet)
         {
+            int count = Math.Min(packet.Count, MAX_SAMPLES);
+            if (count <= 0) return RawSignalSnapshot.Empty;
+
+            SignalData[] samples = new SignalData[count];
+            Array.Copy(packet.Data, samples, count);
+
             int settleTick = (int)(Config.HEAD_SETTLE_TIME_uS * uS_to_ticks);
-            int count = packet.Count;
-
-            if (count <= 0)
-            {
-                cutIndex = 0;
-                return float.NaN;
-            }
-
             int lo = 0;
             int hi = count;
 
@@ -97,97 +106,61 @@ namespace Asano.DataTools.Controls
                     hi = mid;
             }
 
-            cutIndex = lo;
+            int cutIndex = lo;
+            if (cutIndex >= count) return RawSignalSnapshot.Empty;
 
-            if (cutIndex >= count)
-                return float.NaN;
-
-            double sum = 0.0;
+            double total = 0.0;
+            float minY = float.MaxValue;
+            float maxY = float.MinValue;
 
             for (int i = cutIndex; i < count; i++)
-                sum += packet.Data[i].Sample;
-
-            return (float)(sum / (count - cutIndex));
-        }
-        private void SP_RawSignalPacketReceived(RawSignalPacket packet)
-        {   
-            if (base.requestHold) return;
-            if (!IsActiveChartState(packet.State)) return;
-
-            
-            float mean = MeanAfterSettle(packet, out int cutIndex);
-
-//            List<NoiseSampleSnapshot> samples = new(MAX_SAMPLES);
-
-            float maxX = packet.Data[packet.Count - 1].EndTick * ticksToSeconds;
-            float minY = float.MaxValue, maxY = float.MinValue;
-            float lastX = 0.0f;
-            int verts = 0;
-
-            MyColour colour = Color.SeaShell;
-            MyColour transparent = colour with { a = 0.4f };
-
-             
-            float minDX = this.Width > 0 ? (maxX / this.Width) * 1.5f : 0.001f;
-            int max = Math.Min(packet.Count, cutIndex + MAX_SAMPLES);
-
-            for (int i = 0; i < max; i++)
             {
-                float y = packet.Data[i].Sample;
-                if (float.IsFinite(y) == false) continue;
+                float y = samples[i].Sample;
+                if (!float.IsFinite(y)) continue;
 
-                float x1 = packet.Data[i].StartTick * ticksToSeconds;
-                float x2 = packet.Data[i].EndTick * ticksToSeconds;
-
-                if (x2 - x1 < minDX) x2 = x1 + minDX;
-                
-//                samples.Add(new NoiseSampleSnapshot(x1, x2, packet.Data[i].Sample));
-
-                float y1 = MathF.Min(mean, y);
-                float y2 = MathF.Max(mean, y);
-
-                MyColour c = (y2 - y1 < 1.0f) ? transparent : colour;
-
-                vertices[verts].Position.X = x1; vertices[verts].Position.Y = y1; vertices[verts].Colour = c; verts++;
-                vertices[verts].Position.X = x2; vertices[verts].Position.Y = y1; vertices[verts].Colour = c; verts++;
-                vertices[verts].Position.X = x2; vertices[verts].Position.Y = y2; vertices[verts].Colour = c; verts++;
-                vertices[verts].Position.X = x1; vertices[verts].Position.Y = y1; vertices[verts].Colour = c; verts++;
-                vertices[verts].Position.X = x2; vertices[verts].Position.Y = y2; vertices[verts].Colour = c; verts++;
-                vertices[verts].Position.X = x1; vertices[verts].Position.Y = y2; vertices[verts].Colour = c; verts++;
-
-                lastX = x2;
-
-                if (i < cutIndex) continue; // skip for min/max calculation
+                total += y;
                 if (y < minY) minY = y;
                 if (y > maxY) maxY = y;
             }
-            vertexCount = verts;
 
-            if (vertexCount == 0 || !float.IsFinite(minY) || !float.IsFinite(maxY) || lastX <= 0.0f)
-            {
-                Clear();
-                return;
-            }
-            
+            if (!float.IsFinite(minY) || !float.IsFinite(maxY)) return RawSignalSnapshot.Empty;
+
+            float mean = (float)(total / (count - cutIndex));
+            float lastX = samples[count - 1].EndTick * ticksToSeconds;
+
             int msMax = (int)(lastX * 1000.0f + 0.05f);
             float remainder = (lastX * 1000.0f) - msMax;
 
             if (remainder < 0.1f)
                 lastX = msMax * 0.001f + 0.0002f;
 
+            return new RawSignalSnapshot(
+                packet.TimeStamp,
+                packet.State,
+                samples,
+                count,
+                cutIndex,
+                mean,
+                minY,
+                maxY,
+                lastX,
+                Math.Max(0.0f, maxY - minY));
+        }
 
-            float noiseRange = Math.Max(0.0f, maxY - minY);
-            float midY = mean;
-            float midRatio = GetMidYScreenRatio();
-            float height = GetAnchoredViewHeight(midY, minY, maxY, midRatio);
-            float topY = midY - height * midRatio;
+        private void SP_RawSignalPacketReceived(RawSignalPacket packet)
+        {
+            if (base.requestHold) return;
+            if (!IsActiveChartState(packet.State)) return;
+
+            RawSignalSnapshot signal = CreateSignalSnapshot(packet);
+            if (!signal.IsValid) { Clear(); return; }
 
             lock (_lock)
             {
-                _noiseRange = noiseRange;
-//                _latestNoise = new NoiseSnapshot(packet.TimeStamp, packet.State, _latestHardware, samples);
-                _vertexBuffer.Set(ref vertices, vertexCount);
-                SetAutomaticViewPort(new RectangleF(0.0f, topY, lastX, height));
+                _latestSignal = signal;
+                _latestNoise = CreateNoiseSnapshot(signal, _latestHardware);
+                _noiseRange = signal.NoiseRange;
+                _verticesDirty = true;
             }
         }
 
@@ -221,6 +194,7 @@ namespace Asano.DataTools.Controls
             _noiseRangeLabel      = new TextBlock(NoiseRangeLabel, 0, 0, font, TextAlign.Right);
             _noiseRangeValueLabel = new TextBlock("0", 0, 0, font, TextAlign.Right, NoiseRangeFormat);
             _noiseRangeBlocks     = [_noiseRangeValueLabel, _noiseRangeLabel];
+            AttachSignalHoldHandlers();
 
             _vertexBuffer.Set(ref vertices, vertexCount);
 
@@ -245,6 +219,7 @@ namespace Asano.DataTools.Controls
 
             SP.BlockPacketReceived -= SP_BlockPacketReceived;
             SP.RawSignalPacketReceived -= SP_RawSignalPacketReceived;
+            DetachSignalHoldHandlers();
 
             _xAxisUnitLabel?.Dispose();
             _noiseRangeLabel?.Dispose();
@@ -261,7 +236,10 @@ namespace Asano.DataTools.Controls
         protected override void DrawPlots()
         {
             lock (_lock)
+            {
+                EnsureVerticesForCurrentView();
                 _vertexBuffer.DrawTriangles();
+            }
         }
 
         protected override void DrawPlotOverlays()
@@ -329,6 +307,65 @@ namespace Asano.DataTools.Controls
             fontRenderer.RenderText(_noiseRangeBlocks, _noiseRangeBlocks.Length);
         }
 
+        private void AttachSignalHoldHandlers()
+        {
+            MyGL.MouseDown += SignalHold_MouseDown;
+            MyGL.MouseMove += SignalHold_MouseMove;
+            MyGL.MouseUp += SignalHold_MouseUp;
+            MyGL.MouseWheel += SignalHold_MouseWheel;
+            MyGL.MouseLeave += SignalHold_MouseLeave;
+        }
+
+        private void DetachSignalHoldHandlers()
+        {
+            MyGL.MouseDown -= SignalHold_MouseDown;
+            MyGL.MouseMove -= SignalHold_MouseMove;
+            MyGL.MouseUp -= SignalHold_MouseUp;
+            MyGL.MouseWheel -= SignalHold_MouseWheel;
+            MyGL.MouseLeave -= SignalHold_MouseLeave;
+        }
+
+        private void SignalHold_MouseDown(object? sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left) return;
+
+            _signalPointerDown = true;
+            _signalPointerMoved = false;
+            _signalPointerDownAt = e.Location;
+        }
+
+        private void SignalHold_MouseMove(object? sender, MouseEventArgs e)
+        {
+            if (!_signalPointerDown || (Control.MouseButtons & MouseButtons.Left) == 0) return;
+
+            if (Math.Abs(e.X - _signalPointerDownAt.X) > 2 || Math.Abs(e.Y - _signalPointerDownAt.Y) > 2)
+                _signalPointerMoved = true;
+        }
+
+        private void SignalHold_MouseUp(object? sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left) return;
+
+            if (_signalPointerMoved)
+                base.requestHold = true;
+
+            _signalPointerDown = false;
+            _signalPointerMoved = false;
+        }
+
+        private void SignalHold_MouseWheel(object? sender, MouseEventArgs e)
+        {
+            if (e.Delta != 0)
+                base.requestHold = true;
+        }
+
+        private void SignalHold_MouseLeave(object? sender, EventArgs e)
+        {
+            _signalPointerDown = false;
+            _signalPointerMoved = false;
+            base.requestHold = false;
+        }
+
         private float GetMidYScreenRatio()
         {
             float clientHeight = Math.Max(1.0f, Height);
@@ -345,6 +382,118 @@ namespace Asano.DataTools.Controls
             float upperHeight = (maxY - midY) / (1.0f - midRatio);
 
             return Math.Max(minHeight, Math.Max(lowerHeight, upperHeight));
+        }
+
+        private void EnsureVerticesForCurrentView()
+        {
+            RawSignalSnapshot signal = _latestSignal;
+            if (!signal.IsValid)
+            {
+                if (vertexCount != 0)
+                {
+                    vertexCount = 0;
+                    _vertexBuffer.Set(ref vertices, vertexCount);
+                }
+                return;
+            }
+
+            if (_verticesDirty)
+                ApplySignalViewPort(signal);
+
+            RectangleF plotViewPort = GetPlotViewPort();
+            Size displaySize = GLDisplaySize;
+
+            if (!_verticesDirty
+                && displaySize == _lastVertexDisplaySize
+                && NearlySame(plotViewPort, _lastVertexPlotViewPort))
+                return;
+
+            BuildSignalVertices(signal, plotViewPort, displaySize);
+            _vertexBuffer.Set(ref vertices, vertexCount);
+
+            _lastVertexPlotViewPort = plotViewPort;
+            _lastVertexDisplaySize = displaySize;
+            _verticesDirty = false;
+        }
+
+        private void ApplySignalViewPort(RawSignalSnapshot signal)
+        {
+            float midY = signal.Mean;
+            float midRatio = GetMidYScreenRatio();
+            float height = GetAnchoredViewHeight(midY, signal.MinY, signal.MaxY, midRatio);
+            float topY = midY - height * midRatio;
+
+            _noiseRange = signal.NoiseRange;
+            SetAutomaticViewPort(new RectangleF(0.0f, topY, signal.LastX, height));
+        }
+
+        private void BuildSignalVertices(RawSignalSnapshot signal, RectangleF plotViewPort, Size displaySize)
+        {
+            float minDX = MinVisibleSignalWidth(plotViewPort, displaySize);
+            int verts = 0;
+
+            MyColour colour = Color.SeaShell;
+            MyColour transparent = colour with { a = 0.4f };
+
+            for (int i = 0; i < signal.Count && verts + VERTICES_PER_SAMPLE <= vertices.Length; i++)
+            {
+                SignalData sample = signal.Samples[i];
+                float y = sample.Sample;
+                if (!float.IsFinite(y)) continue;
+
+                float x1 = sample.StartTick * ticksToSeconds;
+                float x2 = sample.EndTick * ticksToSeconds;
+
+                if (x2 - x1 < minDX) x2 = x1 + minDX;
+
+                float y1 = MathF.Min(signal.Mean, y);
+                float y2 = MathF.Max(signal.Mean, y);
+
+                MyColour c = (y2 - y1 < 1.0f) ? transparent : colour;
+
+                vertices[verts].Position.X = x1; vertices[verts].Position.Y = y1; vertices[verts].Colour = c; verts++;
+                vertices[verts].Position.X = x2; vertices[verts].Position.Y = y1; vertices[verts].Colour = c; verts++;
+                vertices[verts].Position.X = x2; vertices[verts].Position.Y = y2; vertices[verts].Colour = c; verts++;
+                vertices[verts].Position.X = x1; vertices[verts].Position.Y = y1; vertices[verts].Colour = c; verts++;
+                vertices[verts].Position.X = x2; vertices[verts].Position.Y = y2; vertices[verts].Colour = c; verts++;
+                vertices[verts].Position.X = x1; vertices[verts].Position.Y = y2; vertices[verts].Colour = c; verts++;
+            }
+
+            vertexCount = verts;
+        }
+
+        private static float MinVisibleSignalWidth(RectangleF plotViewPort, Size displaySize)
+        {
+            if (displaySize.Width <= 0 || !float.IsFinite(plotViewPort.Width) || plotViewPort.Width <= 0.0f)
+                return 0.001f;
+
+            return (plotViewPort.Width / displaySize.Width) * 1.5f;
+        }
+
+        private static bool NearlySame(RectangleF a, RectangleF b)
+        {
+            const float epsilon = 0.000001f;
+
+            return MathF.Abs(a.Left   - b.Left  ) <= epsilon
+                && MathF.Abs(a.Top    - b.Top   ) <= epsilon
+                && MathF.Abs(a.Width  - b.Width ) <= epsilon
+                && MathF.Abs(a.Height - b.Height) <= epsilon;
+        }
+
+        private static NoiseSnapshot CreateNoiseSnapshot(RawSignalSnapshot signal, DataPacket hardware)
+        {
+            List<NoiseSampleSnapshot> samples = new(signal.Count);
+
+            for (int i = 0; i < signal.Count; i++)
+            {
+                SignalData sample = signal.Samples[i];
+                samples.Add(new NoiseSampleSnapshot(
+                    sample.StartTick * ticksToSeconds,
+                    sample.EndTick * ticksToSeconds,
+                    sample.Sample));
+            }
+
+            return new NoiseSnapshot(signal.Timestamp, signal.State, hardware, samples);
         }
 
         private void miExport_Click(object sender, EventArgs e)
@@ -481,6 +630,38 @@ namespace Asano.DataTools.Controls
         }
 
         private readonly record struct NoiseSampleSnapshot(float StartSeconds, float EndSeconds, int RawValue);
+
+        private sealed record RawSignalSnapshot(
+            double Timestamp,
+            HeadState State,
+            SignalData[] Samples,
+            int Count,
+            int CutIndex,
+            float Mean,
+            float MinY,
+            float MaxY,
+            float LastX,
+            float NoiseRange)
+        {
+            public bool IsValid => Count > 0
+                && Samples.Length >= Count
+                && float.IsFinite(Mean)
+                && float.IsFinite(MinY)
+                && float.IsFinite(MaxY)
+                && LastX > 0.0f;
+
+            public static RawSignalSnapshot Empty { get; } = new(
+                0.0,
+                HeadState.None,
+                [],
+                0,
+                0,
+                float.NaN,
+                float.NaN,
+                float.NaN,
+                0.0f,
+                0.0f);
+        }
 
     }
 }
