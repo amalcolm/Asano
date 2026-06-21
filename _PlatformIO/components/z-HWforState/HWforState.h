@@ -59,6 +59,8 @@ struct HWforState {
 
     void _update(); 
     void _readSensor2();
+
+    void _compensateSensor2(double change);
  
 
   using Zone = CSensor::Zone;

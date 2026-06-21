@@ -21,131 +21,125 @@ namespace {
     bool s2InZone = false;
   };
 
-  double logicalValue(const CFilteredSensor& sensor, double raw) {
-    return sensor.isInverted() ? CSensor::MAX_VALUE - raw : raw;
-  }
+  int getChange(const CDigiPot& pot, double error, int step);
+  void read(HWforState& hw, Reading& reading);
 
-  int directionFor(double error) {
-    if (!std::isfinite(error) || error == 0.0) return 0;
-    return error > 0.0 ? -1 : +1;
-  }
-
-  int clampCommand(const CDigiPot& pot, int command) {
-    int level = pot.getLevel();
-    int requested = level + command;
-    int clamped = std::clamp(requested, CDigiPot::WIPER_MIN, CDigiPot::WIPER_MAX);
-    return clamped - level;
-  }
-
-  bool withinTolerance(double e1, double e2) {
-    return std::abs(e1) <= S1_TOLERANCE
-        && std::abs(e2) <= S2_TOLERANCE;
-  }
-
-  Reading readLogical(HWforState& hw) {
-    Reading reading;
-    double raw1 = hw.sensor1.read(SAMPLES);
-    double raw2 = hw.sensor2.read(SAMPLES);
-    reading.s1 = logicalValue(hw.sensor1, raw1);
-    reading.s2 = logicalValue(hw.sensor2, raw2);
-    reading.e1 = reading.s1 - HWParams::SENSOR1_TARGET;
-    reading.e2 = reading.s2 - HWParams::SENSOR2_TARGET;
-    reading.s2InZone = hw.sensor2.inZone;
-    return reading;
-  }
 }
 
 bool HWTools::balanceForZoom() {
-  auto& balanceFlags = flags;
+  auto& balance = hw.tools.balance;
 
   readCheck();
   if (hw.getPhase() != HWforState::Phase::ZOOM) {
-    balanceFlags.zoomBalanceStableReads = 0;
-    balanceFlags.zoomBalanceSteps = 0;
-    balanceFlags.zoomBalanceGain = -1;
+    balance.reset();
     return false;
   }
 
-  if (balanceFlags.zoomBalanceGain != hw.gain.getLevel()) {
-    balanceFlags.zoomBalanceGain = hw.gain.getLevel();
-    balanceFlags.zoomBalanceStableReads = 0;
-    balanceFlags.zoomBalanceSteps = 0;
+  if (balance.gain != hw.gain.getLevel()) {
+    balance.gain = hw.gain.getLevel();
+    balance.stableReads = 0;
+    balance.steps = 0;
   }
 
   double quickT = CFilteredSensor::getTfromSamples(SAMPLES);
   hw.sensor1.pushT(quickT);
   hw.sensor2.pushT(quickT);
 
-  Reading before = readLogical(hw);
+  bool result = false;  // default to not finished
+  int delta = 0;
+  Reading before; //, after;
 
-  if (withinTolerance(before.e1, before.e2)) {
-    balanceFlags.zoomBalanceStableReads++;
-//    USB.printf("bz,ok,g=%d,m=%d,o=%d,e1=%.1f,e2=%.1f,n=%d\n",
-  //    hw.gain.getLevel(), hw.mid.getLevel(), hw.offset.getLevel(), before.e1, before.e2, balanceFlags.zoomBalanceStableReads);
+  read(hw, before);
 
-    hw.sensor1.popT();
-    hw.sensor2.popT();
-    return balanceFlags.zoomBalanceStableReads >= REQUIRED_STABLE_READS;
+  if (before.s2InZone == false) {
+    hw.setPhase(HWforState::Phase::SEARCH);
+    goto exit;
   }
 
-  balanceFlags.zoomBalanceStableReads = 0;
-  if (++balanceFlags.zoomBalanceSteps > MAX_BALANCE_STEPS) {
+  if (abs(before.e1) <= S1_TOLERANCE && abs(before.e2) <= S2_TOLERANCE) {
+    balance.stableReads++;
+//    USB.printf("bz,ok,g=%d,m=%d,o=%d,e1=%.1f,e2=%.1f,n=%d\n",
+  //    hw.gain.getLevel(), hw.mid.getLevel(), hw.offset.getLevel(), before.e1, before.e2, balance.stableReads);
+
+    result = balance.stableReads >= REQUIRED_STABLE_READS;
+    goto exit;
+  }
+
+  balance.stableReads = 0;
+  if (++balance.steps > MAX_BALANCE_STEPS) {
  //   USB.printf("bz,limit,g=%d,m=%d,o=%d,e1=%.1f,e2=%.1f\n",
  //     hw.gain.getLevel(), hw.mid.getLevel(), hw.offset.getLevel(), before.e1, before.e2);
-    hw.sensor1.popT();
-    hw.sensor2.popT();
-    balanceFlags.zoomFinishAfterBalance = false;
+    balance.finish = false;
     hw.setPhase(HWforState::Phase::SEARCH);
-    return false;
+    goto exit;
   }
 
-  char axis = '?';
-  int command = 0;
 
   if (std::abs(before.e1) > S1_TOLERANCE) {
-    axis = 'm';
-    command = clampCommand(hw.mid, directionFor(before.e1) * MID_STEP);
-    if (command != 0) {
-      hw.mid.changeBy(command);
-      delayMicroseconds(10);
-    }
+//    axis = 'm';
+    delta = getChange(hw.mid, before.e1, MID_STEP);
+    if (delta != 0) // ie. not it a limit (0 or 255)
+      hw.mid.changeBy(delta);
+
   } else {
-    axis = 'o';
-    command = clampCommand(hw.offset, directionFor(before.e2) * OFFSET_STEP);
-    if (command != 0) {
-      hw.offset.changeBy(command);
-      delayMicroseconds(10);
-    }
+//    axis = 'o';
+    delta = getChange(hw.offset, before.e2, OFFSET_STEP);
+    if (delta != 0)
+      hw.offset.changeBy(delta);
   }
 
-  Reading after = readLogical(hw);
-/*
-  USB.printf("bz,s,g=%d,ax=%c,m=%d,o=%d,e1=%.1f,e2=%.1f,c=%d,a1=%.1f,a2=%.1f\n",
-    hw.gain.getLevel(),
-    axis,
-    hw.mid.getLevel(),
-    hw.offset.getLevel(),
-    before.e1,
-    before.e2,
-    command,
-    after.e1,
-    after.e2
-  );
-*/
-  
-  hw.sensor1.popT();
-  hw.sensor2.popT();
+  hw.sensor2.read();
+  if (hw.sensor2.inZone == false) {
+    hw.setPhase(HWforState::Phase::SEARCH);
+    goto exit;
+  }
+ // read(hw, after);
 
-  if (!after.s2InZone) {
+//  USB.printf("bz,s,g=%d,ax=%c,m=%d,o=%d,e1=%.1f,e2=%.1f,c=%d,a1=%.1f,a2=%.1f\n",
+//    hw.gain.getLevel(), axis, hw.mid.getLevel(), hw.offset.getLevel(), before.e1, before.e2, delta, after.e1, after.e2);
+
+
+//  if (after.s2InZone == false) {
 //    USB.printf("bz,rail,g=%d,m=%d,o=%d,a2=%.1f\n",
 //      hw.gain.getLevel(), hw.mid.getLevel(), hw.offset.getLevel(), after.e2);
-    hw.setPhase(HWforState::Phase::SEARCH);
-  } else if (command == 0) {
+//    hw.setPhase(HWforState::Phase::SEARCH);
+//    goto exit;
+//  }
+  if (delta == 0) {
 //    USB.printf("bz,stalled,g=%d,ax=%c,m=%d,o=%d,e1=%.1f,e2=%.1f\n",
 //      hw.gain.getLevel(), axis, hw.mid.getLevel(), hw.offset.getLevel(), before.e1, before.e2);
-    balanceFlags.zoomFinishAfterBalance = false;
+    balance.finish = false;
     hw.setPhase(HWforState::Phase::SEARCH);
   }
 
-  return false;
+
+exit:
+  hw.sensor1.popT();
+  hw.sensor2.popT();
+  return result;
+}
+
+
+namespace {
+
+  int getChange(const CDigiPot& pot, double error, int step) {
+    int level = pot.getLevel();
+
+    // error = sensor - target, so positive error requests a lower wiper level.
+    int requested = error > 0.0 ? level - step : level + step;
+    return std::clamp(requested, CDigiPot::WIPER_MIN, CDigiPot::WIPER_MAX) - level;
+  }
+
+
+  void read(HWforState& hw, Reading& reading) {
+    hw.sensor1.read(SAMPLES);
+    hw.sensor2.read(SAMPLES);
+    reading.s1 = hw.sensor1.lastValue();
+    reading.s2 = hw.sensor2.lastValue();
+    reading.e1 = reading.s1 - HWParams::SENSOR1_TARGET;
+    reading.e2 = reading.s2 - HWParams::SENSOR2_TARGET;
+    reading.s2InZone = hw.sensor2.inZone;
+  }
+
+
 }

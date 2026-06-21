@@ -53,6 +53,7 @@ void CDigiPot::changeBy(int offset) {
   
   _currentLevel = newLevel;
   _writeToPot(_currentLevel);
+  delayMicroseconds(10);
 };
 
 

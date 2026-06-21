@@ -1,6 +1,4 @@
 ﻿using TheLib;
-using System.Globalization;
-using System.Text;
 using Asano.MyGLTools.Fonts;
 using Asano.MyGLTools.Helpers;
 using Asano.MyGLTools.UserControls;
@@ -9,8 +7,7 @@ namespace Asano.DataTools.Controls
 {
     public partial class SignalViewer : MyInteractivePlotterBase
     {
-        private static readonly int MAX_SAMPLES = RawSignalPacket.MAX_SAMPLES;
-        private static readonly int MAX_VERTICES = MAX_SAMPLES * VERTICES_PER_SAMPLE;
+        #region Constants
 
         private const int VERTICES_PER_SAMPLE = 6;
         private const string XAxisUnit = "mS";
@@ -21,29 +18,19 @@ namespace Asano.DataTools.Controls
         private const float NoiseRangeRightMargin = 8.0f;
         private const float NoiseRangeTopMargin = 22.0f;
         private const float NoiseRangeLabelGap = 4.0f;
-        private const string NoiseSampleFileName = "Asano_NoiseSample.csv";
 
-        private static readonly CultureInfo CsvCulture = CultureInfo.InvariantCulture;
+        private static readonly int MAX_SAMPLES = RawSignalPacket.MAX_SAMPLES;
+        private static readonly int MAX_VERTICES = MAX_SAMPLES * VERTICES_PER_SAMPLE;
+        private static readonly float ticksToSeconds = 1.0f / 600_000_000f;
+        private static readonly float uS_to_ticks = 600.0f;
+
+        #endregion
 
         private static MySerialPort SP => Program.SerialPort ?? throw new InvalidOperationException("Serial port is not initialized.");
 
-        private bool IsRunning => !_disposed && _ready;
+        private bool IsRunning => !_state.Disposed && _state.Ready;
 
-        private readonly object _lock = new();
-        private TextBlock? _xAxisUnitLabel;
-        private TextBlock? _noiseRangeLabel;
-        private TextBlock? _noiseRangeValueLabel;
-        private TextBlock[] _noiseRangeBlocks = [];
-        private float _noiseRange = 0.0f;
-        private DataPacket _latestHardware = DataPacket.Rent();
-        private NoiseSnapshot _latestNoise = NoiseSnapshot.Empty;
-        private RawSignalSnapshot _latestSignal = RawSignalSnapshot.Empty;
-        private bool _verticesDirty = true;
-        private RectangleF _lastVertexPlotViewPort = RectangleF.Empty;
-        private Size _lastVertexDisplaySize = Size.Empty;
-        private bool _signalPointerDown;
-        private bool _signalPointerMoved;
-        private Point _signalPointerDownAt;
+        private readonly ViewerState _state = new();
 
         public SignalViewer()
         {
@@ -59,8 +46,6 @@ namespace Asano.DataTools.Controls
             SP.RawSignalPacketReceived += SP_RawSignalPacketReceived;
         }
 
-
-        static readonly float ticksToSeconds = 1.0f / 600_000_000f;
         private void SP_BlockPacketReceived(BlockPacket blockPacket)
         {
             if (IsRunning == false) return;
@@ -70,20 +55,19 @@ namespace Asano.DataTools.Controls
 
         private void Clear()
         {
-            lock (_lock)
+            lock (_state.Lock)
             {
-                vertexCount = 0;
-                _latestSignal = RawSignalSnapshot.Empty;
-                _latestNoise = NoiseSnapshot.Empty;
-                _noiseRange = 0.0f;
-                _verticesDirty = true;
-                _lastVertexPlotViewPort = RectangleF.Empty;
-                _lastVertexDisplaySize = Size.Empty;
-                GLThread?.Enqueue(() => _vertexBuffer.Set(ref vertices, vertexCount));
+                _state.VertexCount = 0;
+                _state.LatestSignal = RawSignalSnapshot.Empty;
+                _state.LatestNoise = NoiseSnapshot.Empty;
+                _state.NoiseRange = 0.0f;
+                _state.VerticesDirty = true;
+                _state.LastVertexPlotViewPort = RectangleF.Empty;
+                _state.LastVertexDisplaySize = Size.Empty;
+                GLThread?.Enqueue(() => _state.VertexBuffer.Set(ref _state.Vertices, _state.VertexCount));
             }
         }
 
-        static readonly float uS_to_ticks = 600.0f; 
         private static RawSignalSnapshot CreateSignalSnapshot(RawSignalPacket packet)
         {
             int count = Math.Min(packet.Count, MAX_SAMPLES);
@@ -155,12 +139,12 @@ namespace Asano.DataTools.Controls
             RawSignalSnapshot signal = CreateSignalSnapshot(packet);
             if (!signal.IsValid) { Clear(); return; }
 
-            lock (_lock)
+            lock (_state.Lock)
             {
-                _latestSignal = signal;
-                _latestNoise = CreateNoiseSnapshot(signal, _latestHardware);
-                _noiseRange = signal.NoiseRange;
-                _verticesDirty = true;
+                _state.LatestSignal = signal;
+                _state.LatestNoise = CreateNoiseSnapshot(signal, _state.LatestHardware);
+                _state.NoiseRange = signal.NoiseRange;
+                _state.VerticesDirty = true;
             }
         }
 
@@ -170,8 +154,8 @@ namespace Asano.DataTools.Controls
 
             DataPacket dataPacket = blockPacket.BlockData[blockPacket.Count - 1];
 
-            lock (_lock)
-                _latestHardware.CopyFrom(dataPacket);
+            lock (_state.Lock)
+                _state.LatestHardware.CopyFrom(dataPacket);
         }
 
         private static bool IsActiveChartState(HeadState state)
@@ -180,456 +164,78 @@ namespace Asano.DataTools.Controls
             return !activeState.HasValue || activeState.Value == state;
         }
 
-        private readonly MyGLVertexBuffer _vertexBuffer = new(MAX_VERTICES);
-        private Vertex[] vertices = new Vertex[MAX_VERTICES];
-        private int vertexCount = 0;
-
-        private bool _ready = false;
-        private bool _disposed = false;
         protected override void Init()
         {
             base.Init();
-            _vertexBuffer.Init();
-            _xAxisUnitLabel       = new TextBlock(XAxisUnit, 0, 0, font, TextAlign.Right);
-            _noiseRangeLabel      = new TextBlock(NoiseRangeLabel, 0, 0, font, TextAlign.Right);
-            _noiseRangeValueLabel = new TextBlock("0", 0, 0, font, TextAlign.Right, NoiseRangeFormat);
-            _noiseRangeBlocks     = [_noiseRangeValueLabel, _noiseRangeLabel];
+            _state.VertexBuffer.Init();
+            _state.XAxisUnitLabel       = new TextBlock(XAxisUnit, 0, 0, font, TextAlign.Right);
+            _state.NoiseRangeLabel      = new TextBlock(NoiseRangeLabel, 0, 0, font, TextAlign.Right);
+            _state.NoiseRangeValueLabel = new TextBlock("0", 0, 0, font, TextAlign.Right, NoiseRangeFormat);
+            _state.NoiseRangeBlocks     = [_state.NoiseRangeValueLabel, _state.NoiseRangeLabel];
             AttachSignalHoldHandlers();
 
-            _vertexBuffer.Set(ref vertices, vertexCount);
+            _state.VertexBuffer.Set(ref _state.Vertices, _state.VertexCount);
 
             SetAutomaticViewPort(new RectangleF(-0.5f, -0.5f, MAX_SAMPLES - 0.5f, 1000 - 0.5f));
             MyColour myColour = Color.SeaShell;
 
-            for (int i = 0; i < vertices.Length; i++)
+            for (int i = 0; i < _state.Vertices.Length; i++)
             {
-                vertices[i].Position.X = i*0.001f;
-                vertices[i].Position.Y = 0;
-                vertices[i].Colour = myColour;
+                _state.Vertices[i].Position.X = i * 0.001f;
+                _state.Vertices[i].Position.Y = 0;
+                _state.Vertices[i].Colour = myColour;
             }
-            vertexCount = vertices.Length;
-            _vertexBuffer.Set(ref vertices, vertexCount);  // no lock as ready is not yet set.
-            _ready = true;
+            _state.VertexCount = _state.Vertices.Length;
+            _state.VertexBuffer.Set(ref _state.Vertices, _state.VertexCount);  // no lock as ready is not yet set.
+            _state.Ready = true;
         }
 
         protected override void Shutdown()
         {
-            _ready = false;
+            _state.Ready = false;
             cmStrip.Closed -= cmStrip_Closed;
 
             SP.BlockPacketReceived -= SP_BlockPacketReceived;
             SP.RawSignalPacketReceived -= SP_RawSignalPacketReceived;
             DetachSignalHoldHandlers();
 
-            _xAxisUnitLabel?.Dispose();
-            _noiseRangeLabel?.Dispose();
-            _noiseRangeValueLabel?.Dispose();
-            _xAxisUnitLabel = null;
-            _noiseRangeLabel = null;
-            _noiseRangeValueLabel = null;
-            _noiseRangeBlocks = [];
-            _vertexBuffer.Dispose();
+            _state.XAxisUnitLabel?.Dispose();
+            _state.NoiseRangeLabel?.Dispose();
+            _state.NoiseRangeValueLabel?.Dispose();
+            _state.XAxisUnitLabel = null;
+            _state.NoiseRangeLabel = null;
+            _state.NoiseRangeValueLabel = null;
+            _state.NoiseRangeBlocks = [];
+            _state.VertexBuffer.Dispose();
             base.Shutdown();
-            _disposed = true;
+            _state.Disposed = true;
         }
 
-        protected override void DrawPlots()
+        #region State
+
+        private sealed class ViewerState
         {
-            lock (_lock)
-            {
-                EnsureVerticesForCurrentView();
-                _vertexBuffer.DrawTriangles();
-            }
+            public readonly object Lock = new();
+            public TextBlock? XAxisUnitLabel;
+            public TextBlock? NoiseRangeLabel;
+            public TextBlock? NoiseRangeValueLabel;
+            public TextBlock[] NoiseRangeBlocks = [];
+            public float NoiseRange = 0.0f;
+            public DataPacket LatestHardware = DataPacket.Rent();
+            public NoiseSnapshot LatestNoise = NoiseSnapshot.Empty;
+            public RawSignalSnapshot LatestSignal = RawSignalSnapshot.Empty;
+            public bool VerticesDirty = true;
+            public RectangleF LastVertexPlotViewPort = RectangleF.Empty;
+            public Size LastVertexDisplaySize = Size.Empty;
+            public bool SignalPointerDown;
+            public bool SignalPointerMoved;
+            public Point SignalPointerDownAt;
+            public readonly MyGLVertexBuffer VertexBuffer = new(MAX_VERTICES);
+            public Vertex[] Vertices = new Vertex[MAX_VERTICES];
+            public int VertexCount = 0;
+            public bool Ready = false;
+            public bool Disposed = false;
         }
-
-        protected override void DrawPlotOverlays()
-        {
-            lock (_lock)
-                base.DrawPlotOverlays();
-        }
-
-        protected override void DrawText()
-        {
-            base.DrawText();
-
-            if (_xAxisUnitLabel == null && _noiseRangeBlocks.Length == 0) return;
-
-            Color? oldColour = null;
-            if (TextColour != AxesOptions.LabelColor)
-            {
-                oldColour = TextColour;
-                TextColour = AxesOptions.LabelColor;
-            }
-
-            DrawNoiseRangeText();
-            DrawXAxisUnitText();
-
-            if (oldColour.HasValue)
-                TextColour = oldColour.Value;
-        }
-
-        private void DrawXAxisUnitText()
-        {
-            if (_xAxisUnitLabel == null) return;
-
-            _xAxisUnitLabel.X = DisplayRectangle.Width - XAxisUnitRightMargin;
-            _xAxisUnitLabel.Y = XAxisUnitBottomMargin;
-            fontRenderer.RenderText(_xAxisUnitLabel);
-        }
-
-        private void DrawNoiseRangeText()
-        {
-            if (_noiseRangeLabel == null || _noiseRangeValueLabel == null || _noiseRangeBlocks.Length != 2) return;
-
-            float noiseRange;
-            lock (_lock)
-                noiseRange = _noiseRange;
-
-            _noiseRangeValueLabel.SetValue(noiseRange, NoiseRangeFormat);
-
-            _noiseRangeLabel.X = DisplayRectangle.Width - NoiseRangeRightMargin;
-            _noiseRangeLabel.Y = DisplayRectangle.Height - NoiseRangeTopMargin;
-            _noiseRangeLabel.GetVertices(fontRenderer.Scaling);
-
-            if (!_noiseRangeLabel.Bounds.IsEmpty)
-            {
-                float top = DisplayRectangle.Height - NoiseRangeTopMargin;
-                _noiseRangeLabel.Y += top - _noiseRangeLabel.Bounds.Top;
-                _noiseRangeLabel.GetVertices(fontRenderer.Scaling);
-                _noiseRangeValueLabel.X = _noiseRangeLabel.Bounds.Left - NoiseRangeLabelGap;
-            }
-            else
-            {
-                _noiseRangeValueLabel.X = _noiseRangeLabel.X - NoiseRangeLabelGap;
-            }
-
-            _noiseRangeValueLabel.Y = _noiseRangeLabel.Y + 0.01f;
-            fontRenderer.RenderText(_noiseRangeBlocks, _noiseRangeBlocks.Length);
-        }
-
-        private void AttachSignalHoldHandlers()
-        {
-            MyGL.MouseDown += SignalHold_MouseDown;
-            MyGL.MouseMove += SignalHold_MouseMove;
-            MyGL.MouseUp += SignalHold_MouseUp;
-            MyGL.MouseWheel += SignalHold_MouseWheel;
-            MyGL.MouseLeave += SignalHold_MouseLeave;
-        }
-
-        private void DetachSignalHoldHandlers()
-        {
-            MyGL.MouseDown -= SignalHold_MouseDown;
-            MyGL.MouseMove -= SignalHold_MouseMove;
-            MyGL.MouseUp -= SignalHold_MouseUp;
-            MyGL.MouseWheel -= SignalHold_MouseWheel;
-            MyGL.MouseLeave -= SignalHold_MouseLeave;
-        }
-
-        private void SignalHold_MouseDown(object? sender, MouseEventArgs e)
-        {
-            if (e.Button != MouseButtons.Left) return;
-
-            _signalPointerDown = true;
-            _signalPointerMoved = false;
-            _signalPointerDownAt = e.Location;
-        }
-
-        private void SignalHold_MouseMove(object? sender, MouseEventArgs e)
-        {
-            if (!_signalPointerDown || (Control.MouseButtons & MouseButtons.Left) == 0) return;
-
-            if (Math.Abs(e.X - _signalPointerDownAt.X) > 2 || Math.Abs(e.Y - _signalPointerDownAt.Y) > 2)
-                _signalPointerMoved = true;
-        }
-
-        private void SignalHold_MouseUp(object? sender, MouseEventArgs e)
-        {
-            if (e.Button != MouseButtons.Left) return;
-
-            if (_signalPointerMoved)
-                base.requestHold = true;
-
-            _signalPointerDown = false;
-            _signalPointerMoved = false;
-        }
-
-        private void SignalHold_MouseWheel(object? sender, MouseEventArgs e)
-        {
-            if (e.Delta != 0)
-                base.requestHold = true;
-        }
-
-        private void SignalHold_MouseLeave(object? sender, EventArgs e)
-        {
-            _signalPointerDown = false;
-            _signalPointerMoved = false;
-            base.requestHold = false;
-        }
-
-        private float GetMidYScreenRatio()
-        {
-            float clientHeight = Math.Max(1.0f, Height);
-            float axisY = Math.Clamp(MyAxesRenderer.XAxisLineY, 0.0f, clientHeight);
-            float midY = axisY + (clientHeight - axisY) * 0.5f;
-
-            return Math.Clamp(midY / clientHeight, 0.05f, 0.95f);
-        }
-
-        private float GetAnchoredViewHeight(float midY, float minY, float maxY, float midRatio)
-        {
-            float minHeight = Math.Max(1.0f, Height);
-            float lowerHeight = (midY - minY) / midRatio;
-            float upperHeight = (maxY - midY) / (1.0f - midRatio);
-
-            return Math.Max(minHeight, Math.Max(lowerHeight, upperHeight));
-        }
-
-        private void EnsureVerticesForCurrentView()
-        {
-            RawSignalSnapshot signal = _latestSignal;
-            if (!signal.IsValid)
-            {
-                if (vertexCount != 0)
-                {
-                    vertexCount = 0;
-                    _vertexBuffer.Set(ref vertices, vertexCount);
-                }
-                return;
-            }
-
-            if (_verticesDirty)
-                ApplySignalViewPort(signal);
-
-            RectangleF plotViewPort = GetPlotViewPort();
-            Size displaySize = GLDisplaySize;
-
-            if (!_verticesDirty
-                && displaySize == _lastVertexDisplaySize
-                && NearlySame(plotViewPort, _lastVertexPlotViewPort))
-                return;
-
-            BuildSignalVertices(signal, plotViewPort, displaySize);
-            _vertexBuffer.Set(ref vertices, vertexCount);
-
-            _lastVertexPlotViewPort = plotViewPort;
-            _lastVertexDisplaySize = displaySize;
-            _verticesDirty = false;
-        }
-
-        private void ApplySignalViewPort(RawSignalSnapshot signal)
-        {
-            float midY = signal.Mean;
-            float midRatio = GetMidYScreenRatio();
-            float height = GetAnchoredViewHeight(midY, signal.MinY, signal.MaxY, midRatio);
-            float topY = midY - height * midRatio;
-
-            _noiseRange = signal.NoiseRange;
-            SetAutomaticViewPort(new RectangleF(0.0f, topY, signal.LastX, height));
-        }
-
-        private void BuildSignalVertices(RawSignalSnapshot signal, RectangleF plotViewPort, Size displaySize)
-        {
-            float minDX = MinVisibleSignalWidth(plotViewPort, displaySize);
-            int verts = 0;
-
-            MyColour colour = Color.SeaShell;
-            MyColour transparent = colour with { a = 0.4f };
-
-            for (int i = 0; i < signal.Count && verts + VERTICES_PER_SAMPLE <= vertices.Length; i++)
-            {
-                SignalData sample = signal.Samples[i];
-                float y = sample.Sample;
-                if (!float.IsFinite(y)) continue;
-
-                float x1 = sample.StartTick * ticksToSeconds;
-                float x2 = sample.EndTick * ticksToSeconds;
-
-                if (x2 - x1 < minDX) x2 = x1 + minDX;
-
-                float y1 = MathF.Min(signal.Mean, y);
-                float y2 = MathF.Max(signal.Mean, y);
-
-                MyColour c = (y2 - y1 < 1.0f) ? transparent : colour;
-
-                vertices[verts].Position.X = x1; vertices[verts].Position.Y = y1; vertices[verts].Colour = c; verts++;
-                vertices[verts].Position.X = x2; vertices[verts].Position.Y = y1; vertices[verts].Colour = c; verts++;
-                vertices[verts].Position.X = x2; vertices[verts].Position.Y = y2; vertices[verts].Colour = c; verts++;
-                vertices[verts].Position.X = x1; vertices[verts].Position.Y = y1; vertices[verts].Colour = c; verts++;
-                vertices[verts].Position.X = x2; vertices[verts].Position.Y = y2; vertices[verts].Colour = c; verts++;
-                vertices[verts].Position.X = x1; vertices[verts].Position.Y = y2; vertices[verts].Colour = c; verts++;
-            }
-
-            vertexCount = verts;
-        }
-
-        private static float MinVisibleSignalWidth(RectangleF plotViewPort, Size displaySize)
-        {
-            if (displaySize.Width <= 0 || !float.IsFinite(plotViewPort.Width) || plotViewPort.Width <= 0.0f)
-                return 0.001f;
-
-            return (plotViewPort.Width / displaySize.Width) * 1.5f;
-        }
-
-        private static bool NearlySame(RectangleF a, RectangleF b)
-        {
-            const float epsilon = 0.000001f;
-
-            return MathF.Abs(a.Left   - b.Left  ) <= epsilon
-                && MathF.Abs(a.Top    - b.Top   ) <= epsilon
-                && MathF.Abs(a.Width  - b.Width ) <= epsilon
-                && MathF.Abs(a.Height - b.Height) <= epsilon;
-        }
-
-        private static NoiseSnapshot CreateNoiseSnapshot(RawSignalSnapshot signal, DataPacket hardware)
-        {
-            List<NoiseSampleSnapshot> samples = new(signal.Count);
-
-            for (int i = 0; i < signal.Count; i++)
-            {
-                SignalData sample = signal.Samples[i];
-                samples.Add(new NoiseSampleSnapshot(
-                    sample.StartTick * ticksToSeconds,
-                    sample.EndTick * ticksToSeconds,
-                    sample.Sample));
-            }
-
-            return new NoiseSnapshot(signal.Timestamp, signal.State, hardware, samples);
-        }
-
-        private void miExport_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                NoiseSnapshot snapshot;
-                lock (_lock)
-                    snapshot = _latestNoise;
-
-                string path = GetNoiseSamplePath();
-                WriteNoiseSampleCsv(path, snapshot);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    this,
-                    $"Could not write {NoiseSampleFileName}.\r\n\r\n{ex.Message}",
-                    "Signal Viewer",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
-            }
-        }
-
-
-        private void cmStrip_Closed(object? sender, ToolStripDropDownClosedEventArgs e)
-        {
-            base.requestHold = false;
-        }
-
-        private static string GetNoiseSamplePath()
-        {
-            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-
-            if (string.IsNullOrWhiteSpace(desktop))
-                desktop = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Desktop");
-
-            return Path.Combine(desktop, NoiseSampleFileName);
-        }
-
-        private static void WriteNoiseSampleCsv(string path, NoiseSnapshot snapshot)
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
-
-            using StreamWriter writer = new(path, append: false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-            writer.WriteLine("index,time_s,start_s,end_s,raw_value,debug_timestamp_s,debug_state,debug_state_value,hardware_timestamp_s,state_time_s,hardware_state,top,bot,mid,offset,gain,sequence,raw_sensor1,raw_sensor2,sensor1,sensor2");
-
-            DataPacket? hardware = snapshot.Hardware;
-            for (int i = 0; i < snapshot.Samples.Count; i++)
-            {
-                NoiseSampleSnapshot sample = snapshot.Samples[i];
-                float time = (sample.StartSeconds + sample.EndSeconds) * 0.5f;
-
-                writer.Write(i.ToString(CsvCulture));
-                WriteCsvValue(writer, time);
-                WriteCsvValue(writer, sample.StartSeconds);
-                WriteCsvValue(writer, sample.EndSeconds);
-                WriteCsvValue(writer, sample.RawValue);
-                WriteCsvValue(writer, snapshot.DebugTimestamp);
-                WriteCsvValue(writer, snapshot.DebugState.ToString());
-                WriteCsvValue(writer, Convert.ToUInt32(snapshot.DebugState, CsvCulture));
-
-                if (hardware != null)
-                    WriteHardwareCsvValues(writer, hardware);
-                else
-                    WriteEmptyCsvValues(writer, count: 13);
-
-                writer.WriteLine();
-            }
-        }
-
-        private static void WriteHardwareCsvValues(StreamWriter writer, DataPacket hardware)
-        {
-            WriteCsvValue(writer, hardware.TimeStamp);
-            WriteCsvValue(writer, hardware.StateTime);
-            WriteCsvValue(writer, hardware.State.ToString());
-            WriteCsvValue(writer, hardware.Top);
-            WriteCsvValue(writer, hardware.Bot);
-            WriteCsvValue(writer, hardware.Mid);
-            WriteCsvValue(writer, hardware.Offset);
-            WriteCsvValue(writer, hardware.Gain);
-            WriteCsvValue(writer, hardware.SequenceNumber);
-            WriteCsvValue(writer, hardware.RawSensor1);
-            WriteCsvValue(writer, hardware.RawSensor2);
-            WriteCsvValue(writer, hardware.Sensor1);
-            WriteCsvValue(writer, hardware.Sensor2);
-        }
-
-        private static void WriteCsvValue(StreamWriter writer, string value)
-        {
-            writer.Write(',');
-            writer.Write('"');
-            writer.Write(value.Replace("\"", "\"\""));
-            writer.Write('"');
-        }
-
-        private static void WriteCsvValue(StreamWriter writer, double value)
-        {
-            writer.Write(',');
-            writer.Write(value.ToString("G17", CsvCulture));
-        }
-
-        private static void WriteCsvValue(StreamWriter writer, float value)
-        {
-            writer.Write(',');
-            writer.Write(value.ToString("G9", CsvCulture));
-        }
-
-        private static void WriteCsvValue(StreamWriter writer, int value)
-        {
-            writer.Write(',');
-            writer.Write(value.ToString(CsvCulture));
-        }
-
-        private static void WriteCsvValue(StreamWriter writer, uint value)
-        {
-            writer.Write(',');
-            writer.Write(value.ToString(CsvCulture));
-        }
-
-        private static void WriteEmptyCsvValues(StreamWriter writer, int count)
-        {
-            for (int i = 0; i < count; i++)
-                writer.Write(',');
-        }
-
-        private sealed record NoiseSnapshot(
-            double DebugTimestamp,
-            HeadState DebugState,
-            DataPacket Hardware,
-            List<NoiseSampleSnapshot> Samples)
-        {
-            public static NoiseSnapshot Empty { get; } = new(0.0, HeadState.None, DataPacket.Rent(), []);
-        }
-
-        private readonly record struct NoiseSampleSnapshot(float StartSeconds, float EndSeconds, int RawValue);
 
         private sealed record RawSignalSnapshot(
             double Timestamp,
@@ -663,5 +269,6 @@ namespace Asano.DataTools.Controls
                 0.0f);
         }
 
+        #endregion
     }
 }

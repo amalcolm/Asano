@@ -14,14 +14,23 @@ public:
     bool holdWipers = false;
     bool wipersChanged = true;
     int  zoomLevel = -1;
-    int  zoomBalanceGain = -1;
-    int  zoomBalanceStableReads = 0;
-    int  zoomBalanceSteps = 0;
-    bool zoomFinishAfterBalance = false;
 
     bool inZone = false;
 
   } flags;
+
+
+  struct BalanceFlags {
+    StateType state;
+    int  gain = -1;
+    int  stableReads = 0;
+    int  steps = 0;
+    bool finish = false;
+
+    void reset() { gain = -1; stableReads = 0; steps = 0; finish = false; }
+
+  } balance;
+
 
   struct HWCache {
     double S1_target = -1.0;

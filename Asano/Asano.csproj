@@ -50,6 +50,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Update="DataTools\Controls\SignalViewer_Csv.cs">
+      <DependentUpon>SignalViewer.cs</DependentUpon>
+    </Compile>
+    <Compile Update="DataTools\Controls\SignalViewer_Draw.cs">
+      <DependentUpon>SignalViewer.cs</DependentUpon>
+    </Compile>
     <Compile Update="Properties\Resources.Designer.cs">
       <DesignTime>True</DesignTime>
       <AutoGen>True</AutoGen>

@@ -6,24 +6,15 @@
 
 namespace {
   constexpr int FOLLOW_SAMPLES = 12;
-  constexpr double S1_DEADBAND = 4.0;
+  constexpr double S1_DEADBAND = 1.5;
   constexpr double S2_DEADBAND = 40.0;
 
-  int directionFor(double error) {
-    if (!std::isfinite(error) || error == 0.0) return 0;
-    return error > 0.0 ? -1 : +1;
-  }
+  int getChange(const CDigiPot& pot, double error) {
+    int level = pot.getLevel();    if (error == 0.0) return 0;
 
-  int clampCommand(const CDigiPot& pot, int command) {
-    int level = pot.getLevel();
-    int requested = level + command;
-    int clamped = std::clamp(requested, CDigiPot::WIPER_MIN, CDigiPot::WIPER_MAX);
-    return clamped - level;
-  }
-
-  void compensateSensor2Estimate(HWforState& hw, double change) {
-    hw.sensor2.offset_lastV(change);
-    hw.sensor2.offset_Env(-change);
+    // error = sensor - target, so positive error requests a lower wiper level.
+    int requested = error > 0.0 ? level - 1 : level + 1;
+    return std::clamp(requested, CDigiPot::WIPER_MIN, CDigiPot::WIPER_MAX) - level;
   }
 }
 
@@ -41,12 +32,11 @@ void HWforState::_followSignal() {
   double e2 = sensor2.lastValue() - HWParams::SENSOR2_TARGET;
 
   if (std::abs(e1) > S1_DEADBAND) {
-    int command = clampCommand(mid, directionFor(e1));
-    if (command != 0) {
-      double change = tools.circuit.sensor2DeltaFromMidDelta(command, sensor2.lastV());
-      mid.changeBy(command);
-      compensateSensor2Estimate(*this, change);
-      delayMicroseconds(10);
+    int delta = getChange(mid, e1);
+    if (delta != 0) {
+      double change = tools.circuit.sensor2DeltaFromMidDelta(delta, sensor2.lastV());
+      mid.changeBy(delta);
+      _compensateSensor2(change);
     } else {
       tools.adjustTopBot();
     }
@@ -56,12 +46,11 @@ void HWforState::_followSignal() {
   sensor2.read(FOLLOW_SAMPLES);
   e2 = sensor2.lastValue() - HWParams::SENSOR2_TARGET;
   if (std::abs(e2) > S2_DEADBAND) {
-    int command = clampCommand(offset, directionFor(e2));
-    if (command != 0) {
-      double change = tools.circuit.sensor2DeltaFromOffsetDelta(command);
-      offset.changeBy(command);
-      compensateSensor2Estimate(*this, change);
-      delayMicroseconds(10);
+    int delta = getChange(offset, e2);
+    if (delta != 0) {
+      double change = tools.circuit.sensor2DeltaFromOffsetDelta(delta);
+      offset.changeBy(delta);
+      _compensateSensor2(change);
     } else {
       phase = Phase::SEARCH;
     }

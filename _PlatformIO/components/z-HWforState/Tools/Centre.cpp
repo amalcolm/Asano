@@ -24,7 +24,6 @@ void HWTools::centre(CSensor& sensor, CDigiPot& pot) {
     lastDelta = delta;
 
     pot.changeBy(direction);
-    delayMicroseconds(5); 
 
     if (useSensor2) {
       v = readCheck(); if (hw.getPhase() != currentPhase) return;  // check if signal is lost
@@ -40,7 +39,7 @@ void HWTools::centre(CSensor& sensor, CDigiPot& pot) {
 
   if (abs(lastDelta) < abs(delta)) {
     pot.changeBy(-direction); // revert if it made it worse
-    delayMicroseconds(5);
+
     if (useSensor2) {
       readCheck(); // final check if signal is lost after adjustment
     } else {
