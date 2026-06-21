@@ -91,6 +91,8 @@ void CMasterTimer::addLEDChange(int fromPinCount, int toPinCount, int64_t unsetT
   _validSetTime = true;
 }
 
+CTeleTimer TC_offTime( TeleGroup::TIMER, 0x0081);
+CTeleValue TV_offTime( TeleGroup::TIMER, 0x0082);
 void CMasterTimer::honourOffTime() const {
 
   int64_t offTimeTicks = calculateOffTimeTicks();
@@ -98,11 +100,17 @@ void CMasterTimer::honourOffTime() const {
 
   LED.allOff(); // ensure all LEDs are off, (records time)
 
+
+  TC_offTime.start();
+
   int64_t end = CTimer::time() + offTimeTicks;
 
   while (CTimer::time() < end) {
     yield();
   }
+
+  TC_offTime.stop();
+  TV_offTime.set(_totalWeight * CTimerBase::getMillisecondsPerTick()); 
 }
 
 

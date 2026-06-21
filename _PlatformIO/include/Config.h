@@ -11,7 +11,7 @@ public:
     // hardware timing constants (in microseconds / hertz)
     inline static constexpr double STATE_DURATION_uS       =  4'000;  // time for each state. loop will be slightly longer than this
 
-    inline static constexpr double HEAD_SETTLE_TIME_uS     =  1'500;  // delay between Head change and first A2D read
+    inline static constexpr double HEAD_SETTLE_TIME_uS     =  1'200;  // delay between Head change and first A2D read
     
     inline static constexpr double POT_UPDATE_OFFSET_uS    =      0;  // A2D -> Potentiometer update offset, minimizes interference
 

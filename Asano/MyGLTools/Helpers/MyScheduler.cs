@@ -34,6 +34,7 @@ namespace Asano.MyGLTools.Helpers
         private static readonly MyTimer frameTimer = MyTimer.From_S(1.0 / TargetFrameRate);
 
         public static bool IsPaused { get; set; } = false;
+        public static bool IsFrozen { get; set; } = false;
         public static void Register(MyGLThread thread)
         {
             _pendingThreads.Enqueue(thread);
@@ -85,7 +86,7 @@ namespace Asano.MyGLTools.Helpers
                 if (_threads.Count == 0)
                     break;
 
-                if (!IsPaused)
+                if (!IsPaused && !IsFrozen)
                 {
                     foreach (var thread in _threads)
                     {

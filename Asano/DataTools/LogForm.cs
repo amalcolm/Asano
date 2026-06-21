@@ -10,13 +10,16 @@ namespace Asano.DataTools
 
         public static event EventHandler? OnClose;
 
-        public static void Open(Control dbg)
+        public static bool Open(Control dbg)
         {
-            if (IsOpen)
-                return;
+            if (IsOpen || global::Asano.Program.HasMaximisedForm)
+                return false;
+
             Instance = new LogForm(dbg);
-            Instance.Show();
             IsOpen = true;
+            Instance.Show();
+
+            return true;
         }
 
         public LogForm(Control dbg)
@@ -45,6 +48,7 @@ namespace Asano.DataTools
             this.FormClosing += (s, e) =>
             {
                 IsOpen = false;
+                Instance = null;
                 OnClose?.Invoke(this, EventArgs.Empty);
             };
         }

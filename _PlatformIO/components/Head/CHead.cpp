@@ -26,10 +26,10 @@ void CHead::_applyState(StateType newState) {
 
   HW = getHWforState(newState);
   if (ActiveHW == nullptr) ActiveHW = HW;
-
-  LED.writeState(m_State); // set LEDs for new state
-
   m_State = newState;
+
+  LED.writeState(newState); // set LEDs for new state
+
   HW->set();            // Apply hardware settings (digipots) for new state
 }
 

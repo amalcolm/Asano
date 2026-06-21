@@ -16,6 +16,13 @@ namespace Asano.MyGLTools.UserControls
         private readonly object _primaryChartTagLock = new();
         private readonly MethodInvoker _applyPrimaryChartTag;
 
+        private bool _serialEventsAttached;
+        private System.Windows.Forms.Timer? _dataHoldTimer;
+        private Action? _dataHoldCompleted;
+        private bool _dataHoldActive;
+        private bool _dataHoldPausedScheduler;
+        private bool _dataHoldPreviousSchedulerPause;
+        private bool _dataHoldPreviousSchedulerFreeze;
         private FormState _state = FormState.None;
         private int _lastChartCount = -1;
         private string _pendingPrimaryChartTag = string.Empty;
@@ -31,10 +38,98 @@ namespace Asano.MyGLTools.UserControls
             _applyPrimaryChartTag = ApplyPrimaryChartTag;
 
             
-            SP.BlockPacketReceived += AddBlockPacket;
-            SP.ConnectionChanged += ConnectionChanged;
-            SP.ParsedParametersReceived += (data) => AddData(data);
+            AttachSerialEvents();
             Clear();
+        }
+
+        private void AttachSerialEvents()
+        {
+            MySerialPort sp = SP;
+
+            sp.BlockPacketReceived += AddBlockPacket;
+            sp.ConnectionChanged += ConnectionChanged;
+            sp.ParsedParametersReceived += ParsedParametersReceived;
+            _serialEventsAttached = true;
+        }
+
+        private void DetachSerialEvents()
+        {
+            if (_serialEventsAttached == false)
+                return;
+
+            if (Program.SerialPort is { } sp)
+            {
+                sp.BlockPacketReceived -= AddBlockPacket;
+                sp.ConnectionChanged -= ConnectionChanged;
+                sp.ParsedParametersReceived -= ParsedParametersReceived;
+            }
+
+            _serialEventsAttached = false;
+        }
+
+        public void BeginDataHold(int milliseconds, Action? completed = null)
+        {
+            RunOnUiThread(() =>
+            {
+                CancelDataHold();
+
+                _dataHoldCompleted = completed;
+                _dataHoldPreviousSchedulerPause = MyScheduler.IsPaused;
+                _dataHoldPreviousSchedulerFreeze = MyScheduler.IsFrozen;
+                _dataHoldPausedScheduler = true;
+                _dataHoldActive = true;
+                MyScheduler.IsPaused = true;
+                MyScheduler.IsFrozen = true;
+
+                _dataHoldTimer = new System.Windows.Forms.Timer { Interval = Math.Max(1, milliseconds) };
+                _dataHoldTimer.Tick += DataHoldTimer_Tick;
+                _dataHoldTimer.Start();
+            });
+        }
+
+        public void CancelDataHold() => CancelDataHold(restoreScheduler: true);
+
+        private void DataHoldTimer_Tick(object? sender, EventArgs e) => FinishDataHold();
+
+        private void FinishDataHold()
+        {
+            Action? completed = _dataHoldCompleted;
+
+            try
+            {
+                CancelDataHold(restoreScheduler: true);
+            }
+            finally
+            {
+                completed?.Invoke();
+            }
+        }
+
+        private void CancelDataHold(bool restoreScheduler)
+        {
+            if (_dataHoldTimer != null)
+            {
+                _dataHoldTimer.Stop();
+                _dataHoldTimer.Tick -= DataHoldTimer_Tick;
+                _dataHoldTimer.Dispose();
+                _dataHoldTimer = null;
+            }
+
+            _dataHoldActive = false;
+            _dataHoldCompleted = null;
+
+            if (restoreScheduler)
+                RestoreSchedulerAfterDataHold();
+        }
+
+        private void RestoreSchedulerAfterDataHold()
+        {
+            if (_dataHoldPausedScheduler == false)
+                return;
+
+            MyScheduler.IsPaused = _dataHoldPreviousSchedulerPause;
+            MyScheduler.IsFrozen = _dataHoldPreviousSchedulerFreeze;
+            _dataHoldPausedScheduler = false;
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -74,6 +169,9 @@ namespace Asano.MyGLTools.UserControls
 
             if (blockPacket.Count == 0) return;
 
+            if (_dataHoldActive)
+                return;
+
             if (_state != FormState.Running)
             {
                 Init_Packet(blockPacket);
@@ -91,6 +189,14 @@ namespace Asano.MyGLTools.UserControls
 
 
         private void RefreshSingleStateMode() => SingleStateMode = Config.DEBUG_MODE == "SINGLE_STATE";
+
+        private void ParsedParametersReceived(Dictionary<string, double> data)
+        {
+            if (_dataHoldActive)
+                return;
+
+            AddData(data);
+        }
 
         public void AddData(Dictionary<string, double> data)   => PrimaryChart.AddData(data);
         public void AddData(Dictionary<string, XY> data)       => PrimaryChart.AddData(data);

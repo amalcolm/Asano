@@ -7,6 +7,7 @@ namespace Asano
         public static readonly MySerialPort SerialPort = new();
 
         public static bool IsRunning = false;
+        public static bool HasMaximisedForm = false;
         public static Caldera.Caldera? Caldera = null;
 
 

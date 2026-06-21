@@ -29,10 +29,21 @@
         private void InitializeComponent()
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(DataForm));
+            chartHostPanel = new Panel();
             multiChart = new MyMultichart();
             calderaControl = new Asano.Caldera.CalderaControl();
+            chartHostPanel.SuspendLayout();
             SuspendLayout();
-            // 
+            //
+            // chartHostPanel
+            //
+            chartHostPanel.Controls.Add(multiChart);
+            chartHostPanel.Dock = DockStyle.Fill;
+            chartHostPanel.Location = new Point(0, 0);
+            chartHostPanel.Name = "chartHostPanel";
+            chartHostPanel.Size = new Size(800, 813);
+            chartHostPanel.TabIndex = 2;
+            //
             // multiChart
             // 
             multiChart.BackColor = Color.FromArgb(24, 23, 18);
@@ -59,17 +70,19 @@
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.FromArgb(24, 23, 18);
             ClientSize = new Size(800, 1235);
-            Controls.Add(multiChart);
+            Controls.Add(chartHostPanel);
             Controls.Add(calderaControl);
             Icon = (Icon)resources.GetObject("$this.Icon");
             Location = new Point(3840, -400);
             Name = "DataForm";
             StartPosition = FormStartPosition.Manual;
+            chartHostPanel.ResumeLayout(false);
             ResumeLayout(false);
         }
 
         #endregion
 
+        private Panel chartHostPanel;
         private Asano.MyGLTools.UserControls.MyMultichart multiChart;
         private Caldera.CalderaControl calderaControl;
     }

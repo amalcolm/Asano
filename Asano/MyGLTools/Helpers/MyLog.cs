@@ -146,25 +146,42 @@ namespace Asano.MyGLTools.Helpers
                     str?.Dispose();
             }
 
-            if (UsedLines > 8 && LogForm.IsOpen == false)
+            if (UsedLines > 8 && LogForm.IsOpen == false && global::Asano.Program.HasMaximisedForm == false)
             {
                 parentControl ??= control.Parent;
                 if (parentControl != null)
                     parentControl.Invoke(() =>
                     {
-                        parentControl.Controls.Remove(control);
-                        LogForm.Open(control);
+                        LogForm.OnClose -= LogForm_Close;
                         LogForm.OnClose += LogForm_Close;
+
+                        parentControl.Controls.Remove(control);
+                        if (LogForm.Open(control) == false)
+                        {
+                            parentControl.Controls.Add(control);
+                            parentControl = null;
+                            LogForm.OnClose -= LogForm_Close;
+                        }
                     });
             }
         }
 
         void LogForm_Close(object? sender, EventArgs e)
         {
-             parentControl?.Invoke(() =>
+            LogForm.OnClose -= LogForm_Close;
+
+            if (parentControl == null || parentControl.IsDisposed || control.IsDisposed)
             {
-                LogForm.OnClose -= LogForm_Close;
+                Clear();
+                parentControl = null;
+                return;
+            }
+
+            parentControl.Invoke(() =>
+            {
                 parentControl.Controls.Add(control);
+                control.Dock = DockStyle.Fill;
+                Clear();
                 parentControl = null;
             });
         }
