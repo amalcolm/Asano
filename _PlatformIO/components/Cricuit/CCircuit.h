@@ -24,6 +24,7 @@ public:
   int bestMidForVoltage(int top, int bot, double targetVoltage) const;
 
   double sensor2DeltaFromMidDelta(int midDelta, double sensor2) const;
+  double sensor2DeltaFromMidVoltageDelta(double currentMidVoltage, double midVoltageDelta, double sensor2) const;
   double sensor2DeltaFromOffsetDelta(int offsetDelta) const;
 
 };

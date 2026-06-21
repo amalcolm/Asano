@@ -1,7 +1,7 @@
 #include "HWforState.h"
 #include <cmath>
 
-void HWforState::_compensateSensor2(double change) {
+void HWforState::compensateSensor2(double change) {
   sensor2.offset_lastV(change);
   sensor2.offset_Env(-change);
 }

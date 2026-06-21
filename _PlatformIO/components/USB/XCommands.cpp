@@ -12,7 +12,10 @@ void XCommand::processFlags() const {
 
   HWforState* targetHW = ActiveHW ? ActiveHW : HW;
 
-  if (targetHW) targetHW->tools.flags.holdWipers = this->hasFlag(CommandFlags::HoldWipers);
+  if (targetHW) {
+    targetHW->tools.flags.holdWipers  = this->hasFlag(CommandFlags::HoldWipers);
+    targetHW->tools.flags.holdSensor2 = this->hasFlag(CommandFlags::HoldSensor2);
+  }
 }
 
 void XCommand::honour() const {

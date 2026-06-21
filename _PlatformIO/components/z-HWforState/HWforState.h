@@ -46,7 +46,9 @@ struct HWforState {
     void setWipers(XCMD_SetWipers& cmd);
     inline void setPhase(Phase newPhase) { phase = newPhase; }
     inline Phase getPhase() const { return phase; }
-        
+
+    void compensateSensor2(double change);
+    
     void _findSignal();
     void _zoomSignal();
     void _measureSignal();
@@ -60,7 +62,6 @@ struct HWforState {
     void _update(); 
     void _readSensor2();
 
-    void _compensateSensor2(double change);
  
 
   using Zone = CSensor::Zone;

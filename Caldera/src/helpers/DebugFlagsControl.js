@@ -8,6 +8,7 @@ import {
 
 const COMMAND_FLAG_BY_ID = Object.freeze({
   holdWipers: COMMAND_FLAGS.HOLD_WIPERS,
+  holdSensor2: COMMAND_FLAGS.HOLD_SENSOR2,
   runDebug: COMMAND_FLAGS.RUN_DEBUG,
 });
 
@@ -93,6 +94,17 @@ export class DebugFlagsControl {
     const commandFlag = COMMAND_FLAG_BY_ID[input.dataset.debugFlag] ?? COMMAND_FLAGS.NONE;
 
     if (commandFlag === COMMAND_FLAGS.NONE) {
+      return;
+    }
+
+    if (commandFlag === COMMAND_FLAGS.HOLD_SENSOR2) {
+      const commandFlags = setCommandFlag(this.commandFlags, commandFlag, input.checked);
+      this.setCommandFlags(
+        input.checked
+          ? setCommandFlag(commandFlags, COMMAND_FLAGS.HOLD_WIPERS, true)
+          : commandFlags,
+        { post: true },
+      );
       return;
     }
 

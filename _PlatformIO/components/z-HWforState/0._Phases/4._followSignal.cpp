@@ -36,7 +36,7 @@ void HWforState::_followSignal() {
     if (delta != 0) {
       double change = tools.circuit.sensor2DeltaFromMidDelta(delta, sensor2.lastV());
       mid.changeBy(delta);
-      _compensateSensor2(change);
+      compensateSensor2(change);
     } else {
       tools.adjustTopBot();
     }
@@ -50,7 +50,7 @@ void HWforState::_followSignal() {
     if (delta != 0) {
       double change = tools.circuit.sensor2DeltaFromOffsetDelta(delta);
       offset.changeBy(delta);
-      _compensateSensor2(change);
+      compensateSensor2(change);
     } else {
       phase = Phase::SEARCH;
     }

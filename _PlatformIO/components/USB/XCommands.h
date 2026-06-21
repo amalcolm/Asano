@@ -7,6 +7,7 @@ static const uint8_t XCMD_MAGIC[4] = {0x58, 0x43, 0x00, 0xFF};
 enum class CommandFlags : uint32_t {
   None = 0,
   HoldWipers     = 0x02,
+  HoldSensor2    = 0x04,
   RunDebug       = 0x80,
 
   Run__findSignal  = 0x100,

@@ -12,6 +12,7 @@ public:
   struct HWflags {
     bool begun = false;
     bool holdWipers = false;
+    bool holdSensor2 = false;
     bool wipersChanged = true;
     int  zoomLevel = -1;
 

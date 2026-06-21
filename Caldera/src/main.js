@@ -238,6 +238,10 @@ function mountCircuitView() {
                     <input type="checkbox" data-debug-flag="holdWipers" />
                     <span>HoldWipers</span>
                   </label>
+                  <label class="debug-panel__option">
+                    <input type="checkbox" data-debug-flag="holdSensor2" />
+                    <span>HoldSensor2</span>
+                  </label>
                 </div>
                 <div class="debug-panel__flag-column">
                   <label class="debug-panel__option">
@@ -532,7 +536,9 @@ function mountCircuitView() {
   }
 
   function handleManualWiperInput({ phase, wipers }) {
-    commandFlagsControl.setFlag(COMMAND_FLAGS.HOLD_WIPERS, true, { post: false });
+    if (!commandFlagsControl.hasFlag(COMMAND_FLAGS.HOLD_SENSOR2)) {
+      commandFlagsControl.setFlag(COMMAND_FLAGS.HOLD_WIPERS, true, { post: false });
+    }
 
     if (phase === "start") {
       lastManualWiperCommandKey = null;

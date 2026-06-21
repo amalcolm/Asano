@@ -3,6 +3,7 @@
 #include "C3Pot.h"
 #include "Helpers.h"
 #include "HWforState.h"
+#include <cmath>
 
 namespace {
   constexpr double MID_STEP_PIVOT_MID_VOLTAGE = 0.230970864519694;
@@ -68,29 +69,32 @@ double CCircuit::sensor2DeltaFromOffsetDelta(int offsetDelta) const {
 }
 
 double CCircuit::sensor2DeltaFromMidDelta(int midDelta, double sensor2) const {
-  if (sensor2 < 0.0)
-    return 0.0;
-
   const int top = HW->top.getLevel();
   const int bot = HW->bot.getLevel();
   const int mid = HW->mid.getLevel();
-  const uint8_t gain = clampWiper(HW->gain.getLevel());
-  const uint8_t offset = clampWiper(HW->offset.getLevel());
 
   const double midVoltageNow = midVoltageVolts(top, bot, mid);
   const double nextMidVoltage = midVoltageVolts(top, bot, mid + midDelta);
-  const double deltaMidVoltage = nextMidVoltage - midVoltageNow;
- 
+  return sensor2DeltaFromMidVoltageDelta(midVoltageNow, nextMidVoltage - midVoltageNow, sensor2);
+}
+
+double CCircuit::sensor2DeltaFromMidVoltageDelta(double currentMidVoltage, double midVoltageDelta, double sensor2) const {
+  if (sensor2 < 0.0 || midVoltageDelta == 0.0)
+    return 0.0;
+
+  const uint8_t gain = clampWiper(HW->gain.getLevel());
+  const uint8_t offset = clampWiper(HW->offset.getLevel());
+
   const double diffAmpMultiplier = _DA.multiplier(gain);
   const double sensor1EstNow = _DA.sensor1VoltageFromSensor2(sensor2, gain, offset);
 
-  const double denominator = MID_STEP_PIVOT_MID_VOLTAGE - midVoltageNow;
+  const double denominator = MID_STEP_PIVOT_MID_VOLTAGE - currentMidVoltage;
 
   if (denominator > -MIN_MID_STEP_DENOMINATOR && denominator < MIN_MID_STEP_DENOMINATOR)
     ERROR("Denominator for gain calculation is too small, cannot compute deltaSensor2FromDeltaMid");
 
   const double lightGain = (sensor1EstNow - MID_STEP_PIVOT_SENSOR1_EST) / denominator;
-  const double deltaSensor2Voltage = diffAmpMultiplier * lightGain * deltaMidVoltage;
+  const double deltaSensor2Voltage = diffAmpMultiplier * lightGain * midVoltageDelta;
 
   return deltaSensor2Voltage * CDiffAmp::SENSOR_SCALAR;
 }
