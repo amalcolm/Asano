@@ -46,14 +46,15 @@ namespace Asano.MyGLTools.Helpers
 
             _vpRect.X      = (int)(_inRect.X      * _parentRect.Width  +     _margin);
             _vpRect.Y      = (int)(_inRect.Y      * _parentRect.Height +     _margin);
-            _vpRect.Width  = (int)(_inRect.Width  * _parentRect.Width  - 2 * _margin);
-            _vpRect.Height = (int)(_inRect.Height * _parentRect.Height - 2 * _margin);
+            _vpRect.Width  = Math.Max(0, (int)(_inRect.Width  * _parentRect.Width  - 2 * _margin));
+            _vpRect.Height = Math.Max(0, (int)(_inRect.Height * _parentRect.Height - 2 * _margin));
         }
 
-        public void SetupViewport()
+        public bool SetupViewport()
         {
-            if (!_canUpdate) return;
+            if (!_canUpdate) return false;
             if (_vpRect.Width == 0 || _vpRect.Height == 0) Update();
+            if (_vpRect.Width <= 0 || _vpRect.Height <= 0) return false;
 
             GL.Scissor(_vpRect.X, _vpRect.Y, _vpRect.Width, _vpRect.Height);
             GL.Enable(EnableCap.ScissorTest);
@@ -62,11 +63,13 @@ namespace Asano.MyGLTools.Helpers
             // the x-ordinates are in milliseconds for the subplot, max 20ms
             var transform = Matrix4.CreateOrthographicOffCenter(_outRect.Left, _outRect.Right, _outRect.Top, _outRect.Bottom, -1.0f, 1.0f);
             GL.UniformMatrix4(_transformLoc, false, ref transform);
+            return true;
         }
 
         public void ResetViewport(Matrix4 transform)
         {
             if (!_canUpdate) return;
+            if (_parentRect.Width <= 0 || _parentRect.Height <= 0) return;
             GL.Disable(EnableCap.ScissorTest);
             GL.Viewport(_parentRect.X, _parentRect.Y, _parentRect.Width, _parentRect.Height);
             GL.UniformMatrix4(_transformLoc, false, ref transform);

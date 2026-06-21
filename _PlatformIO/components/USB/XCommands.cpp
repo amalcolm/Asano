@@ -68,6 +68,22 @@ void XCommand::process(uint8_t* pRead, size_t packetSize) {
       // not used currently, but must be present to handle command flags in headers
       break;
     }
+
+    case XCMD_SetSequence::ID: { XCMD_SetSequence setSequence; std::memcpy(&setSequence, pRead, packetSize);
+      bool valid = setSequence.count > 0 && setSequence.count <= XCMD_SetSequence::MAX_STATES;
+
+      for (uint8_t i = 0; valid && i < setSequence.count; ++i)
+        valid = (setSequence.states[i] & ~CHead::VALIDBITS) == 0;
+
+      if (valid) {
+        std::span<const StateType> sequence{setSequence.states, setSequence.count};
+        Head.setSequence({sequence});
+      } else {
+        handledCommand = false;
+      }
+
+      break;
+    }
     
     case XCMD_SetActiveState::ID: 
       // handled above, but must be present here to avoid unhandled command

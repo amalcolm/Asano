@@ -109,6 +109,21 @@ namespace Asano
             Program.SerialPort?.Open(cbPorts.SelectedItem.ToString());
         }
 
+        public void ClearDataControl(int holdMilliseconds = 0)
+        {
+            if (IsDisposed)
+                return;
+
+            if (InvokeRequired)
+            {
+                if (IsHandleCreated)
+                    BeginInvoke(new MethodInvoker(() => ClearDataControl(holdMilliseconds)));
+                return;
+            }
+
+            dataControl.Clear(holdMilliseconds);
+        }
+
 
         bool firstLoad = true;
         DataForm? dataForm;

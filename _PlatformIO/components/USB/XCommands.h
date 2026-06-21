@@ -77,6 +77,20 @@ struct XCMD_SetActiveState : public XCommand {
 
 static_assert(sizeof(XCMD_SetActiveState) == 12);
 
+struct XCMD_SetSequence : public XCommand {
+  static constexpr uint8_t ID = 0x05;
+  static constexpr uint8_t MAX_STATES = 64;
+
+  uint8_t count;
+  uint8_t _reserved1;
+  uint8_t _reserved2;
+  uint8_t _reserved3;
+
+  uint32_t states[MAX_STATES]; // bitfields for LEDs
+};
+
+static_assert(sizeof(XCMD_SetSequence) == 268);
+
 
 // helpers for CommandFlags bitfield management,
 constexpr uint32_t      toU32     (CommandFlags  flags            ) { return static_cast<uint32_t>(flags);                   }

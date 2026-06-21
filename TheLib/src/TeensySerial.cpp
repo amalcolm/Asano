@@ -61,6 +61,9 @@ namespace TheLib
 		bool result = false;
 		try
 		{
+			ClearHandshakeResponses();
+			Config::ResetHandshakeConfig();
+
 			// Simulate handshake process
 			while (!token.IsCancellationRequested)
 			{
@@ -76,13 +79,14 @@ namespace TheLib
 				if (token.IsCancellationRequested)
 					break;
 				
+				ClearHandshakeResponses();
 				Write(HOST_ACKNOWLEDGE);
 
 				bool devAck = false;
 				bool received = false;
 				for (int count = 5; devAck == false && count > 0 && !token.IsCancellationRequested; count--) 
 				{
-					received = m_handshakeEvent->WaitOne(500);  // handshake event fired on close as well
+					received = WaitForHandshakeResponse(500);  // handshake event fired on close as well
 
 					if (!received)
 						break;
@@ -96,11 +100,8 @@ namespace TheLib
 //					Clear();
 					Write(">" + Config::ProgramVersion + "\n");
 
-					received = m_handshakeEvent->WaitOne(500);
-					if (received)
+					if (ReadHandshakeConfig(token))
 					{
-						Config::ParseHandshakeResponse(GetHandshakeResponse());
-
 						m_connectionState = ConnectionState::HandshakeSuccessful;
 //						Clear();
 						break;
@@ -131,6 +132,38 @@ namespace TheLib
 			RaiseConnectionChangedEvent(m_connectionState);
 		}
 		return Task::FromResult(result);
+	}
+
+	bool TeensySerial::ReadHandshakeConfig(CancellationToken token)
+	{
+		bool received = WaitForHandshakeResponse(500);
+		if (!received || token.IsCancellationRequested)
+			return false;
+
+		String^ response = GetHandshakeResponse();
+		String^ marker = response->Trim();
+
+		Config::ResetHandshakeConfig();
+		Config::ParseHandshakeResponse(response);
+
+		if (!String::Equals(marker, "<CONFIG_BEGIN", StringComparison::OrdinalIgnoreCase))
+			return true;
+
+		for (int count = 64; count > 0 && !token.IsCancellationRequested; --count)
+		{
+			received = WaitForHandshakeResponse(500);
+			if (!received)
+				return false;
+
+			response = GetHandshakeResponse();
+			marker = response->Trim();
+			Config::ParseHandshakeResponse(response);
+
+			if (String::Equals(marker, "<CONFIG_END", StringComparison::OrdinalIgnoreCase))
+				return true;
+		}
+
+		return false;
 	}
 
 	

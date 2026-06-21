@@ -78,13 +78,16 @@ namespace Asano.MyGLTools.UserControls
             {
                 MyChart[] chartsToRemove = [.. _charts.Where(chart => chart != PrimaryChart)];
 
-                _charts.Clear();
-                _charts.Add(PrimaryChart);
-                PrimaryChart.Activate();
-                ApplyChartLayout();
+                RecreateChartLayoutPanel();
 
                 foreach (var chart in chartsToRemove)
                     DisposeChart(chart);
+
+                _charts.Clear();
+                _charts.Add(PrimaryChart);
+                _nextChartIndex = 1;
+                PrimaryChart.Activate();
+                ApplyChartLayout();
             });
         }
 
@@ -99,33 +102,107 @@ namespace Asano.MyGLTools.UserControls
 
         private void ApplyChartLayout()
         {
-            int n = Math.Max(_charts.Count, 1);
-            int cols = n < 3 ? 1 : (int)Math.Ceiling(Math.Sqrt(n));
-            int rows = (int)Math.Ceiling((double)n / cols);
+            var (cols, rows) = GetLayoutSize(Math.Max(_charts.Count, 1));
 
             tlpCharts.SuspendLayout();
 
-            tlpCharts.Controls.Clear();
-            tlpCharts.ColumnStyles.Clear();
-            tlpCharts.RowStyles.Clear();
-
-            tlpCharts.ColumnCount = cols;
-            tlpCharts.RowCount = rows;
-
-            for (int c = 0; c < cols; c++)
-                tlpCharts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100.0f / cols));
-
-            for (int r = 0; r < rows; r++)
-                tlpCharts.RowStyles.Add(new RowStyle(SizeType.Percent, 100.0f / rows));
-
-            for (int i = 0; i < _charts.Count; i++)
+            try
             {
-                int c = i % cols;
-                int r = i / cols;
-                tlpCharts.Controls.Add(_charts[i], c, r);
-            }
+                ClearChartLayout();
 
-            tlpCharts.ResumeLayout(true);
+                tlpCharts.ColumnCount = cols;
+                tlpCharts.RowCount = rows;
+
+                for (int c = 0; c < cols; c++)
+                    tlpCharts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100.0f / cols));
+
+                for (int r = 0; r < rows; r++)
+                    tlpCharts.RowStyles.Add(new RowStyle(SizeType.Percent, 100.0f / rows));
+
+                for (int i = 0; i < _charts.Count; i++)
+                {
+                    MyChart chart = _charts[i];
+                    int column = i % cols;
+                    int row = i / cols;
+
+                    chart.Dock = DockStyle.Fill;
+                    chart.Visible = true;
+
+                    tlpCharts.Controls.Add(chart, column, row);
+                    tlpCharts.SetColumnSpan(chart, 1);
+                    tlpCharts.SetRowSpan(chart, 1);
+                }
+            }
+            finally
+            {
+                tlpCharts.ResumeLayout(true);
+            }
+        }
+
+        private void ClearChartLayout()
+        {
+            ClearChartLayout(tlpCharts);
+        }
+
+        private static void ClearChartLayout(TableLayoutPanel panel)
+        {
+            panel.Controls.Clear();
+
+            while (panel.ColumnStyles.Count > 0)
+                panel.ColumnStyles.RemoveAt(panel.ColumnStyles.Count - 1);
+
+            while (panel.RowStyles.Count > 0)
+                panel.RowStyles.RemoveAt(panel.RowStyles.Count - 1);
+
+            panel.ColumnCount = 0;
+            panel.RowCount = 0;
+        }
+
+        private void RecreateChartLayoutPanel()
+        {
+            TableLayoutPanel oldPanel = tlpCharts;
+            TableLayoutPanel newPanel = CreateChartLayoutPanel();
+
+            SuspendLayout();
+            oldPanel.SuspendLayout();
+
+            try
+            {
+                ClearChartLayout(oldPanel);
+                Controls.Remove(oldPanel);
+                tlpCharts = newPanel;
+                Controls.Add(tlpCharts);
+                tlpCharts.BringToFront();
+            }
+            finally
+            {
+                oldPanel.ResumeLayout(false);
+                oldPanel.Dispose();
+                ResumeLayout(true);
+            }
+        }
+
+        private static TableLayoutPanel CreateChartLayoutPanel()
+            => new()
+            {
+                Dock = DockStyle.Fill,
+                GrowStyle = TableLayoutPanelGrowStyle.FixedSize,
+                Margin = new Padding(0),
+                Name = "tlpCharts",
+                TabIndex = 0,
+            };
+
+        private static (int Columns, int Rows) GetLayoutSize(int chartCount)
+        {
+            if (chartCount <= 1)
+                return (1, 1);
+
+            int columns = chartCount < 3
+                ? 1
+                : (int)Math.Ceiling(Math.Sqrt(chartCount));
+            int rows = (int)Math.Ceiling((double)chartCount / columns);
+
+            return (columns, rows);
         }
 
         protected void RunOnUiThread(MethodInvoker action)

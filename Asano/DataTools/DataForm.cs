@@ -11,6 +11,7 @@ namespace Asano.MyGLTools.UserControls
 
         private Form? detachedChartForm;
         private bool closing;
+        private bool preserveDataHoldOnDetachClose;
 
         public DataForm()
         {
@@ -125,14 +126,88 @@ namespace Asano.MyGLTools.UserControls
             form.FormClosing -= DetachedChartForm_FormClosing;
             detachedChartForm = null;
             global::Asano.Program.HasMaximisedForm = false;
-            multiChart.CancelDataHold();
+
+            if (!preserveDataHoldOnDetachClose)
+                multiChart.CancelDataHold();
 
             if (multiChart.IsDisposed || closing)
                 return;
 
-            form.Controls.Remove(multiChart);
-            chartHostPanel.Controls.Add(multiChart);
-            multiChart.Dock = DockStyle.Fill;
+            ReparentDetachedChart(form);
+        }
+
+        private void ReparentDetachedChart(Form form)
+        {
+            bool wasPaused = MyScheduler.IsPaused;
+            bool wasFrozen = MyScheduler.IsFrozen;
+
+            MyScheduler.IsPaused = true;
+            MyScheduler.IsFrozen = true;
+
+            try
+            {
+                WaitForChartFrames();
+                form.Controls.Remove(multiChart);
+                chartHostPanel.Controls.Add(multiChart);
+                multiChart.Dock = DockStyle.Fill;
+            }
+            finally
+            {
+                MyScheduler.IsPaused = wasPaused;
+                MyScheduler.IsFrozen = wasFrozen;
+            }
+        }
+
+        private void WaitForChartFrames()
+        {
+            foreach (MyChart chart in multiChart.GetCharts())
+                try { chart.GLThread?.FrameDone.Wait(TimeSpan.FromMilliseconds(250)); }
+                catch { }
+        }
+
+        public void ClearTestData(int holdMilliseconds = 0, uint[]? expectedStates = null)
+        {
+            if (IsDisposed)
+                return;
+
+            if (InvokeRequired)
+            {
+                if (IsHandleCreated)
+                    BeginInvoke(new MethodInvoker(() => ClearTestData(holdMilliseconds, expectedStates)));
+                return;
+            }
+
+            if (holdMilliseconds > 0)
+                multiChart.BeginRebuildDataHold(holdMilliseconds, ToHeadStates(expectedStates));
+            else
+                multiChart.CancelDataHold();
+
+            DockDetachedChartIfNeeded();
+            multiChart.Clear();
+        }
+
+        private void DockDetachedChartIfNeeded()
+        {
+            if (detachedChartForm is not { IsDisposed: false } form)
+                return;
+
+            preserveDataHoldOnDetachClose = true;
+            try
+            {
+                form.Close();
+            }
+            finally
+            {
+                preserveDataHoldOnDetachClose = false;
+            }
+        }
+
+        private static HeadState[]? ToHeadStates(uint[]? states)
+        {
+            if (states == null || states.Length == 0)
+                return null;
+
+            return [.. states.Select(state => (HeadState)state).Distinct()];
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)

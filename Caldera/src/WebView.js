@@ -1,8 +1,12 @@
 import { COMMAND_FLAGS, normaliseCommandFlags } from "./helpers/CommandFlags.js";
 
 const DEFAULT_HOST_CONFIG = {
+  maxSequenceStates: 64,
   postSettingsChanges: false,
+  testSequences: [],
 };
+
+const VALID_HEAD_STATE_BITS = 0x01FF01FF >>> 0;
 
 export class WebView {
   constructor(model) {
@@ -175,6 +179,38 @@ export class WebView {
     });
   }
 
+  postSetSequence({
+    cmdFlags = this.getCommandFlags(),
+    states,
+  } = {}) {
+    const sequence = normaliseStateSequence(states, this.hostConfig.maxSequenceStates);
+    if (sequence.length === 0) {
+      return false;
+    }
+
+    return this.postMessage({
+      type: "setSequence",
+      states: sequence,
+      cmdFlags: cmdFlags,
+    });
+  }
+
+  postLoadTestSequence({
+    cmdFlags = this.getCommandFlags(),
+    name,
+  } = {}) {
+    const sequenceName = typeof name === "string" ? name.trim() : "";
+    if (!sequenceName) {
+      return false;
+    }
+
+    return this.postMessage({
+      type: "loadTestSequence",
+      name: sequenceName,
+      cmdFlags: cmdFlags,
+    });
+  }
+
   postSetDebugFlags({
     cmdFlags = this.getCommandFlags(),
   } = {}) {
@@ -226,6 +262,21 @@ export class WebView {
     const commandFlags = getProperty(message, "cmdFlags", "commandFlags");
     if (commandFlags !== undefined) {
       this.setCommandFlags(commandFlags);
+    }
+
+    const maxSequenceStates = normalisePositiveInteger(
+      getProperty(message, "maxSequenceStates", "MAX_SEQUENCE_STATES"),
+    );
+    if (maxSequenceStates !== null) {
+      this.hostConfig.maxSequenceStates = maxSequenceStates;
+    }
+
+    const testSequences = normaliseTestSequences(
+      getProperty(message, "testSequences", "TEST_SEQUENCES"),
+      this.hostConfig.maxSequenceStates,
+    );
+    if (testSequences !== null) {
+      this.hostConfig.testSequences = testSequences;
     }
   }
 }
@@ -358,4 +409,75 @@ function getProperty(source, ...keys) {
   }
 
   return undefined;
+}
+
+function normaliseStateSequence(states, maxSequenceStates = 64) {
+  if (!Array.isArray(states)) {
+    return [];
+  }
+
+  const maxStates = normalisePositiveInteger(maxSequenceStates) ?? 64;
+  if (states.length === 0 || states.length > maxStates) {
+    return [];
+  }
+
+  const sequence = [];
+  for (const state of states) {
+    const normalised = normaliseHeadState(state);
+    if (normalised === null) {
+      return [];
+    }
+    sequence.push(normalised);
+  }
+
+  return sequence;
+}
+
+function normaliseTestSequences(testSequences, maxSequenceStates = 64) {
+  if (!Array.isArray(testSequences)) {
+    return null;
+  }
+
+  const normalised = [];
+  for (const testSequence of testSequences) {
+    if (!testSequence || typeof testSequence !== "object" || Array.isArray(testSequence)) {
+      return null;
+    }
+
+    const name = getProperty(testSequence, "name", "Name");
+    if (typeof name !== "string" || !name.trim()) {
+      return null;
+    }
+
+    const states = normaliseStateSequence(
+      getProperty(testSequence, "states", "States"),
+      maxSequenceStates,
+    );
+    if (states.length === 0) {
+      return null;
+    }
+
+    normalised.push({
+      name: name.trim(),
+      states,
+    });
+  }
+
+  return normalised;
+}
+
+function normaliseHeadState(value) {
+  const state = Number(value);
+  if (!Number.isSafeInteger(state) || state < 0 || state > 0xFFFFFFFF) {
+    return null;
+  }
+
+  const unsignedState = state >>> 0;
+  const invalidBits = (unsignedState & (~VALID_HEAD_STATE_BITS >>> 0)) >>> 0;
+  return invalidBits === 0 ? unsignedState : null;
+}
+
+function normalisePositiveInteger(value) {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number > 0 ? number : null;
 }

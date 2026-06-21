@@ -560,6 +560,12 @@ namespace Asano.MyGLTools.UserControls
                 }
         }
 
+        public void ResetData()
+        {
+            SP_ConnectionChanged(ConnectionState.Disconnected);
+            ClearGL();
+        }
+
         public AString getDebugOutput(int index)
         {
             StringBuilder sb = new();

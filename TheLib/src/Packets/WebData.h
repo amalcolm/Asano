@@ -124,7 +124,7 @@ namespace TheLib::Packets
         String^ _type;
         CommandFlags _cmdFlags;
         VoltageValues^ _voltages;
-		
+
     public:
         VoltagesChangedMessage() { _type = "voltagesChanged"; _cmdFlags = CommandFlags::None; _voltages = gcnew VoltageValues(); }
 
@@ -132,9 +132,9 @@ namespace TheLib::Packets
         [JsonPropertyName("cmdFlags")] virtual property CommandFlags   CMDflags { CommandFlags   get() { return _cmdFlags; } };
         [JsonPropertyName("voltages")]         property VoltageValues^ Voltages { VoltageValues^ get() { return _voltages; } void set(VoltageValues^ value) { _voltages = value; } }
         void CopyFrom(BlockPacket^ block) { if (Voltages == nullptr) Voltages = gcnew VoltageValues();
-        
-            Voltages->CopyFrom(block); 
-			_cmdFlags = CommandFlags::None; 
+
+            Voltages->CopyFrom(block);
+			_cmdFlags = CommandFlags::None;
         }
 
         void CopyFrom(VoltagesChangedMessage^ other) { if (other == nullptr) return; if (Voltages == nullptr) Voltages = gcnew VoltageValues();
@@ -225,7 +225,7 @@ namespace TheLib::Packets
         }
 
 		[JsonIgnore] property bool IsValid{ bool get() { return State != HeadState::UNSET; } }
-         
+
         virtual bool Equals(Object^ obj) override { StateChangedMessage^ other = dynamic_cast<StateChangedMessage^>(obj); if (other == nullptr) return false;
             return String::Equals(Type, other->Type) && State == other->State;
         }
@@ -251,7 +251,7 @@ namespace TheLib::Packets
         [JsonPropertyName("type"    )] virtual property String^      Type     { String^      get() { return _type;     } void set(String^      value) {   _type   = value; } }
         [JsonPropertyName("cmdFlags")] virtual property CommandFlags CMDflags { CommandFlags get() { return _cmdFlags; } void set(CommandFlags value) { _cmdFlags = value; } };
         [JsonPropertyName("wipers"  )]         property WiperValues^ Wipers   { WiperValues^ get() { return _wipers;   } void set(WiperValues^ value) { _wipers   = value; } }
-    }; 
+    };
 
 
     public ref class SetStateMessage sealed : public IWebMessage
@@ -269,6 +269,36 @@ namespace TheLib::Packets
 	};
 
 
+    public ref class SetSequenceMessage sealed : public IWebMessage
+	{
+    private:
+        String^ _type;
+		CommandFlags _cmdFlags;
+        array<UInt32>^ _states;
+
+    public:
+        SetSequenceMessage() { _type = "setSequence"; _cmdFlags = CommandFlags::None; _states = gcnew array<UInt32>(0); }
+        [JsonPropertyName("type"    )] virtual property String^      Type     { String^      get() { return _type;     } void set(String^      value) { _type     = value; } }
+        [JsonPropertyName("cmdFlags")] virtual property CommandFlags CMDflags { CommandFlags get() { return _cmdFlags; } void set(CommandFlags value) { _cmdFlags = value; } };
+        [JsonPropertyName("states"  )]         property array<UInt32>^ States  { array<UInt32>^ get() { return _states; } void set(array<UInt32>^ value) { _states = value; } }
+	};
+
+
+    public ref class LoadTestSequenceMessage sealed : public IWebMessage
+	{
+    private:
+        String^ _type;
+		CommandFlags _cmdFlags;
+        String^ _name;
+
+    public:
+        LoadTestSequenceMessage() { _type = "loadTestSequence"; _cmdFlags = CommandFlags::None; _name = String::Empty; }
+        [JsonPropertyName("type"    )] virtual property String^      Type     { String^      get() { return _type;     } void set(String^      value) { _type     = value; } }
+        [JsonPropertyName("cmdFlags")] virtual property CommandFlags CMDflags { CommandFlags get() { return _cmdFlags; } void set(CommandFlags value) { _cmdFlags = value; } };
+        [JsonPropertyName("name"    )]         property String^      Name     { String^      get() { return _name;     } void set(String^      value) { _name = value == nullptr ? String::Empty : value; } }
+	};
+
+
     public ref class SetDebugFlagsMessage sealed : public IWebMessage
 	{
     private:
@@ -279,7 +309,7 @@ namespace TheLib::Packets
         SetDebugFlagsMessage() { _type = "setDebugFlags"; _cmdFlags = CommandFlags::None; }
         [JsonPropertyName("type"      )] virtual property String^      Type     { String^      get() { return _type;       } void set(String^      value) { _type       = value; } }
         [JsonPropertyName("cmdFlags"  )] virtual property CommandFlags CMDflags { CommandFlags get() { return _cmdFlags;   } void set(CommandFlags value) { _cmdFlags   = value; } };
-		
+
         [JsonIgnore] property bool HasTestFlag { bool get() { return (static_cast<uint16_t>(_cmdFlags) & 0xFF00) != 0; } }
 	};
 }

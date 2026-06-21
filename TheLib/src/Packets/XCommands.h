@@ -106,4 +106,33 @@ namespace TheLib::Packets
             void set(CommandFlags value) { header.cmdFlags = value; }
         }
     };
+
+    [StructLayoutAttribute(LayoutKind::Sequential, Pack = 1)]
+    public ref struct XCMD_SetSequence : IXCommand
+    {
+        literal Byte ID = 0x05;        virtual property Byte CommandID { Byte get() { return ID; } }
+        literal int MAX_STATES = 64;
+
+        XCMD_Header header;
+
+        Byte count;
+        Byte _reserved1;
+        Byte _reserved2;
+        Byte _reserved3;
+
+        [MarshalAs(UnmanagedType::ByValArray, SizeConst = 64)]
+        array<uint32_t>^ states;
+
+        XCMD_SetSequence()
+        {
+            count = 0;
+            states = gcnew array<uint32_t>(MAX_STATES);
+        }
+
+        property CommandFlags cmdFlags
+        {
+            CommandFlags get() { return header.cmdFlags; }
+            void set(CommandFlags value) { header.cmdFlags = value; }
+        }
+    };
 }

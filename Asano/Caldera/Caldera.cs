@@ -19,6 +19,8 @@ namespace Asano.Caldera
         private static readonly List<string> AnalysisReplayMessages = [];
         private static string? LatestTestStatusMessage;
         private const int MaxAnalysisReplayMessages = 20000;
+        private const int SequenceLoadSettleMilliseconds = 2000;
+        private const uint ValidHeadStateBits = 0x01FF01FF;
 
         public CalderaControl Control { get; }
         public CoreWebView2 WebView { get; }
@@ -285,6 +287,14 @@ namespace Asano.Caldera
                 type = "hostConfig",
                 postSettingsChanges = false,
                 cmdFlags = (uint)_currentCommandFlags,
+                maxSequenceStates = Config.MAX_SEQUENCE_STATES,
+                testSequences = Config.TEST_SEQUENCES
+                    .Select(sequence => new
+                    {
+                        name = sequence.Name,
+                        states = sequence.States ?? Array.Empty<uint>(),
+                    })
+                    .ToArray(),
             });
 
             return TryPostJson(json);
@@ -361,6 +371,12 @@ namespace Asano.Caldera
                     break;
                 case "setState":
                     HandleSetStateMessage(root);
+                    break;
+                case "setSequence":
+                    HandleSetSequenceMessage(root);
+                    break;
+                case "loadTestSequence":
+                    HandleLoadTestSequenceMessage(root);
                     break;
                 case "setDebugFlags":
                     HandleSetDebugFlagsMessage(root);
@@ -627,6 +643,50 @@ namespace Asano.Caldera
             Program.SerialPort?.Write(xCMD);
         }
 
+        private void HandleSetSequenceMessage(JsonElement root)
+        {
+            var message = root.Deserialize<SetSequenceMessage>();
+            if (message?.States == null) return;
+
+            SetCurrentCommandFlags(message.CMDflags);
+
+            XCMD_SetSequence? xCMD = CreateSetSequenceCommand(message.States, _currentCommandFlags);
+            if (xCMD == null) return;
+
+            PrepareDataViewsForSequenceLoad(message.States);
+
+            _lastState = -1;
+            _needsRefresh = true;
+            ClearHeldWiperRestore();
+
+            Program.SerialPort?.Write(xCMD);
+        }
+
+        private void HandleLoadTestSequenceMessage(JsonElement root)
+        {
+            var message = root.Deserialize<LoadTestSequenceMessage>();
+            string? name = message?.Name?.Trim();
+            if (string.IsNullOrEmpty(name)) return;
+
+            var sequence = Config.TEST_SEQUENCES
+                .FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
+
+            if (sequence?.States == null) return;
+
+            SetCurrentCommandFlags(message!.CMDflags);
+
+            XCMD_SetSequence? xCMD = CreateSetSequenceCommand(sequence.States, _currentCommandFlags);
+            if (xCMD == null) return;
+
+            PrepareDataViewsForSequenceLoad(sequence.States);
+
+            _lastState = -1;
+            _needsRefresh = true;
+            ClearHeldWiperRestore();
+
+            Program.SerialPort?.Write(xCMD);
+        }
+
         private void HandleSetDebugFlagsMessage(JsonElement root)
         {
             var message = root.Deserialize<SetDebugFlagsMessage>();
@@ -886,6 +946,54 @@ namespace Asano.Caldera
                 offset   = ClampWiper(wipers.Offset),
                 gain     = ClampWiper(wipers.Gain),
             };
+
+        private static XCMD_SetSequence? CreateSetSequenceCommand(uint[] states, CommandFlags flags)
+        {
+            int count = states.Length;
+            int maxStates = Math.Min((int)Config.MAX_SEQUENCE_STATES, XCMD_SetSequence.MAX_STATES);
+
+            if (count <= 0 || count > maxStates)
+                return null;
+
+            XCMD_SetSequence command = new()
+            {
+                cmdFlags = flags,
+                count = (byte)count,
+            };
+
+            for (int i = 0; i < count; ++i)
+            {
+                uint state = states[i];
+                if ((state & ~ValidHeadStateBits) != 0)
+                    return null;
+
+                command.states[i] = state;
+            }
+
+            return command;
+        }
+
+        private void PrepareDataViewsForSequenceLoad(uint[] expectedStates)
+        {
+            try
+            {
+                if (Control.FindForm() is DataForm dataForm)
+                    dataForm.ClearTestData(SequenceLoadSettleMilliseconds, expectedStates);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Failed to clear multichart data: " + ex.Message);
+            }
+
+            try
+            {
+                Program.SerialPort?.mainForm?.ClearDataControl(SequenceLoadSettleMilliseconds);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Failed to clear data control: " + ex.Message);
+            }
+        }
 
         private static bool HasCommandFlag(CommandFlags flags, CommandFlags flag)
             => (flags & flag) != CommandFlags.None;

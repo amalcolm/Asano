@@ -21,8 +21,11 @@ namespace Asano.MyGLTools.UserControls
         private Action? _dataHoldCompleted;
         private bool _dataHoldActive;
         private bool _dataHoldPausedScheduler;
+        private bool _dataHoldReleaseAfterRebuild;
         private bool _dataHoldPreviousSchedulerPause;
         private bool _dataHoldPreviousSchedulerFreeze;
+        private int _dataHoldSettleMilliseconds;
+        private HashSet<HeadState>? _expectedRebuildStates;
         private FormState _state = FormState.None;
         private int _lastChartCount = -1;
         private string _pendingPrimaryChartTag = string.Empty;
@@ -69,22 +72,51 @@ namespace Asano.MyGLTools.UserControls
 
         public void BeginDataHold(int milliseconds, Action? completed = null)
         {
-            RunOnUiThread(() =>
-            {
-                CancelDataHold();
+            RunOnUiThread(() => BeginDataHold(milliseconds, completed, releaseAfterRebuild: false));
+        }
 
-                _dataHoldCompleted = completed;
-                _dataHoldPreviousSchedulerPause = MyScheduler.IsPaused;
-                _dataHoldPreviousSchedulerFreeze = MyScheduler.IsFrozen;
-                _dataHoldPausedScheduler = true;
-                _dataHoldActive = true;
-                MyScheduler.IsPaused = true;
-                MyScheduler.IsFrozen = true;
+        public void BeginRebuildDataHold(
+            int milliseconds,
+            IReadOnlyCollection<HeadState>? expectedStates = null,
+            Action? completed = null)
+        {
+            RunOnUiThread(() => BeginDataHold(milliseconds, completed, releaseAfterRebuild: true, expectedStates));
+        }
 
-                _dataHoldTimer = new System.Windows.Forms.Timer { Interval = Math.Max(1, milliseconds) };
-                _dataHoldTimer.Tick += DataHoldTimer_Tick;
-                _dataHoldTimer.Start();
-            });
+        private void BeginDataHold(
+            int milliseconds,
+            Action? completed,
+            bool releaseAfterRebuild,
+            IReadOnlyCollection<HeadState>? expectedStates = null)
+        {
+            CancelDataHold();
+
+            _dataHoldCompleted = completed;
+            _dataHoldPreviousSchedulerPause = MyScheduler.IsPaused;
+            _dataHoldPreviousSchedulerFreeze = MyScheduler.IsFrozen;
+            _dataHoldPausedScheduler = true;
+            _dataHoldActive = true;
+            _dataHoldReleaseAfterRebuild = releaseAfterRebuild;
+            _dataHoldSettleMilliseconds = Math.Max(1, milliseconds);
+            lock (_lock)
+                _expectedRebuildStates = expectedStates is { Count: > 0 }
+                    ? new HashSet<HeadState>(expectedStates)
+                    : null;
+            MyScheduler.IsPaused = true;
+            MyScheduler.IsFrozen = true;
+
+            if (!releaseAfterRebuild)
+                StartDataHoldTimer(_dataHoldSettleMilliseconds);
+        }
+
+        private void StartDataHoldTimer(int milliseconds)
+        {
+            if (_dataHoldTimer != null)
+                return;
+
+            _dataHoldTimer = new System.Windows.Forms.Timer { Interval = Math.Max(1, milliseconds) };
+            _dataHoldTimer.Tick += DataHoldTimer_Tick;
+            _dataHoldTimer.Start();
         }
 
         public void CancelDataHold() => CancelDataHold(restoreScheduler: true);
@@ -117,6 +149,10 @@ namespace Asano.MyGLTools.UserControls
 
             _dataHoldActive = false;
             _dataHoldCompleted = null;
+            _dataHoldReleaseAfterRebuild = false;
+            _dataHoldSettleMilliseconds = 0;
+            lock (_lock)
+                _expectedRebuildStates = null;
 
             if (restoreScheduler)
                 RestoreSchedulerAfterDataHold();
@@ -156,7 +192,10 @@ namespace Asano.MyGLTools.UserControls
             switch (state)
             {
                 case ConnectionState.Connected:
-                case ConnectionState.Disconnected: Clear(); break;
+                case ConnectionState.Disconnected:
+                    CancelDataHold();
+                    Clear();
+                    break;
 
                 case ConnectionState.HandshakeSuccessful: BeginInitialising(); break;
 
@@ -169,14 +208,14 @@ namespace Asano.MyGLTools.UserControls
 
             if (blockPacket.Count == 0) return;
 
-            if (_dataHoldActive)
-                return;
-
             if (_state != FormState.Running)
             {
                 Init_Packet(blockPacket);
                 return;
             }
+
+            if (_dataHoldActive)
+                return;
 
             MyScheduler.UpdateLatestTime( blockPacket.BlockData[blockPacket.Count - 1].TimeStamp );
 
@@ -244,18 +283,34 @@ namespace Asano.MyGLTools.UserControls
                     _initStates.Clear();
                     _initStates.Add(blockPacket.State, 3);
                 }
+                else if (_expectedRebuildStates != null && !_expectedRebuildStates.Contains(blockPacket.State))
+                    return;
                 else if (_initStates.TryGetValue(blockPacket.State, out int count) == false)
                     _initStates.Add(blockPacket.State, 0);
                 else
                     _initStates[blockPacket.State] = ++count;
 
-                buildCharts = SingleStateMode
-                           || _initStates[blockPacket.State] > 2
-                           || _swInit.ElapsedMilliseconds > 1000;
+                buildCharts = _expectedRebuildStates != null
+                    ? HasSeenExpectedRebuildStates()
+                    : SingleStateMode
+                   || _initStates[blockPacket.State] > 2
+                   || _swInit.ElapsedMilliseconds > 1000;
             }
 
             if (buildCharts)
                 SetState(FormState.Building);
+        }
+
+        private bool HasSeenExpectedRebuildStates()
+        {
+            if (_expectedRebuildStates == null || _expectedRebuildStates.Count == 0)
+                return false;
+
+            foreach (HeadState state in _expectedRebuildStates)
+                if (!_initStates.ContainsKey(state))
+                    return false;
+
+            return true;
         }
 
         private void BuildInitialCharts()
@@ -300,7 +355,17 @@ namespace Asano.MyGLTools.UserControls
                 SetCharts(charts);
                 OnChartCountChanged(charts.Count);
                 SetState(FormState.Running);
+                BeginDataHoldReleaseAfterRebuild();
             });
+        }
+
+        private void BeginDataHoldReleaseAfterRebuild()
+        {
+            if (!_dataHoldActive || !_dataHoldReleaseAfterRebuild)
+                return;
+
+            _dataHoldReleaseAfterRebuild = false;
+            StartDataHoldTimer(_dataHoldSettleMilliseconds);
         }
 
         private MyChart? GetOrAddChart(HeadState state)

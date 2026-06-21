@@ -34,6 +34,8 @@ namespace TheLib
         static array<Byte>^ HOST_ACKNOWLEDGE   = System::Text::Encoding::UTF8->GetBytes(">HOST_ACK\n"  ); 
 		static array<Byte>^ DEVICE_ACKNOWLEDGE = System::Text::Encoding::UTF8->GetBytes("<DEVICE_ACK\n");
 
+        bool ReadHandshakeConfig(System::Threading::CancellationToken token);
+
 		bool m_isDisposing = false;
     };
 

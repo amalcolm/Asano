@@ -3,7 +3,58 @@
 #include "Setup.h"
 #include "CUSB.h"
 #include "CMasterTimer.h"
+#include "XCommands.h"
+#include "ZTestSet1.h"
+#include <cstdarg>
+#include <cstdio>
+#include <cstring>
 #include <string>
+
+namespace {
+  void writeHandshakeRaw(const char* text) {
+    Serial.write(reinterpret_cast<const uint8_t*>(text), strlen(text));
+  }
+
+  void writeHandshakeLine(const char* format, ...) {
+    static char buffer[256];
+
+    int offset = snprintf(buffer, sizeof(buffer), "<");
+    if (offset < 0 || offset >= static_cast<int>(sizeof(buffer))) return;
+
+    va_list args;
+    va_start(args, format);
+    const int length = vsnprintf(buffer + offset, sizeof(buffer) - offset, format, args);
+    va_end(args);
+
+    if (length < 0) return;
+
+    offset += length;
+    if (offset < 0 || offset >= static_cast<int>(sizeof(buffer) - 1)) {
+      buffer[sizeof(buffer) - 2] = '\n';
+      buffer[sizeof(buffer) - 1] = '\0';
+    }
+    else {
+      buffer[offset++] = '\n';
+      buffer[offset] = '\0';
+    }
+
+    Serial.write(reinterpret_cast<uint8_t*>(buffer), strlen(buffer));
+  }
+
+  void writeTestSequenceLine(const ZTestSet1::NamedSequence& sequence) {
+    writeHandshakeRaw("<TEST_SEQUENCE=");
+    writeHandshakeRaw(sequence.name);
+    writeHandshakeRaw(":");
+
+    for (size_t i = 0; i < sequence.states.size(); ++i) {
+      char stateText[12];
+      snprintf(stateText, sizeof(stateText), "%s%08lX", i == 0 ? "" : ",", static_cast<unsigned long>(sequence.states[i]));
+      writeHandshakeRaw(stateText);
+    }
+
+    writeHandshakeRaw("\n");
+  }
+}
 
 void CSerialWrapper::doHandshake() {
   static const unsigned long timeout = 1000;  // timeout (mS)
@@ -88,11 +139,22 @@ void CSerialWrapper::doHandshake() {
 
 
 void CSerialWrapper::writeHandshakeResponse() {
-  static char buffer[360];
+  writeHandshakeRaw("<CONFIG_BEGIN\n");
 
-  snprintf(buffer, sizeof(buffer)-1,
-     "<STATE_DURATION_uS=%lf::HEAD_SETTLE_TIME_uS=%lf::POT_UPDATE_OFFSET_uS=%lf::A2D_SAMPLING_SPEED_Hz=%lf::A2D_READING_PERIOD_uS=%lf::MAX_BLOCKSIZE=%lu::MAX_EVENTS_PER_BLOCK=%lu::DEVICE_VERSION=%s::DEBUG_MODE=%s::COMMAND_FLAGS=%lu\n",
-  CFG::STATE_DURATION_uS,CFG::HEAD_SETTLE_TIME_uS,CFG::POT_UPDATE_OFFSET_uS,CFG::A2D_SAMPLING_SPEED_Hz,CFG::A2D_READING_PERIOD_uS,CFG::MAX_BLOCKSIZE,CFG::MAX_EVENTS_PER_BLOCK,CFG::DEVICE_VERSION,CFG::getDebugModeStr(), static_cast<unsigned long>(CFG::commandFlags));
+  writeHandshakeLine("STATE_DURATION_uS=%lf", CFG::STATE_DURATION_uS);
+  writeHandshakeLine("HEAD_SETTLE_TIME_uS=%lf", CFG::HEAD_SETTLE_TIME_uS);
+  writeHandshakeLine("POT_UPDATE_OFFSET_uS=%lf", CFG::POT_UPDATE_OFFSET_uS);
+  writeHandshakeLine("A2D_SAMPLING_SPEED_Hz=%lf", CFG::A2D_SAMPLING_SPEED_Hz);
+  writeHandshakeLine("A2D_READING_PERIOD_uS=%lf", CFG::A2D_READING_PERIOD_uS);
+  writeHandshakeLine("MAX_BLOCKSIZE=%lu", CFG::MAX_BLOCKSIZE);
+  writeHandshakeLine("MAX_EVENTS_PER_BLOCK=%lu", CFG::MAX_EVENTS_PER_BLOCK);
+  writeHandshakeLine("DEVICE_VERSION=%s", CFG::DEVICE_VERSION);
+  writeHandshakeLine("DEBUG_MODE=%s", CFG::getDebugModeStr());
+  writeHandshakeLine("COMMAND_FLAGS=%lu", static_cast<unsigned long>(CFG::commandFlags));
+  writeHandshakeLine("MAX_SEQUENCE_STATES=%u", static_cast<unsigned>(XCMD_SetSequence::MAX_STATES));
 
-  Serial.write((uint8_t*)buffer, strlen(buffer));
+  for (const auto& sequence : ZTestSet1::NamedSets)
+    writeTestSequenceLine(sequence);
+
+  writeHandshakeRaw("<CONFIG_END\n");
 }

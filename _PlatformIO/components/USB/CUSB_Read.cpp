@@ -12,11 +12,12 @@
 
 struct PayloadInfo { uint8_t id; size_t size; };
 
-const std::array<PayloadInfo, 4> s_payloads = {{
+const std::array<PayloadInfo, 5> s_payloads = {{
   {XCMD_SetWipers::ID,      sizeof(XCMD_SetWipers)},
   {XCMD_SetState::ID,       sizeof(XCMD_SetState)},
   {XCMD_SetDebugFlags::ID,  sizeof(XCMD_SetDebugFlags)},
-  {XCMD_SetActiveState::ID, sizeof(XCMD_SetActiveState)}
+  {XCMD_SetActiveState::ID, sizeof(XCMD_SetActiveState)},
+  {XCMD_SetSequence::ID,    sizeof(XCMD_SetSequence)}
 }};
 
 C32bitTimer T32_MemoryCheck = C32bitTimer::From_mS(400).setPeriodic(false);

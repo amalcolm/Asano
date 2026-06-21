@@ -1,5 +1,6 @@
 #pragma once
 #include "CHead.h"
+#include <string_view>
 
 struct ZTestSet1 {
   private:
@@ -53,25 +54,11 @@ struct ZTestSet1 {
       CHead::IR5  | CHead::IR6  | CHead::IR7  | CHead::IR8,
     };
 
-    inline static constexpr StateType __AllReds[] = {
-      CHead::ALL_OFF,
-      CHead::RED1 | CHead::RED2 | CHead::RED3 | CHead::RED4 |
-      CHead::RED5 | CHead::RED6 | CHead::RED7 | CHead::RED8,
-    };
-
-    inline static constexpr StateType __AllIRs[] = {
-      CHead::ALL_OFF,
-      CHead::IR1 | CHead::IR2 | CHead::IR3 | CHead::IR4 |
-      CHead::IR5 | CHead::IR6 | CHead::IR7 | CHead::IR8,
-    };
-
     inline static constexpr StateType __AllRedIR[] = {
       CHead::ALL_OFF,
-      CHead::RED1 | CHead::RED2 | CHead::RED3 | CHead::RED4 |
-      CHead::RED5 | CHead::RED6 | CHead::RED7 | CHead::RED8,
+      CHead::RED1 | CHead::RED2 | CHead::RED3 | CHead::RED4 | CHead::RED5 | CHead::RED6 | CHead::RED7 | CHead::RED8,
       CHead::ALL_OFF,
-      CHead::IR1 | CHead::IR2 | CHead::IR3 | CHead::IR4 |
-      CHead::IR5 | CHead::IR6 | CHead::IR7 | CHead::IR8,
+      CHead::IR1 | CHead::IR2 | CHead::IR3 | CHead::IR4 | CHead::IR5 | CHead::IR6 | CHead::IR7 | CHead::IR8,
     };
 
     inline static constexpr StateType __AllOnStress[] = {
@@ -87,6 +74,7 @@ struct ZTestSet1 {
       CHead::IR3  | CHead::IR6,
     };
 
+
   public:
     inline static constexpr std::span<const StateType> Singles_1_4{ __Singles_1_4 };
     inline static constexpr std::span<const StateType> Singles_5_8{ __Singles_5_8 };
@@ -94,11 +82,35 @@ struct ZTestSet1 {
     inline static constexpr std::span<const StateType> Pairs_5_8  { __Pairs_5_8   };
     inline static constexpr std::span<const StateType> Quads_1_4  { __Quads_1_4   };
     inline static constexpr std::span<const StateType> Quads_5_8  { __Quads_5_8   };
-    inline static constexpr std::span<const StateType> AllReds    { __AllReds     };
-    inline static constexpr std::span<const StateType> AllIRs     { __AllIRs      };
     inline static constexpr std::span<const StateType> AllRedIR   { __AllRedIR    };
     inline static constexpr std::span<const StateType> AllOnStress{ __AllOnStress };
     inline static constexpr std::span<const StateType> CrossPairs { __CrossPairs  };
+
+    struct NamedSequence {
+      const char* name;
+      std::span<const StateType> states;
+    };
+
+    inline static constexpr NamedSequence NamedSets[] = {
+      { "Singles_1_4", Singles_1_4 },
+      { "Singles_5_8", Singles_5_8 },
+      { "Pairs_1_4",   Pairs_1_4   },
+      { "Pairs_5_8",   Pairs_5_8   },
+      { "Quads_1_4",   Quads_1_4   },
+      { "Quads_5_8",   Quads_5_8   },
+      { "AllRedIR",    AllRedIR    },
+      { "AllOnStress", AllOnStress },
+      { "CrossPairs",  CrossPairs  },
+    };
+
+    inline static constexpr std::span<const StateType> getNamedSet(std::string_view name) {
+      for (const auto& namedSequence : NamedSets) {
+        if (namedSequence.name == name) {
+          return namedSequence.states;
+        }
+      }
+      return {};
+    }
 };
 
 inline constexpr ZTestSet1 zTestSet1{};

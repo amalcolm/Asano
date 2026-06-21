@@ -6,6 +6,7 @@
 #include "Packets/XCommands.h"
 
 using namespace System;
+using namespace System::Collections::Generic;
 using namespace System::Diagnostics;
 using namespace System::Runtime::InteropServices; // For GCHandle, Marshal
 using namespace System::Threading;
@@ -127,11 +128,16 @@ namespace TheLib {
 
     protected:
 		void OnHandshakeReceived(const CTextPacket& packet);
+        bool WaitForHandshakeResponse(int millisecondsTimeout);
+        void ClearHandshakeResponses();
 		bool TestHandshakeResponse(array<Byte>^ response);
         String^ GetHandshakeResponse();
 		int m_handshakeLength = 0;
         volatile ConnectionState m_connectionState = ConnectionState::Disconnected;
         AutoResetEvent^ m_handshakeEvent = gcnew AutoResetEvent(false);
+        Object^ m_handshakeLock = gcnew Object();
+        Queue<String^>^ m_handshakeResponses = gcnew Queue<String^>();
+        String^ m_currentHandshakeResponse = String::Empty;
 
     private:
         // Delegate types matching native function pointers

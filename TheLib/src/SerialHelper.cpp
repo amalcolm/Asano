@@ -18,7 +18,7 @@ using namespace TheLib;
 
 constexpr bool VERBOSE = false; // Set to true for verbose logging
 
-namespace TheLib 
+namespace TheLib
 {
 
     //---------------------------------------------------------------------
@@ -133,7 +133,7 @@ namespace TheLib
 
     bool SerialHelper::Open(String^ portName) {
 		return Open(portName, CSerial::DEFAULT_BAUDRATE);
-	}   
+	}
 
     bool SerialHelper::Open(String^ portName, int baudRate) {
 		constexpr bool FAIL = false;
@@ -158,7 +158,7 @@ namespace TheLib
         bool result = FAIL;
         try {                                                                                                                                       if (VERBOSE) Debug::WriteLine(String::Format("SerialHelper: Calling native SetPort('{0}', {1})...", portName, baudRate));
             result = m_nativeSerial->SetPort(nativePortName, pNativeDataHandler, pUserData, baudRate);                                              if (VERBOSE) Debug::WriteLine(String::Format("SerialHelper: Native SetPort returned {0}.", result));
-            if (result) 
+            if (result)
                 m_portName = portName;                                                                                                              if (VERBOSE) Debug::WriteLine(String::Format("SerialHelper: PortName set to '{0}'.", m_portName));
         }
         catch (const std::exception& ex) {
@@ -563,25 +563,79 @@ namespace TheLib
 
         if (message.length == 0) return;
 
+        array<Byte>^ responseBytes = gcnew array<Byte>(static_cast<int>(message.length));
         Marshal::Copy(
             IntPtr((void*)message.utf8Bytes),
-            m_managedBytes, 
+            responseBytes,
             0,
-            static_cast<int>(message.length)
-        );
-		m_handshakeLength = static_cast<int>(message.length);
+            responseBytes->Length);
+
+        String^ response = UTF8Encoding::UTF8->GetString(responseBytes);
+
+        Monitor::Enter(m_handshakeLock);
+        try {
+            m_handshakeResponses->Enqueue(response);
+        }
+        finally {
+            Monitor::Exit(m_handshakeLock);
+        }
 
 		m_handshakeEvent->Set();
 	}
 
-    String^ SerialHelper::GetHandshakeResponse() { return UTF8Encoding::UTF8->GetString(m_managedBytes, 0, m_handshakeLength); }
+    bool SerialHelper::WaitForHandshakeResponse(int millisecondsTimeout) {
+        Monitor::Enter(m_handshakeLock);
+        try {
+            if (m_handshakeResponses->Count > 0)
+                return true;
+        }
+        finally {
+            Monitor::Exit(m_handshakeLock);
+        }
+
+        return m_handshakeEvent->WaitOne(millisecondsTimeout);
+    }
+
+    void SerialHelper::ClearHandshakeResponses() {
+        Monitor::Enter(m_handshakeLock);
+        try {
+            m_handshakeResponses->Clear();
+            m_currentHandshakeResponse = String::Empty;
+            m_handshakeLength = 0;
+        }
+        finally {
+            Monitor::Exit(m_handshakeLock);
+        }
+
+        while (m_handshakeEvent->WaitOne(0)) {}
+    }
+
+    String^ SerialHelper::GetHandshakeResponse() {
+        Monitor::Enter(m_handshakeLock);
+        try {
+            if (m_handshakeResponses->Count > 0)
+                m_currentHandshakeResponse = m_handshakeResponses->Dequeue();
+
+            m_handshakeLength = UTF8Encoding::UTF8->GetByteCount(m_currentHandshakeResponse);
+            return m_currentHandshakeResponse;
+        }
+        finally {
+            Monitor::Exit(m_handshakeLock);
+        }
+    }
 
     bool SerialHelper::TestHandshakeResponse(array<Byte>^ response){
 
 
         if (response->Length == 0) { OutputDebugString(L"SerialHelper::TestHandshakeResponse: No handshake received.\r\n"); return response->Length == 0; }
 
-		int maxLength = min(m_handshakeLength, response->Length);
+        String^ actual = GetHandshakeResponse();
+        String^ expected = UTF8Encoding::UTF8->GetString(response);
+        if (actual == nullptr) actual = String::Empty;
+
+        array<wchar_t>^ lineEndings = gcnew array<wchar_t>{ '\r', '\n' };
+        String^ actualLine = actual->TrimEnd(lineEndings);
+        String^ expectedLine = expected->TrimEnd(lineEndings);
 
 		OutputDebugString(L"SerialHelper::TestHandshakeResponse: Length = ");
 
@@ -589,7 +643,7 @@ namespace TheLib
 		OutputDebugString((LPCWSTR)pinnedLen);
         OutputDebugStringW(L" {");
 
-        pin_ptr<const wchar_t> pinnedStr = PtrToStringChars(GetHandshakeResponse());
+        pin_ptr<const wchar_t> pinnedStr = PtrToStringChars(actual);
 		OutputDebugString((LPCWSTR)pinnedStr);
 		wchar_t lastChar = wcslen(pinnedStr) > 0 ? pinnedStr[wcslen(pinnedStr) - 1] : L'\0';
         if (lastChar == L'\n')
@@ -597,10 +651,6 @@ namespace TheLib
 		else
     		OutputDebugStringW(L"}\r\n");
 
-        for (int i = 0; i < maxLength; ++i) 
-            if (m_managedBytes[i] != response[i]) return false;
-		
-
-		return true;
+        return String::Equals(actualLine, expectedLine, StringComparison::Ordinal);
     }
 } // End namespace TheLib

@@ -75,6 +75,19 @@ namespace Asano.MyGLTools.UserControls
         public RectangleF ViewPort { get; set; } = new(0, 1, 100, 2);
 
         protected Size GLDisplaySize => MyGL.ClientSize;
+        private bool HasDrawableSurface
+            => !IsDisposed
+            && IsHandleCreated
+            && MyGL != null
+            && !MyGL.IsDisposed
+            && MyGL.IsHandleCreated
+            && MyGL.ClientSize.Width > 0
+            && MyGL.ClientSize.Height > 0
+            && FindForm()?.WindowState != FormWindowState.Minimized;
+
+        private bool CanRenderGL => IsLoaded && HasDrawableSurface;
+        private Size SafeGLDisplaySize
+            => new(Math.Max(1, MyGL.ClientSize.Width), Math.Max(1, MyGL.ClientSize.Height));
 
 
         public MyGLControl()
@@ -130,7 +143,8 @@ namespace Asano.MyGLTools.UserControls
 
             SetupDebugCallback();
 
-            GL.Viewport(0, 0, MyGL.ClientSize.Width, MyGL.ClientSize.Height);
+            Size displaySize = SafeGLDisplaySize;
+            GL.Viewport(0, 0, displaySize.Width, displaySize.Height);
 
             GL.ClearColor(BackColor);
 
@@ -148,7 +162,7 @@ namespace Asano.MyGLTools.UserControls
             fontRenderer.Font = font;
             fontRenderer.Init();
 
-            fontRenderer.ProjectionMatrix = Matrix4.CreateOrthographicOffCenter(0, MyGL.ClientSize.Width, 0, MyGL.ClientSize.Height, -1, 1);
+            fontRenderer.ProjectionMatrix = Matrix4.CreateOrthographicOffCenter(0, displaySize.Width, 0, displaySize.Height, -1, 1);
             fontRenderer.ModelMatrix = Matrix4.Identity;
 
             if (ParentForm != null)
@@ -198,12 +212,13 @@ namespace Asano.MyGLTools.UserControls
 
 
         private void GL_Resize()
-        {   if (!_isLoaded || IsDisposed) return;
+        {   if (!CanRenderGL) return;
 
-            GL.Viewport(0, 0, MyGL.ClientSize.Width, MyGL.ClientSize.Height);
+            Size displaySize = SafeGLDisplaySize;
+            GL.Viewport(0, 0, displaySize.Width, displaySize.Height);
             fontRenderer.ProjectionMatrix = Matrix4.CreateOrthographicOffCenter(
-                0, MyGL.ClientSize.Width,
-                0, MyGL.ClientSize.Height,
+                0, displaySize.Width,
+                0, displaySize.Height,
                 -1, 1);
 
             GLResize?.Invoke(this, ViewPort);
@@ -211,14 +226,14 @@ namespace Asano.MyGLTools.UserControls
 
         public void ClearViewport()
         {
-            if (!IsLoaded || IsDisposed) return;
+            if (!CanRenderGL) return;
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         }
 
 
         private void RenderMethod()
         {
-            if (!IsLoaded || IsDisposed) return;
+            if (!CanRenderGL) return;
             
             if (AutoClear)
                 GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
@@ -249,7 +264,7 @@ namespace Asano.MyGLTools.UserControls
         }
         private void RenderText()
         {
-            if (!IsLoaded || IsDisposed) return;
+            if (!CanRenderGL) return;
 
             GL.UseProgram(_textShaderProgram);
 
@@ -280,7 +295,7 @@ namespace Asano.MyGLTools.UserControls
 
         public void ClearGL()
         {
-            if (!IsLoaded || IsDisposed) return;
+            if (!CanRenderGL) return;
             GLThread?.EnqueueSwap(() => ClearViewport());
         }
 

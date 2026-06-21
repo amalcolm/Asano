@@ -105,7 +105,7 @@ namespace Asano.MyGLTools.Helpers
         {
             if (_waveBuffer_C0.VertexCount <= 0) return;
 
-            SetupViewport();  // viewport, scissor, ortho projection from OutRect
+            if (!SetupViewport()) return;  // viewport, scissor, ortho projection from OutRect
 
             if (_gridDirty)
                 if (UniformGrid)

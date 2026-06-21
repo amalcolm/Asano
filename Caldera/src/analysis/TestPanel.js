@@ -6,7 +6,7 @@ import { Test4Sweep } from "../tests/Test4Sweep.js";
 import { DEFAULT_MODEL_MAPPING } from "./ModelMapping.js";
 
 // Test naming convention:
-// - Columns describe how the data is gathered: Single, Stacked, or Custom.
+// - Columns describe how the data is gathered: Single, Stacked, Calibration, or Custom.
 // - Model rows describe why the data is gathered, such as Calibration.
 // - Stable data attributes keep legacy sweep IDs separate from UI labels.
 const TEST_PANEL_MODEL_MAPPING = DEFAULT_MODEL_MAPPING;
@@ -21,6 +21,7 @@ export const TEST_PANEL_HTML = `
         <tr class="test-panel__matrix-row test-panel__matrix-row--heading">
           <th scope="col">Single</th>
           <th scope="col">Stacked</th>
+          <th scope="col">Calibration</th>
           <th scope="col">Custom</th>
         </tr>
         <tr class="test-panel__matrix-row test-panel__matrix-row--buttons">
@@ -67,6 +68,30 @@ export const TEST_PANEL_HTML = `
               <button
                 class="test-panel__button"
                 type="button"
+                data-test1-button
+                data-test-id="test1"
+                data-test-category="Calibration"
+                data-test-name="Diff.Amp."
+              >
+                Diff.Amp.
+              </button>
+              <button
+                class="test-panel__button"
+                type="button"
+                data-test4-button
+                data-test-id="test4"
+                data-test-category="Calibration"
+                data-test-name="Mid Step"
+              >
+                Mid Step
+              </button>
+            </div>
+          </td>
+          <td>
+            <div class="test-panel__actions">
+              <button
+                class="test-panel__button"
+                type="button"
                 data-test2-button
                 data-test-id="test2"
                 data-test-category="Custom"
@@ -87,41 +112,22 @@ export const TEST_PANEL_HTML = `
             </div>
           </td>
         </tr>
-        <tr class="test-panel__matrix-row test-panel__matrix-row--heading test-panel__matrix-row--spaced">
-          <th scope="row">Calibration</th>
-          <th aria-hidden="true"></th>
-          <th aria-hidden="true"></th>
-        </tr>
-        <tr class="test-panel__matrix-row test-panel__matrix-row--buttons">
-          <td>
-            <div class="test-panel__actions">
-              <button
-                class="test-panel__button"
-                type="button"
-                data-test1-button
-                data-test-id="test1"
-                data-test-category="Calibration"
-                data-test-name="Diff.Amp."
-              >
-                Diff.Amp.
-              </button>
-              <button
-                class="test-panel__button"
-                type="button"
-                data-test4-button
-                data-test-id="test4"
-                data-test-category="Calibration"
-                data-test-name="Mid Step"
-              >
-                Mid Step
-              </button>
-            </div>
-          </td>
-          <td></td>
-          <td></td>
-        </tr>
       </tbody>
     </table>
+    <div class="test-panel__sequence">
+      <select
+        class="test-panel__select"
+        aria-label="Available hardware state sets"
+        data-test-sequence-select
+      ></select>
+      <button
+        class="test-panel__button test-panel__button--load"
+        type="button"
+        data-load-test-sequence
+      >
+        Load States
+      </button>
+    </div>
     <div class="test-panel__footer">
       <span data-test-status>idle</span>
     </div>
@@ -149,6 +155,9 @@ export class TestPanel {
     this.onTestStart = onTestStart;
     this.root = root;
     this.status = root?.querySelector("[data-test-status]");
+    this.webView = webView;
+    this.sequenceSelect = root?.querySelector("[data-test-sequence-select]");
+    this.loadSequenceButton = root?.querySelector("[data-load-test-sequence]");
     this.sweeps = [];
     this.sweepsById = new Map();
 
@@ -241,6 +250,11 @@ export class TestPanel {
       ["test3", this.test3Sweep],
       ["test4", this.test4Sweep],
     ]);
+
+    this.sequenceSelect?.addEventListener("change", () => this.updateLoadSequenceButtonState());
+    this.loadSequenceButton?.addEventListener("click", () => this.loadSelectedTestSequence());
+    this.syncTestSequenceOptions();
+    webView?.on("hostConfig", () => this.syncTestSequenceOptions());
   }
 
   startTest(testId) {
@@ -307,6 +321,68 @@ export class TestPanel {
 
     return null;
   }
+
+  syncTestSequenceOptions() {
+    if (!this.sequenceSelect || !this.loadSequenceButton) {
+      return;
+    }
+
+    const selectedName = this.sequenceSelect.value;
+    const sequences = getHostTestSequences(this.webView);
+
+    this.sequenceSelect.replaceChildren();
+
+    if (sequences.length === 0) {
+      this.sequenceSelect.append(new Option("No hardware states", ""));
+      this.sequenceSelect.disabled = true;
+      this.loadSequenceButton.disabled = true;
+      return;
+    }
+
+    this.sequenceSelect.append(new Option("Please select test set...", ""));
+
+    for (const sequence of sequences) {
+      this.sequenceSelect.append(new Option(sequence.name, sequence.name));
+    }
+
+    if (selectedName && sequences.some((sequence) => sequence.name === selectedName)) {
+      this.sequenceSelect.value = selectedName;
+    }
+
+    this.sequenceSelect.disabled = false;
+    this.updateLoadSequenceButtonState();
+  }
+
+  updateLoadSequenceButtonState() {
+    if (!this.loadSequenceButton) {
+      return;
+    }
+
+    this.loadSequenceButton.disabled = !this.sequenceSelect?.value;
+  }
+
+  loadSelectedTestSequence() {
+    const name = this.sequenceSelect?.value;
+    if (!name) {
+      return false;
+    }
+
+    this.stopTest();
+
+    const posted = this.webView?.postLoadTestSequence({ name }) ?? false;
+    if (this.status) {
+      this.status.textContent = posted ? `loading ${name}` : "host unavailable";
+    }
+
+    return posted;
+  }
+}
+
+function getHostTestSequences(webView) {
+  const sequences = webView?.hostConfig?.testSequences;
+  return Array.isArray(sequences)
+    ? sequences.filter((sequence) => sequence?.name)
+    : [];
 }
 
 function getButtonLabel(button) {

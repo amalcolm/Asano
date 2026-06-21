@@ -28,7 +28,14 @@ namespace Asano.DataTools
             public uint           Index  = 0;
         }
 
+        private static readonly object StatsLock = new();
         public static Dictionary<HeadState, StateData> Stats { get; } = [];
+
+        public static void ClearStats()
+        {
+            lock (StatsLock)
+                Stats.Clear();
+        }
 
         public SignalExtractor(HeadState state)
         {
@@ -71,44 +78,59 @@ namespace Asano.DataTools
             telemetry["-Time"] = new XY(x, x);  // - means label only, do not graph.  Also, output time (x) as value, hence x,x.
 
             telemetry[_stateLabel_Raw] = new XY(x, y);
-            var stateData = Stats.TryGetValue(_state, out var sd) ? sd : Stats[_state] = new StateData();
 
-            var ra = stateData.RA;
-            var _buffer = stateData.Buffer;
-            var _ra_index = stateData.Index;
-            
-            ra.Add(y);
-            _buffer[_ra_index++] = new XY(x, y);
-            if (_ra_index == ra_Size) _ra_index = 0;
-
-            if (ra.Count == ra_Size)
+            lock (StatsLock)
             {
-                uint delay = (ra_Size - 1) / 2;
-                uint bufferIndex = (_ra_index + delay) % ra_Size;
-//                telemetry[_stateLabel_Signal] = new XY(_buffer[bufferIndex].x, _buffer[bufferIndex].y - ra.Average);
-            }
+                var stateData = Stats.TryGetValue(_state, out var sd) ? sd : Stats[_state] = new StateData();
 
+                var ra = stateData.RA;
+                var _buffer = stateData.Buffer;
+                var _ra_index = stateData.Index;
 
-            if (headStates.Length != Stats.Count)
-                headStates = [.. Stats.Keys];
+                ra.Add(y);
+                _buffer[_ra_index++] = new XY(x, y);
+                if (_ra_index == ra_Size) _ra_index = 0;
 
-            double min = double.MaxValue;
-            double max = double.MinValue;
-
-            for (int i = 0; i < headStates.Length; i++)
-                if (Stats.TryGetValue(headStates[i], out var stat))
+                if (ra.Count == ra_Size)
                 {
-                    if (stat.RA.Min < min) min = stat.RA.Min;
-                    if (stat.RA.Max > max) max = stat.RA.Max;
+                    uint delay = (ra_Size - 1) / 2;
+                    uint bufferIndex = (_ra_index + delay) % ra_Size;
+//                    telemetry[_stateLabel_Signal] = new XY(_buffer[bufferIndex].x, _buffer[bufferIndex].y - ra.Average);
                 }
 
-            MyPlot.Shared_MinY = min;
-            MyPlot.Shared_MaxY = max;
 
-            stateData.Index = _ra_index;
+                if (headStates.Length != Stats.Count || HasStaleHeadStates())
+                    headStates = [.. Stats.Keys];
+
+                double min = double.MaxValue;
+                double max = double.MinValue;
+
+                for (int i = 0; i < headStates.Length; i++)
+                    if (Stats.TryGetValue(headStates[i], out var stat))
+                    {
+                        if (stat.RA.Min < min) min = stat.RA.Min;
+                        if (stat.RA.Max > max) max = stat.RA.Max;
+                    }
+
+                MyPlot.Shared_MinY = min;
+                MyPlot.Shared_MaxY = max;
+
+                stateData.Index = _ra_index;
+            }
+
             Chart?.AddData(telemetry);
 
             return changed;
+        }
+
+
+        private bool HasStaleHeadStates()
+        {
+            for (int i = 0; i < headStates.Length; i++)
+                if (!Stats.ContainsKey(headStates[i]))
+                    return true;
+
+            return false;
         }
 
 

@@ -1,4 +1,5 @@
 ﻿
+using System.Diagnostics;
 using TheLib;
 using Asano.Caldera;
 using Asano.MyGLTools.Helpers;
@@ -8,6 +9,8 @@ namespace Asano.DataTools.Controls
     public partial class DataControl : UserControl
     {
         private readonly Dictionary<HeadState, SignalExtractor> _extractors = [];
+        private readonly object _extractorsLock = new();
+        private long _packetHoldUntilTimestamp;
 
         public DataControl()
         {
@@ -23,14 +26,20 @@ namespace Asano.DataTools.Controls
 
         private void ProcessBlockPacket(BlockPacket blockPacket)
         {
+            if (IsPacketHoldActive())
+                return;
+
             if (blockPacket.Count == 0) return;
 
             DataPacket packet = blockPacket.BlockData[blockPacket.Count - 1];
 
-            if (_extractors.TryGetValue(packet.State, out var extractor) == false)
-                _extractors[packet.State] = extractor = new SignalExtractor(packet.State) { Chart = chart };
+            lock (_extractorsLock)
+            {
+                if (_extractors.TryGetValue(packet.State, out var extractor) == false)
+                    _extractors[packet.State] = extractor = new SignalExtractor(packet.State) { Chart = chart };
 
-            extractor.Process(packet);
+                extractor.Process(packet);
+            }
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -41,9 +50,7 @@ namespace Asano.DataTools.Controls
 
             ParentForm.FormClosing += (_, _) =>
             {
-                foreach (var extractor in _extractors.Values)
-                    extractor.Dispose();
-                _extractors.Clear();
+                ClearExtractors();
             };
 
 
@@ -55,9 +62,39 @@ namespace Asano.DataTools.Controls
 
             if (Program.IsRunning == false) return;
 
-            foreach (var extractor in _extractors.Values)
-                extractor.Dispose();
-            _extractors.Clear();
+            ClearExtractors();
+        }
+
+        public void Clear(int holdMilliseconds = 0)
+        {
+            if (holdMilliseconds > 0)
+                BeginPacketHold(holdMilliseconds);
+
+            ClearExtractors();
+            chart.ResetData();
+        }
+
+        private void BeginPacketHold(int milliseconds)
+        {
+            long holdTicks = Stopwatch.Frequency * Math.Max(1L, milliseconds) / 1000L;
+            System.Threading.Interlocked.Exchange(ref _packetHoldUntilTimestamp, Stopwatch.GetTimestamp() + holdTicks);
+        }
+
+        private bool IsPacketHoldActive()
+        {
+            long holdUntil = System.Threading.Interlocked.Read(ref _packetHoldUntilTimestamp);
+            return holdUntil > 0 && Stopwatch.GetTimestamp() < holdUntil;
+        }
+
+        private void ClearExtractors()
+        {
+            lock (_extractorsLock)
+            {
+                foreach (var extractor in _extractors.Values)
+                    extractor.Dispose();
+                _extractors.Clear();
+                SignalExtractor.ClearStats();
+            }
         }
 
 

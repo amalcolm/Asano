@@ -85,6 +85,10 @@ void CHead::setSequence(std::initializer_list<SequenceItem> items) {
     else if (it.data && it.size) 
       m_sequence.insert(m_sequence.end(), it.data, it.data + it.size);
 
+  m_sequencePosition = -1;
+
   if (m_sequence.size() == 1)
     CFG::setDebugMode(CFG::DebugMode::SINGLE_STATE);
+  else if (CFG::isSingleStateMode())
+    CFG::setDebugMode(CFG::DebugMode::ON);
 }
