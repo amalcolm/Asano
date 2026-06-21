@@ -27,7 +27,7 @@ namespace NativeCsv
             std::lock_guard<std::mutex> lock(m_mutex);
 
             if (!m_session)
-                m_session = std::make_unique<CCsvSession>(CCsvSessionPaths::CreateSessionDirectory());
+                m_session = std::make_unique<CCsvSession>(CCsvSessionPaths::CreateSessionDirectory(m_testName));
 
             if (!m_session->TryAdd(sample))
                 ReportDroppedSample();
@@ -44,6 +44,20 @@ namespace NativeCsv
 
         {
             std::lock_guard<std::mutex> lock(m_mutex);
+            session = std::move(m_session);
+        }
+
+        if (session)
+            session->Stop();
+    }
+
+    void CCsvRecorder::SetTestName(std::wstring testName) noexcept
+    {
+        std::unique_ptr<CCsvSession> session;
+
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_testName = testName.empty() ? L"_Startup" : std::move(testName);
             session = std::move(m_session);
         }
 

@@ -59,7 +59,8 @@ void HWTools::adjustTopBot() {
 
   hw.compensateSensor2(difference);
 
-  USB.printf("adjustTopBot: sensor2 difference: %.2lf\n", difference);
+  if (CFG::debugMode == CFG::DebugMode::SINGLE_STATE)
+    USB.printf("adjustTopBot: sensor2 difference: %.2lf\n", difference);
 
  // USB.printf("AdjustTopBot: currentMid=%d, targetV=%.2f, candidateTop=%d, candidateBot=%d, candidateMid=%d\n", 
  //   currentMid, targetVoltage, candidateTop, candidateBot, candidateMid);

@@ -49,6 +49,7 @@ namespace Asano.MyGLTools.Helpers
         public void Open(string? portName) => _serialPort.Open(portName);
         public void Close() => _serialPort.Close();
         public void Write(IXCommand command) => _serialPort?.Write(command);
+        public void SetCsvTestName(string? testName) => _serialPort?.SetCsvTestName(testName);
         public async Task OpenAsync() => await _serialPort.OpenAsync();
         public async Task CloseAsync() => await _serialPort.CloseAsync();
 

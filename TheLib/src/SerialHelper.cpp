@@ -306,6 +306,30 @@ namespace TheLib
         return result;
     }
 
+    void SerialHelper::SetCsvTestName(String^ testName) {
+        ThrowIfDisposed();
+
+        if (m_nativeSerial == nullptr)
+            return;
+
+        String^ trimmed = String::IsNullOrWhiteSpace(testName) ? String::Empty : testName->Trim();
+        pin_ptr<const wchar_t> pinnedName = PtrToStringChars(trimmed);
+        std::wstring nativeTestName(pinnedName);
+
+        try {
+            m_nativeSerial->SetCsvTestName(nativeTestName);
+        }
+        catch (const std::exception& ex) {
+            String^ errMsg = gcnew String(ex.what());
+            Debug::WriteLine(String::Format("SerialHelper: Native exception during SetCsvTestName: {0}", errMsg));
+            RaiseErrorOccurredEvent(ConvertStdException(ex));
+        }
+        catch (...) {
+            Debug::WriteLine("SerialHelper: Unknown native exception during SetCsvTestName.");
+            RaiseErrorOccurredEvent(gcnew Exception("Unknown native exception during SetCsvTestName"));
+        }
+    }
+
     void SerialHelper::Clear() {
         ThrowIfDisposed();
         m_handshakeLength = 0;

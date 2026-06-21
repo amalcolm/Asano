@@ -105,7 +105,7 @@ namespace Asano.MyGLTools.UserControls
                 Dock = DockStyle.Fill,
                 Font = new Font(this.Font.FontFamily, 24.0f, FontStyle.Regular),
                 ForeColor = Color.Gainsboro,
-                Text = "settling charts...",
+                Text = "Initialising charts...",
                 TextAlign = ContentAlignment.MiddleCenter
             };
 

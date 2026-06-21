@@ -39,6 +39,7 @@ public:
 
     bool IsOpen() const;
     int GetBaudRate() const;
+    void SetCsvTestName(const std::wstring& testName);
 
     // These only take the handler. The userData is assumed to be set via SetPort.
     void SetConnectionHandler(ConnectionHandler handler) {

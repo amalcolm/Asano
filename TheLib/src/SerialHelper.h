@@ -86,6 +86,7 @@ namespace TheLib {
         bool Write(String^ data);
         bool Write(array<Byte>^ data);
         bool Write(array<Byte>^ data, int offset, int count);
+        void SetCsvTestName(String^ testName);
 
         void Clear();
 

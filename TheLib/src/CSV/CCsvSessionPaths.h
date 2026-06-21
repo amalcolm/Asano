@@ -9,6 +9,7 @@ namespace NativeCsv
     {
     public:
         static std::wstring CreateSessionDirectory();
+        static std::wstring CreateSessionDirectory(const std::wstring& testName);
     };
 }
 

@@ -76,6 +76,10 @@ void CSerial::InvokeConnectionChanged(bool state) {
 }
 
 
+void CSerial::SetCsvTestName(const std::wstring& testName) {
+    m_csvRecorder.SetTestName(testName);
+}
+
 void CSerial::InvokeErrorOccurred(const std::exception& ex) {
     ErrorHandler handler = nullptr;
     void* context = nullptr;

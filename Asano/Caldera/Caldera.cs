@@ -659,6 +659,7 @@ namespace Asano.Caldera
             _needsRefresh = true;
             ClearHeldWiperRestore();
 
+            Program.SerialPort?.SetCsvTestName("Custom");
             Program.SerialPort?.Write(xCMD);
         }
 
@@ -684,6 +685,7 @@ namespace Asano.Caldera
             _needsRefresh = true;
             ClearHeldWiperRestore();
 
+            Program.SerialPort?.SetCsvTestName(sequence.Name);
             Program.SerialPort?.Write(xCMD);
         }
 

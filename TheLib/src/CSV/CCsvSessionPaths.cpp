@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <iterator>
 #include <string>
+#include <string_view>
 
 #pragma comment(lib, "Shell32.lib")
 #pragma comment(lib, "Ole32.lib")
@@ -48,6 +49,35 @@ namespace NativeCsv
             return std::filesystem::current_path();
         }
 
+        std::wstring SanitizeFolderName(std::wstring_view value)
+        {
+            std::wstring result;
+            result.reserve(value.size());
+
+            for (wchar_t ch : value)
+            {
+                if (ch < 32 || std::wcschr(L"<>:\"/\\|?*", ch) != nullptr)
+                    ch = L'_';
+
+                result.push_back(ch);
+            }
+
+            while (!result.empty() && (result.back() == L' ' || result.back() == L'.'))
+                result.pop_back();
+
+            return result;
+        }
+
+        std::filesystem::path ApplyTestFolder(const std::filesystem::path& sessionRoot, const std::wstring& testName)
+        {
+            std::wstring folderName = SanitizeFolderName(testName);
+
+            if (folderName.empty())
+                return sessionRoot;
+
+            return sessionRoot / folderName;
+        }
+
         std::filesystem::path PrepareTestingDirectory(const std::filesystem::path& asanoRoot)
         {
             std::error_code ec;
@@ -57,18 +87,15 @@ namespace NativeCsv
             std::filesystem::create_directories(lastRun, ec);
 
             for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(lastRun, ec))
-            {
-                if (entry.is_regular_file(ec))
-                    std::filesystem::remove(entry.path(), ec);
-            }
+                std::filesystem::remove_all(entry.path(), ec);
 
             for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(current, ec))
             {
-                if (!entry.is_regular_file(ec))
+                if (entry.path().filename() == L"!!LastRun")
                     continue;
 
                 std::filesystem::path target = lastRun / entry.path().filename();
-                std::filesystem::remove(target, ec);
+                std::filesystem::remove_all(target, ec);
                 std::filesystem::rename(entry.path(), target, ec);
             }
 
@@ -98,13 +125,18 @@ namespace NativeCsv
 
     std::wstring CCsvSessionPaths::CreateSessionDirectory()
     {
+        return CreateSessionDirectory(L"_Startup");
+    }
+
+    std::wstring CCsvSessionPaths::CreateSessionDirectory(const std::wstring& testName)
+    {
         bool testing = IsTestingMachine();
         std::filesystem::path root = GetKnownFolder(testing ? FOLDERID_Desktop : FOLDERID_Documents, testing ? L"Desktop" : L"Documents") / L"Asano";
 
         if (testing)
-            return PrepareTestingDirectory(root).wstring();
+            return ApplyTestFolder(PrepareTestingDirectory(root), testName).wstring();
 
-        return (root / L"CsvSessions" / MakeClinicalStamp()).wstring();
+        return ApplyTestFolder(root / L"CsvSessions" / MakeClinicalStamp(), testName).wstring();
     }
 }
 
