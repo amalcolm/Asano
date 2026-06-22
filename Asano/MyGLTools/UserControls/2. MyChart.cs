@@ -29,13 +29,28 @@ namespace Asano.MyGLTools.UserControls
 
         private readonly ConcurrentDictionary<uint, double> _latestValues = [];
         private readonly ConcurrentDictionary<uint, Tuple<TextBlock, TextBlock>> _blocks = [];
+        private readonly ConcurrentDictionary<uint, Color> _plotLabelColours = [];
 
         int _numLabels = 0;
         private readonly List<TextBlock> _textBlocksToRender = [];
+        private readonly List<TextBlock> _textBlocksForBounds = [];
+        private readonly List<ColouredTextBlock> _colouredLabelBlocksToRender = [];
 
         private readonly ConcurrentDictionary<uint, bool> _pendingStates = [];
 
         private LabelAreaRenderer? _labelAreaRenderer;
+
+        private readonly struct ColouredTextBlock
+        {
+            public ColouredTextBlock(TextBlock block, Color colour)
+            {
+                Block = block;
+                Colour = colour;
+            }
+
+            public TextBlock Block { get; }
+            public Color Colour { get; }
+        }
 
         struct DataSelectorInfo
         {
@@ -234,15 +249,15 @@ namespace Asano.MyGLTools.UserControls
                     if (Plots.ContainsKey(state) == false)
                         if (TestAndSetPending(state) == false)
                         {
-                            AddPlot(state, new MyPlot(WindowSize, this));
+                            AddPlotWithLabelColour(state, new MyPlot(WindowSize, this), MyColour.GetFieldColour(FieldEnum.C0));
 
                             foreach (var info in dataSelectorsToPlot)
-                                AddPlot(state | info.AdditionalMask, new MyPlot(WindowSize, this)
+                                AddPlotWithLabelColour(state | info.AdditionalMask, new MyPlot(WindowSize, this)
                                 {
                                     Yscale = 1.0,
                                     Colour = MyColour.GetNextColour(),
                                     Selector = info.Selector
-                                });
+                                }, MyColour.GetFieldColour(info.Selector));
                         }
                         else
                             return;
@@ -328,7 +343,7 @@ namespace Asano.MyGLTools.UserControls
                     plot = new(WindowSize, this) { Yscale = 1.0, AutoScaling = key.StartsWith('+'), SharedScaling = key.StartsWith('*') };
 
                     lock (PlotsLock)
-                        AddPlot(stateHash, plot);
+                        AddPlotWithLabelColour(stateHash, plot);
                 }
 
                 if (hasTime && !key.Equals(timeKey, StringComparison.OrdinalIgnoreCase))
@@ -359,7 +374,7 @@ namespace Asano.MyGLTools.UserControls
                         continue;
                     plot = new(WindowSize, this) { Yscale = 1.0, AutoScaling = key.StartsWith('+'), SharedScaling = key.StartsWith('*') };
                     lock (PlotsLock)
-                        AddPlot(stateHash, plot);
+                        AddPlotWithLabelColour(stateHash, plot);
                 }
                 plot.Add(xy.x, xy.y);
             }
@@ -406,7 +421,7 @@ namespace Asano.MyGLTools.UserControls
                     plot = new(WindowSize, this) { Yscale = 1.0 };
 
                     lock (PlotsLock)
-                        AddPlot(stateHash, plot);
+                        AddPlotWithLabelColour(stateHash, plot);
 
                     CreateTextBlocksForLabel(stateHash, key);
                 }
@@ -432,6 +447,13 @@ namespace Asano.MyGLTools.UserControls
                 return false;
             }
         }
+
+        private void AddPlotWithLabelColour(uint state, MyPlot plot, MyColour? labelColour = null)
+        {
+            AddPlot(state, plot);
+            _plotLabelColours[state] = (labelColour ?? plot.Colour).ToColor();
+        }
+
         protected override void Init()
         {
             base.Init();
@@ -490,6 +512,8 @@ namespace Asano.MyGLTools.UserControls
             if (font == null) return;
 
             _textBlocksToRender.Clear();
+            _textBlocksForBounds.Clear();
+            _colouredLabelBlocksToRender.Clear();
 
             lock (_lock)
             {
@@ -505,7 +529,14 @@ namespace Asano.MyGLTools.UserControls
                     {
                         tuple.Item2.SetValue(_latestValues[stateKey]);
 
-                        _textBlocksToRender.Add(tuple.Item1);
+                        _textBlocksForBounds.Add(tuple.Item1);
+                        _textBlocksForBounds.Add(tuple.Item2);
+
+                        if (_plotLabelColours.TryGetValue(stateKey, out Color labelColour))
+                            _colouredLabelBlocksToRender.Add(new ColouredTextBlock(tuple.Item1, labelColour));
+                        else
+                            _textBlocksToRender.Add(tuple.Item1);
+
                         _textBlocksToRender.Add(tuple.Item2);
 
                         index++;
@@ -513,10 +544,10 @@ namespace Asano.MyGLTools.UserControls
                 }
             }
 
-            if (_textBlocksToRender.Count == 0) return;
+            if (_textBlocksForBounds.Count == 0) return;
 
             // 2. Calculate the total bounding box for all visible labels.
-            RectangleF totalBounds = _textBlocksToRender.CalculateTotalBounds(ref maxBounds);
+            RectangleF totalBounds = _textBlocksForBounds.CalculateTotalBounds(ref maxBounds);
 
             // 3. Render the background with padding.
             if (!totalBounds.IsEmpty)
@@ -535,12 +566,31 @@ namespace Asano.MyGLTools.UserControls
                 GL.UseProgram(_textShaderProgram);
             }
 
-            fontRenderer.RenderText(_textBlocksToRender);
+            if (_textBlocksToRender.Count > 0)
+                fontRenderer.RenderText(_textBlocksToRender);
+
+            RenderColouredLabels();
         }
 
         RectangleF maxBounds = RectangleF.Empty;
 
         // Return this helper method inside the MyChart class
+
+        private void RenderColouredLabels()
+        {
+            if (_colouredLabelBlocksToRender.Count == 0)
+                return;
+
+            Color oldColour = TextColour;
+
+            foreach (var item in _colouredLabelBlocksToRender)
+            {
+                TextColour = item.Colour;
+                fontRenderer.RenderText(item.Block);
+            }
+
+            TextColour = oldColour;
+        }
 
         protected override void SP_ConnectionChanged(ConnectionState state)
         {
@@ -551,6 +601,7 @@ namespace Asano.MyGLTools.UserControls
                 {
                     _blocks.Clear();
                     _latestValues.Clear();
+                    _plotLabelColours.Clear();
                     _pendingStates.Clear();
                     _keyCache = [];
                     maxBounds = RectangleF.Empty;

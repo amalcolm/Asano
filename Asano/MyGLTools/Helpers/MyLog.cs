@@ -51,6 +51,8 @@ namespace Asano.MyGLTools.Helpers
 
         public void Shutdown()
         {
+            isShuttingDown = true;
+            LogForm.OnClose -= LogForm_Close;
             Clear();
             VertexPool.Return(Elipses.Vertices);
             Elipses = default;
@@ -146,23 +148,25 @@ namespace Asano.MyGLTools.Helpers
                     str?.Dispose();
             }
 
-            if (UsedLines > 8 && LogForm.IsOpen == false && global::Asano.Program.HasMaximisedForm == false)
-            {
-                parentControl ??= control.Parent;
-                if (parentControl != null)
-                    parentControl.Invoke(() =>
-                    {
-                        LogForm.OnClose -= LogForm_Close;
-                        LogForm.OnClose += LogForm_Close;
+            if (UsedLines <= 8 || LogForm.IsOpen || global::Asano.Program.HasMaximisedForm || isShuttingDown)
+                return;
 
-                        parentControl.Controls.Remove(control);
-                        if (LogForm.Open(control) == false)
-                        {
-                            parentControl.Controls.Add(control);
-                            parentControl = null;
-                            LogForm.OnClose -= LogForm_Close;
-                        }
-                    });
+            if (Interlocked.CompareExchange(ref detachPending, 1, 0) != 0)
+                return;
+
+            try
+            {
+                if (!CanPostToUi(control))
+                {
+                    Interlocked.Exchange(ref detachPending, 0);
+                    return;
+                }
+
+                control.BeginInvoke(new MethodInvoker(TryDetachToLogForm));
+            }
+            catch
+            {
+                Interlocked.Exchange(ref detachPending, 0);
             }
         }
 
@@ -170,23 +174,100 @@ namespace Asano.MyGLTools.Helpers
         {
             LogForm.OnClose -= LogForm_Close;
 
-            if (parentControl == null || parentControl.IsDisposed || control.IsDisposed)
+            Control? targetParent = parentControl;
+            if (!CanPostToUi(targetParent) || !CanPostToUi(control))
             {
                 Clear();
                 parentControl = null;
                 return;
             }
 
-            parentControl.Invoke(() =>
+            Control reparentParent = targetParent!;
+
+            void Reparent()
             {
-                parentControl.Controls.Add(control);
+                if (!CanUseControl(reparentParent) || !CanUseControl(control))
+                {
+                    Clear();
+                    parentControl = null;
+                    return;
+                }
+
+                reparentParent.Controls.Add(control);
                 control.Dock = DockStyle.Fill;
                 Clear();
                 parentControl = null;
-            });
+            }
+
+            try
+            {
+                if (reparentParent.InvokeRequired)
+                    reparentParent.BeginInvoke(new MethodInvoker(Reparent));
+                else
+                    Reparent();
+            }
+            catch
+            {
+                Clear();
+                parentControl = null;
+            }
         }
 
         Control? parentControl = null;
+        private volatile bool isShuttingDown;
+        private int detachPending;
+
+        private static bool CanPostToUi(Control? candidate)
+            => candidate != null
+            && !candidate.IsDisposed
+            && !candidate.Disposing
+            && candidate.IsHandleCreated;
+
+        private static bool CanUseControl(Control? candidate)
+            => CanPostToUi(candidate);
+
+        private void TryDetachToLogForm()
+        {
+            try
+            {
+                if (isShuttingDown || LogForm.IsOpen || global::Asano.Program.HasMaximisedForm)
+                    return;
+
+                if (!CanUseControl(control))
+                    return;
+
+                Form? owner = control.FindForm();
+                if (owner == null || owner.IsDisposed || owner.Disposing)
+                    return;
+
+                Control? candidateParent = parentControl;
+                if (!CanUseControl(candidateParent))
+                    candidateParent = control.Parent;
+
+                if (!CanUseControl(candidateParent))
+                {
+                    parentControl = null;
+                    return;
+                }
+
+                Control targetParent = candidateParent!;
+                parentControl = targetParent;
+                LogForm.OnClose -= LogForm_Close;
+                LogForm.OnClose += LogForm_Close;
+
+                targetParent.Controls.Remove(control);
+                if (!LogForm.Open(control))
+                {
+                    targetParent.Controls.Add(control);
+                    parentControl = null;
+                    LogForm.OnClose -= LogForm_Close;
+                }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref detachPending, 0);
+            }
+        }
 
         private void AddLine(AString str)
         {

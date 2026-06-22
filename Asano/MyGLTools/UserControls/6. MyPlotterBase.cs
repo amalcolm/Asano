@@ -94,6 +94,7 @@ namespace Asano.MyGLTools.UserControls
 
         private PlotMetrics? _metrics = null;
         public PlotMetrics? GetMetrics() => _metrics;
+        protected void ClearMetrics() => _metrics = null;
 
         protected RectangleF GetMetricsViewPort()
         {

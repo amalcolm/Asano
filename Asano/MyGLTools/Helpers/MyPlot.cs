@@ -20,8 +20,17 @@ namespace Asano.MyGLTools.Helpers
         public bool AutoScaling { get; set; } = false;
         public bool SharedScaling { get; set; } = false;
 
-        public static double Shared_MinY { get; set; } = -10.0;
-        public static double Shared_MaxY { get; set; } = 1050.0;
+        private const double DefaultSharedMinY = -10.0;
+        private const double DefaultSharedMaxY = 1050.0;
+
+        public static double Shared_MinY { get; set; } = DefaultSharedMinY;
+        public static double Shared_MaxY { get; set; } = DefaultSharedMaxY;
+
+        public static void ResetSharedScaling()
+        {
+            Shared_MinY = DefaultSharedMinY;
+            Shared_MaxY = DefaultSharedMaxY;
+        }
 
         private RunningAverage? _ra = null;
 

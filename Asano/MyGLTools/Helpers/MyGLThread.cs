@@ -39,6 +39,7 @@ namespace Asano.MyGLTools.Helpers
         private readonly ManualResetEventSlim _frameDone = new(initialState: true);
         private readonly ManualResetEventSlim _tasksAvailable = new(initialState: false);
         private volatile bool _shutdownRequested;
+        private const int ShutdownJoinTimeoutMilliseconds = 2000;
 
         private readonly GLControl _glControl;
 
@@ -201,6 +202,8 @@ namespace Asano.MyGLTools.Helpers
 //            catch (Exception ex) { Debug.WriteLine($"[MyGLThread] Exception: {ex.Message}"); }
             finally
             {
+                _isRunning = false;
+                _shutdownRequested = true;
                 _frameDone.Set();
 
                 while (_shutdownStack.TryPop(out var action))
@@ -214,7 +217,8 @@ namespace Asano.MyGLTools.Helpers
 
         public void Dispose()
         {
-            if (!_isRunning || _shutdownRequested) return;
+            if (_shutdownRequested) return;
+
             _cts.Cancel();
             _isRunning = false;
             _shutdownRequested = true;
@@ -222,9 +226,23 @@ namespace Asano.MyGLTools.Helpers
             RenderNow.Set();
             _tasksAvailable.Set();
 
-            try { _thread.Join(); } catch { }
+            bool disposingOnRenderThread = Thread.CurrentThread == _thread;
+            bool joined = true;
 
-            _cts.Dispose();
+            try
+            {
+                joined = !_thread.IsAlive
+                    || disposingOnRenderThread
+                    || _thread.Join(ShutdownJoinTimeoutMilliseconds);
+            }
+            catch { }
+
+            if (!joined)
+                Debug.WriteLine($"[MyGLThread] Timed out waiting for GL thread shutdown: {_thread.Name}.");
+
+            if (joined && !disposingOnRenderThread)
+                _cts.Dispose();
+
             GC.SuppressFinalize(this);
             MyScheduler.Unregister(this);
         }

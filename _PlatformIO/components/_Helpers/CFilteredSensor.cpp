@@ -10,6 +10,7 @@ void CFilteredSensor::reset() {
   _lastV = _readSingle();
   _counter = 1; 
   _minV = CSensor::MAX_VALUE; _maxV = 0; 
+  _envOffset = 0.0;
 }
 
 inline double CFilteredSensor::_readSingle() { 

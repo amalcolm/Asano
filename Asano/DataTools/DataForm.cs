@@ -72,7 +72,7 @@ namespace Asano.MyGLTools.UserControls
 
             form.FormClosing += DetachedChartForm_FormClosing;
             detachedChartForm = form;
-            global::Asano.Program.HasMaximisedForm = true;
+            Program.HasMaximisedForm = true;
 
             Label settleLabel = CreateSettleLabel(form);
             multiChart.BeginDataHold(
@@ -146,7 +146,11 @@ namespace Asano.MyGLTools.UserControls
 
             try
             {
-                WaitForChartFrames();
+                // wait for all charts to finish their current frame.
+                foreach (MyChart chart in multiChart.GetCharts())
+                    try { chart.GLThread?.FrameDone.Wait(TimeSpan.FromMilliseconds(250)); }
+                    catch { }
+
                 form.Controls.Remove(multiChart);
                 chartHostPanel.Controls.Add(multiChart);
                 multiChart.Dock = DockStyle.Fill;
@@ -158,12 +162,6 @@ namespace Asano.MyGLTools.UserControls
             }
         }
 
-        private void WaitForChartFrames()
-        {
-            foreach (MyChart chart in multiChart.GetCharts())
-                try { chart.GLThread?.FrameDone.Wait(TimeSpan.FromMilliseconds(250)); }
-                catch { }
-        }
 
         public void ClearTestData(int holdMilliseconds = 0, uint[]? expectedStates = null)
         {

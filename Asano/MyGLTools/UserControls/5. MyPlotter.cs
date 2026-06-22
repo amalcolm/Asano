@@ -97,6 +97,7 @@ namespace Asano.MyGLTools.UserControls
                         Plots.Clear();
                         _plotsSnapshot = [];
                         _plotsDirty = true;
+                        ClearMetrics();
                     }
                     break;
             }

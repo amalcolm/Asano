@@ -39,7 +39,7 @@
             _Options1.AxesVisible = true;
             _Options1.AxisColour = Color.FromArgb(80, 255, 255, 255);
             _Options1.GridColour = Color.FromArgb(8, 255, 255, 255);
-            _Options1.GridSettings = MyGLTools.Helpers.MyAxesRenderer.GridFlags.VerticalLines | MyGLTools.Helpers.MyAxesRenderer.GridFlags.XaxisLabels;
+            _Options1.GridSettings = MyGLTools.Helpers.MyAxesRenderer.GridFlags.VerticalLines | MyGLTools.Helpers.MyAxesRenderer.GridFlags.HorizontalLines | MyGLTools.Helpers.MyAxesRenderer.GridFlags.YaxisLabels | MyGLTools.Helpers.MyAxesRenderer.GridFlags.XaxisLabels;
             _Options1.GridVisible = true;
             _Options1.LabelColor = Color.FromArgb(80, 255, 255, 255);
             _Options1.LabelPadding = 60F;

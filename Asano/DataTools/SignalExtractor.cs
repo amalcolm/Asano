@@ -26,6 +26,7 @@ namespace Asano.DataTools
             public RunningAverage RA     = new(ra_Size);
             public XY[]           Buffer = new XY[ra_Size];
             public uint           Index  = 0;
+            public double         LastTimestamp = double.NaN;
         }
 
         private static readonly object StatsLock = new();
@@ -34,7 +35,10 @@ namespace Asano.DataTools
         public static void ClearStats()
         {
             lock (StatsLock)
+            {
                 Stats.Clear();
+                MyPlot.ResetSharedScaling();
+            }
         }
 
         public SignalExtractor(HeadState state)
@@ -47,7 +51,14 @@ namespace Asano.DataTools
         }
 
 
-        public void Dispose() { _isDisposed = true; fixer.Dispose(); }
+        public void Dispose()
+        {
+            if (_isDisposed) return;
+
+            _isDisposed = true;
+            fixer.Dispose();
+            RemoveStats(_state);
+        }
         private  bool _isDisposed = false;
 
         public MyChart? Chart { get; set; } = null;
@@ -55,7 +66,6 @@ namespace Asano.DataTools
 
 
         int lastOffset2 = 0;
-        HeadState[] headStates = [];
         public bool Process(DataPacket packet)
         {
             if (_isDisposed) return false;
@@ -88,6 +98,7 @@ namespace Asano.DataTools
                 var _ra_index = stateData.Index;
 
                 ra.Add(y);
+                stateData.LastTimestamp = x;
                 _buffer[_ra_index++] = new XY(x, y);
                 if (_ra_index == ra_Size) _ra_index = 0;
 
@@ -99,23 +110,10 @@ namespace Asano.DataTools
                 }
 
 
-                if (headStates.Length != Stats.Count || HasStaleHeadStates())
-                    headStates = [.. Stats.Keys];
-
-                double min = double.MaxValue;
-                double max = double.MinValue;
-
-                for (int i = 0; i < headStates.Length; i++)
-                    if (Stats.TryGetValue(headStates[i], out var stat))
-                    {
-                        if (stat.RA.Min < min) min = stat.RA.Min;
-                        if (stat.RA.Max > max) max = stat.RA.Max;
-                    }
-
-                MyPlot.Shared_MinY = min;
-                MyPlot.Shared_MaxY = max;
-
                 stateData.Index = _ra_index;
+
+                PruneStaleStats(x);
+                UpdateSharedScaleFromStats();
             }
 
             Chart?.AddData(telemetry);
@@ -124,13 +122,72 @@ namespace Asano.DataTools
         }
 
 
-        private bool HasStaleHeadStates()
+        private static void RemoveStats(HeadState state)
         {
-            for (int i = 0; i < headStates.Length; i++)
-                if (!Stats.ContainsKey(headStates[i]))
-                    return true;
+            lock (StatsLock)
+            {
+                if (Stats.Remove(state))
+                    UpdateSharedScaleFromStats();
+            }
+        }
 
-            return false;
+        private static void PruneStaleStats(double currentTimestamp)
+        {
+            if (!double.IsFinite(currentTimestamp))
+                return;
+
+            double maxAge = Math.Max(1.0, MyPlotter.Window * 1.1);
+            List<HeadState>? staleStates = null;
+
+            foreach (var pair in Stats)
+            {
+                double lastTimestamp = pair.Value.LastTimestamp;
+                if (!double.IsFinite(lastTimestamp))
+                    continue;
+
+                double age = currentTimestamp - lastTimestamp;
+                if (age <= maxAge && age >= -1.0)
+                    continue;
+
+                staleStates ??= [];
+                staleStates.Add(pair.Key);
+            }
+
+            if (staleStates == null)
+                return;
+
+            foreach (HeadState state in staleStates)
+                Stats.Remove(state);
+        }
+
+        private static void UpdateSharedScaleFromStats()
+        {
+            if (Stats.Count == 0)
+            {
+                MyPlot.ResetSharedScaling();
+                return;
+            }
+
+            double min = double.MaxValue;
+            double max = double.MinValue;
+
+            foreach (StateData stat in Stats.Values)
+            {
+                if (stat.RA.Count == 0)
+                    continue;
+
+                if (stat.RA.Min < min) min = stat.RA.Min;
+                if (stat.RA.Max > max) max = stat.RA.Max;
+            }
+
+            if (!double.IsFinite(min) || !double.IsFinite(max) || min == double.MaxValue || max == double.MinValue)
+            {
+                MyPlot.ResetSharedScaling();
+                return;
+            }
+
+            MyPlot.Shared_MinY = min;
+            MyPlot.Shared_MaxY = max;
         }
 
 

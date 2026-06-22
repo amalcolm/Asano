@@ -4,6 +4,12 @@
 #include "CUSB.h"
 #include <algorithm>
 
+namespace {
+  constexpr int ZOOM_STEP = 16;
+  constexpr int NOISE_SAMPLES = 40;
+  constexpr int NOISE_THRESHOLD = 20;
+}
+
 void HWforState::_zoomSignal() {
   auto& flags = tools.flags;
   auto& balance = tools.balance;
@@ -11,7 +17,7 @@ void HWforState::_zoomSignal() {
   tools.readCheck(); if (phase != Phase::ZOOM) return;
 
   if (flags.zoomLevel == -1) {
-    flags.zoomLevel = 15;
+    flags.zoomLevel = ZOOM_STEP - 1;
     gain.setLevel(flags.zoomLevel);
     // mid is assumed to be near sensor1Target at this point, from SEARCH
     offset.setLevel(128);
@@ -20,28 +26,34 @@ void HWforState::_zoomSignal() {
     return;
   }
 
-  int previousZoomLevel = flags.zoomLevel;
-
   if (tools.balanceForZoom() == false) goto exit;
 
-  if (balance.finish) { phase = Phase::MEASURE; goto exit; }
+  if (balance.finish == false) {
+    flags.zoomLevel = std::min(flags.zoomLevel + ZOOM_STEP, CDigiPot::WIPER_MAX);
+    gain.setLevel(flags.zoomLevel);
+    balance.reset();
+    delayMicroseconds(10);
+  }
 
-  flags.zoomLevel = std::min(flags.zoomLevel + 16, CDigiPot::WIPER_MAX);
-  gain.setLevel(flags.zoomLevel);
-  balance.reset();
-  delayMicroseconds(10);
+  if (quickNoiseTest(NOISE_SAMPLES, sensor1.getPin()) > NOISE_THRESHOLD) {
+    int nextZoomLevel = std::max(flags.zoomLevel - ZOOM_STEP, CDigiPot::WIPER_MIN);
+    if (nextZoomLevel == flags.zoomLevel) {
+      phase = Phase::MEASURE;
+      goto exit;
+    }
 
-  if (quickNoiseTest(40, sensor1.getPin()) > 20) {
-    flags.zoomLevel = previousZoomLevel;
+    flags.zoomLevel = nextZoomLevel;
     gain.setLevel(flags.zoomLevel);
     balance.reset();
     balance.finish = true;
     delayMicroseconds(10);
-    USB.printf("Noise found... reverting to gain: %d\n", gain.getLevel());
+
+    if (CFG::debugMode == CFG::DebugMode::SINGLE_STATE)
+      USB.printf("Noise found... reducing gain to: %d\n", gain.getLevel());
     return;
   }
 
-  if (flags.zoomLevel == CDigiPot::WIPER_MAX) {
+  if (balance.finish || flags.zoomLevel == CDigiPot::WIPER_MAX) {
     phase = Phase::MEASURE;
   }
 
