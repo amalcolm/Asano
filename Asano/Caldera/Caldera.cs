@@ -501,7 +501,7 @@ namespace Asano.Caldera
                 return;
             }
 
-            using OpenFileDialog dialog = new OpenFileDialog
+            using OpenFileDialog dialog = new()
             {
                 Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
                 Title = "Load Caldera CSV"
@@ -659,8 +659,8 @@ namespace Asano.Caldera
             _needsRefresh = true;
             ClearHeldWiperRestore();
 
-            Program.SerialPort?.SetCsvTestName("Custom");
             Program.SerialPort?.Write(xCMD);
+            Program.SerialPort?.SetCsvTestName("Custom");
         }
 
         private void HandleLoadTestSequenceMessage(JsonElement root)
@@ -685,8 +685,8 @@ namespace Asano.Caldera
             _needsRefresh = true;
             ClearHeldWiperRestore();
 
-            Program.SerialPort?.SetCsvTestName(sequence.Name);
             Program.SerialPort?.Write(xCMD);
+            Program.SerialPort?.SetCsvTestName(sequence.Name);
         }
 
         private void HandleSetDebugFlagsMessage(JsonElement root)

@@ -20,6 +20,8 @@ namespace Asano.Caldera
         private CoreWebView2Environment? _webViewEnvironment;
         private TaskCompletionSource<bool>? _browserProcessExited;
         private Caldera? _caldera;
+        private CoreWebView2ContextMenuItem? _printContextMenuItem;
+        private CoreWebView2ContextMenuItem? _printSeparatorContextMenuItem;
         private readonly System.Windows.Forms.Timer _messageFlushTimer;
         private readonly Dictionary<CalderaView, MyCalderaForm> _spawnedForms = [];
 
@@ -126,6 +128,8 @@ namespace Asano.Caldera
                 _caldera = null;
             }
 
+            DetachContextMenu();
+
             var browserProcessExitedTask = waitForBrowserProcessExit
                 ? _browserProcessExited?.Task
                 : null;
@@ -159,6 +163,27 @@ namespace Asano.Caldera
             }
 
             _devServer.StopViteIfStartedByMe();
+        }
+
+        private void DetachContextMenu()
+        {
+            try
+            {
+                if (web.CoreWebView2 != null)
+                    web.CoreWebView2.ContextMenuRequested -= CoreWebView2_ContextMenuRequested;
+
+                if (_printContextMenuItem != null)
+                    _printContextMenuItem.CustomItemSelected -= PrintContextMenuItem_CustomItemSelected;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Error detaching WebView2 context menu: " + ex);
+            }
+            finally
+            {
+                _printContextMenuItem = null;
+                _printSeparatorContextMenuItem = null;
+            }
         }
 
         private static async Task WaitForBrowserProcessExitAsync(Task browserProcessExitedTask)
@@ -199,6 +224,70 @@ namespace Asano.Caldera
             _webViewEnvironment.BrowserProcessExited += WebViewEnvironment_BrowserProcessExited;
 
             await web.EnsureCoreWebView2Async(_webViewEnvironment);
+
+            if (!_disposedOrClosing && !IsDisposed && web.CoreWebView2 != null)
+                ConfigureContextMenu();
+        }
+
+        private void ConfigureContextMenu()
+        {
+            if (_webViewEnvironment == null || web.CoreWebView2 == null)
+                return;
+
+            _printSeparatorContextMenuItem = _webViewEnvironment.CreateContextMenuItem(
+                string.Empty,
+                null,
+                CoreWebView2ContextMenuItemKind.Separator);
+            _printContextMenuItem = _webViewEnvironment.CreateContextMenuItem(
+                "Print...",
+                null,
+                CoreWebView2ContextMenuItemKind.Command);
+
+            _printContextMenuItem.CustomItemSelected += PrintContextMenuItem_CustomItemSelected;
+            web.CoreWebView2.ContextMenuRequested += CoreWebView2_ContextMenuRequested;
+        }
+
+        private void CoreWebView2_ContextMenuRequested(object? sender, CoreWebView2ContextMenuRequestedEventArgs e)
+        {
+            if (_printContextMenuItem == null || _printSeparatorContextMenuItem == null)
+                return;
+
+            if (e.MenuItems.Count > 0)
+                e.MenuItems.Add(_printSeparatorContextMenuItem);
+
+            e.MenuItems.Add(_printContextMenuItem);
+        }
+
+        private void PrintContextMenuItem_CustomItemSelected(object? sender, object e)
+        {
+            ShowPrintDialog();
+        }
+
+        private void ShowPrintDialog()
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new MethodInvoker(ShowPrintDialog));
+                return;
+            }
+
+            if (_disposedOrClosing || IsDisposed || web.CoreWebView2 == null)
+                return;
+
+            try
+            {
+                web.CoreWebView2.ShowPrintUI(CoreWebView2PrintDialogKind.Browser);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Failed to open WebView2 print dialog: " + ex);
+                MessageBox.Show(
+                    FindForm(),
+                    $"Failed to open print dialog:\r\n{ex.Message}",
+                    "Print Caldera",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
         }
 
         internal void OpenView(

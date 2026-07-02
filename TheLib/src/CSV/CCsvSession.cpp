@@ -47,16 +47,15 @@ namespace NativeCsv
 
     void CCsvSession::WriterLoop() noexcept
     {
-        std::error_code ec;
-        std::filesystem::create_directories(m_sessionDirectory, ec);
-
         CCsvSample sample;
         while (m_queue.WaitPop(sample))
         {
             try
             {
                 WriteStateSample(sample);
-                m_envelopes.Add(sample);
+
+                if (sample.includeInEnvelope)
+                    m_envelopes.Add(sample);
             }
             catch (...)
             {

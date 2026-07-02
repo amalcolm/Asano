@@ -1,6 +1,7 @@
 #pragma once
 #pragma managed(push, off)
 
+#include <cstddef>
 #include <cstdint>
 #include "../Packets/CPackets.h"
 
@@ -18,13 +19,18 @@ namespace NativeCsv
         double sensor1{};
         double sensor2{};
         double lightEnvelope{};
+        bool includeInEnvelope{ true };
 
-        static bool TryCopyLastFromBlock(const CBlockPacket& block, CCsvSample& out) noexcept
+        static bool TryCopyFromBlockAt(const CBlockPacket& block, size_t index, bool includeInEnvelope, CCsvSample& out) noexcept
         {
-            if (block.count == 0)
+            size_t count = block.count;
+            if (count > CBlockPacket::MAX_BLOCK_SIZE)
+                count = CBlockPacket::MAX_BLOCK_SIZE;
+
+            if (index >= count)
                 return false;
 
-            const CDataPacket& data = block.blockData[block.count - 1];
+            const CDataPacket& data = block.blockData[index];
 
             out.timestamp = data.timeStamp;
             out.state = block.state;
@@ -36,8 +42,21 @@ namespace NativeCsv
             out.sensor1 = data.Sensor1;
             out.sensor2 = data.Sensor2;
             out.lightEnvelope = data.lightEnvelope;
+            out.includeInEnvelope = includeInEnvelope;
 
             return true;
+        }
+
+        static bool TryCopyLastFromBlock(const CBlockPacket& block, CCsvSample& out) noexcept
+        {
+            size_t count = block.count;
+            if (count > CBlockPacket::MAX_BLOCK_SIZE)
+                count = CBlockPacket::MAX_BLOCK_SIZE;
+
+            if (count == 0)
+                return false;
+
+            return TryCopyFromBlockAt(block, count - 1, true, out);
         }
     };
 }
