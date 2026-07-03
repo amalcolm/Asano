@@ -24,7 +24,7 @@ namespace Asano.MyGLTools.UserControls
                     this.StartPosition = FormStartPosition.Manual;
                     this.Location = new Point(3840, -200);
                     this.WindowState = FormWindowState.Maximized;
-                    calderaControl.Height = 1280;
+                    splitContainer1.SplitterDistance = 2160 - 1200;
                     break;
 
                 case "PSYC-ANDREW":
@@ -32,6 +32,13 @@ namespace Asano.MyGLTools.UserControls
                     this.StartPosition = FormStartPosition.Manual;
                     this.Location = new Point(2560, 1280);
                     this.Size = new Size(1280, 2160);
+                    break;
+
+                case "LAPPY":
+                    this.StartPosition = FormStartPosition.Manual;
+                    this.Location = new Point(2384, 0);
+                    this.Size = new Size(1456, 2128);
+                    splitContainer1.SplitterDistance = 920; 
                     break;
             }
 

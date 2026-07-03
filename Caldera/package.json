@@ -21,5 +21,9 @@
     "firebase": "^12.14.0",
     "katex": "^0.17.0",
     "plotly.js-dist-min": "^3.5.1"
+  },
+  "allowScripts": {
+    "@firebase/util@1.15.1": true,
+    "protobufjs@7.6.4": true
   }
 }
