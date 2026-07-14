@@ -1,8 +1,15 @@
 import { DIFF_AMP_COMPONENT } from "./components/diff-amp/DA_Adapter.js";
+import { MID_STEP_COMPONENT } from "./components/mid-step/MS_Payload.js";
 
 const KNOWN_MODELS_STORAGE_KEY = "caldera:knownModels:v1";
 const MODEL_STORAGE_PREFIX = "caldera:model:v1:";
 const KNOWN_MODELS_SCHEMA_VERSION = 1;
+const COMPONENT_ALIASES = new Map([
+  ["diffamp", DIFF_AMP_COMPONENT],
+  ["differentialamp", DIFF_AMP_COMPONENT],
+  ["differentialamplifier", DIFF_AMP_COMPONENT],
+  ["midstep", MID_STEP_COMPONENT],
+]);
 
 export class ModelStorage {
   constructor({
@@ -56,7 +63,10 @@ export class ModelStorage {
 
   getActiveModel(component, modelType = null) {
     const knownModels = this.readKnownModels();
-    const componentEntry = knownModels.components[component];
+    const normalisedComponent = normaliseComponent(component);
+    const componentEntry = normalisedComponent
+      ? knownModels.components[normalisedComponent]
+      : null;
 
     if (!componentEntry) {
       return null;
@@ -70,9 +80,9 @@ export class ModelStorage {
     }
 
     const installedModel = this.readInstalledModel(summary.storageKey, summary)
-      ?? this.readInstalledModel(getModelStorageKey(component, activeType), {
+      ?? this.readInstalledModel(getModelStorageKey(normalisedComponent, activeType), {
         ...summary,
-        storageKey: getModelStorageKey(component, activeType),
+        storageKey: getModelStorageKey(normalisedComponent, activeType),
       });
 
     if (installedModel && installedModel.storageKey !== summary.storageKey) {
@@ -169,7 +179,10 @@ export class ModelStore {
   }
 
   getActiveModel(component, modelType = null) {
-    const componentEntry = this.knownModels.components[component];
+    const normalisedComponent = normaliseComponent(component);
+    const componentEntry = normalisedComponent
+      ? this.knownModels.components[normalisedComponent]
+      : null;
 
     if (!componentEntry) {
       return null;
@@ -183,7 +196,7 @@ export class ModelStore {
     }
 
     const storageKey = summary.storageKey;
-    const stableStorageKey = getModelStorageKey(component, activeType);
+    const stableStorageKey = getModelStorageKey(normalisedComponent, activeType);
     const cacheKey = storageKey || stableStorageKey;
 
     if (cacheKey && !this.modelCache.has(cacheKey)) {
@@ -253,13 +266,28 @@ function normaliseKnownModels(value) {
     return createEmptyKnownModels();
   }
 
-  return {
-    components: value.components && typeof value.components === "object"
-      ? value.components
-      : {},
-    schemaVersion: KNOWN_MODELS_SCHEMA_VERSION,
-    updatedAt: normaliseText(value.updatedAt) || null,
-  };
+  const knownModels = createEmptyKnownModels();
+  const components = value.components && typeof value.components === "object"
+    ? value.components
+    : {};
+
+  Object.entries(components).forEach(([componentName, componentEntry]) => {
+    const component = normaliseComponent(componentName);
+
+    if (!component || !componentEntry || typeof componentEntry !== "object") {
+      return;
+    }
+
+    mergeComponentEntry(
+      knownModels.components,
+      component,
+      normaliseComponentEntry(component, componentEntry),
+    );
+  });
+
+  knownModels.updatedAt = normaliseText(value.updatedAt) || null;
+
+  return knownModels;
 }
 
 function createEmptyKnownModels() {
@@ -297,7 +325,13 @@ function makeStorageId(value) {
 }
 
 function normaliseComponent(value) {
-  return normaliseText(value);
+  const text = normaliseText(value);
+
+  if (!text) {
+    return null;
+  }
+
+  return COMPONENT_ALIASES.get(getComponentLookupText(text)) ?? text;
 }
 
 function normaliseModelType(value) {
@@ -312,4 +346,61 @@ function normaliseModelType(value) {
 
 function normaliseText(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normaliseComponentEntry(component, value) {
+  const models = {};
+  const sourceModels = value.models && typeof value.models === "object"
+    ? value.models
+    : {};
+
+  Object.entries(sourceModels).forEach(([modelTypeKey, summary]) => {
+    const modelType = normaliseModelType(summary?.modelType) ?? normaliseModelType(modelTypeKey);
+
+    if (!modelType) {
+      return;
+    }
+
+    models[modelType] = normaliseModelSummary(summary, { component, modelType });
+  });
+
+  return {
+    activeModelType: normaliseModelType(value.activeModelType) ?? Object.keys(models)[0] ?? null,
+    models,
+  };
+}
+
+function normaliseModelSummary(summary, { component, modelType }) {
+  const source = summary && typeof summary === "object" ? summary : {};
+
+  return {
+    ...source,
+    component,
+    modelType,
+    storageKey: normaliseText(source.storageKey) ?? getModelStorageKey(component, modelType),
+  };
+}
+
+function mergeComponentEntry(components, component, componentEntry) {
+  components[component] ??= {
+    activeModelType: null,
+    models: {},
+  };
+
+  const targetEntry = components[component];
+
+  Object.entries(componentEntry.models).forEach(([modelType, summary]) => {
+    targetEntry.models[modelType] = summary;
+  });
+
+  targetEntry.activeModelType = componentEntry.activeModelType
+    ?? targetEntry.activeModelType
+    ?? null;
+}
+
+function getComponentLookupText(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "");
 }

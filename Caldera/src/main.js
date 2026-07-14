@@ -353,6 +353,13 @@ function mountCircuitView() {
     }),
   });
 
+  if (componentModels.diffAmp && !diffAmpModel) {
+    console.warn("Installed Diff.Amp. model could not be used by the circuit view.", {
+      storageKey: componentModels.diffAmp.storageKey,
+      summary: componentModels.diffAmp.summary,
+    });
+  }
+
   if (!diffAmpModel) {
     firebaseStore.panel.appendText(`Please install model for ${DIFF_AMP_COMPONENT}.\n`);
   }

@@ -92,7 +92,7 @@
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.FromArgb(24, 23, 18);
-            ClientSize = new Size(800, 1235);
+            ClientSize = new Size(800, 1813);
             Controls.Add(chartHostPanel);
             Icon = (Icon)resources.GetObject("$this.Icon");
             Location = new Point(3840, -400);

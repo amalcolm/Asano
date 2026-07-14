@@ -30,8 +30,9 @@ namespace Asano.MyGLTools.UserControls
                 case "PSYC-ANDREW":
                     this.WindowState = FormWindowState.Normal;
                     this.StartPosition = FormStartPosition.Manual;
-                    this.Location = new Point(2560, 1280);
-                    this.Size = new Size(1280, 2160);
+                    this.Location = new Point(-2560, 1280);
+                    this.WindowState = FormWindowState.Maximized;
+                    calderaControl.Height = 1200;
                     break;
 
                 case "LAPPY":
