@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SerialHelper.h"
+#include "_Config.h"
 
 using namespace System;
 using namespace System::Threading::Tasks;
@@ -20,13 +21,18 @@ namespace TheLib
         bool Open(String^ portName);
 
 		Task<bool>^ OpenAsync() { return OpenAsync(PortName); }
-        Task<bool>^ OpenAsync(String^ portName);
+		Task<bool>^ OpenAsync(String^ portName);
 
+		property DeviceConfig^ DeviceConfiguration {
+			DeviceConfig^ get() { return m_deviceConfig; }
+		}
 
-    private:
+		void UseAsLegacyConfigSource();
+
+	private:
 		Task^ m_handshakeTask;
 		Task^ PerformHandshake();
-        bool PerformAsyncConnectionSequence();
+		bool PerformAsyncConnectionSequence();
 
         CancellationTokenSource^ m_handshakeCts;
 
@@ -34,9 +40,17 @@ namespace TheLib
         static array<Byte>^ HOST_ACKNOWLEDGE   = System::Text::Encoding::UTF8->GetBytes(">HOST_ACK\n"  ); 
 		static array<Byte>^ DEVICE_ACKNOWLEDGE = System::Text::Encoding::UTF8->GetBytes("<DEVICE_ACK\n");
 
-        bool ReadHandshakeConfig(System::Threading::CancellationToken token);
+		bool ReadHandshakeConfig(System::Threading::CancellationToken token);
+		void DisposeTeensy();
+		void PublishLegacyConfigurationIfOwner();
+		void ReleaseLegacyConfigOwnership();
 
 		bool m_isDisposing = false;
-    };
+		DeviceConfig^ m_deviceConfig;
+		Int64 m_configOwnerToken;
+
+		static Int64 s_nextConfigOwnerToken;
+		static Int64 s_legacyConfigOwnerToken;
+	};
 
 }

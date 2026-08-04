@@ -1,6 +1,7 @@
 #pragma once
 #pragma managed(push, off)
 #include "CHandleGuard.h"
+#include "Packets/CDecoder.h"
 #include "Packets/CPackets.h"
 #include "CSV/CCsvRecorder.h"
 
@@ -84,6 +85,7 @@ private:
     void InvokeErrorOccurred(const std::exception& ex);
     void InvokeDataReceived(CPacket& packet);
 
+    CDecoder m_decoder;
     CDecodedPacket* m_decodedPacket;
 };
 

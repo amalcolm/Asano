@@ -3,8 +3,7 @@
 using namespace System;
 using namespace System::Threading;
 using namespace System::Threading::Tasks;
-using namespace System::Collections::Concurrent; // For BlockingCollection
-using namespace System::Collections::Generic;    // For Dictionary
+using namespace System::Collections::Concurrent;
 
 namespace TheLib
 {
@@ -26,13 +25,16 @@ namespace TheLib
     public ref class PoolRegistry abstract sealed
     {
     private:
-        static Dictionary<IntPtr, Action<IRaiser^>^>^ _returners =
-            gcnew Dictionary<IntPtr, Action<IRaiser^>^>();
+        static ConcurrentDictionary<IntPtr, Action<IRaiser^>^>^ _returners =
+            gcnew ConcurrentDictionary<IntPtr, Action<IRaiser^>^>();
 
     public:
         static void Register(Type^ type, Action<IRaiser^>^ returnAction)
         {
-            _returners->Add(type->TypeHandle.Value, returnAction);
+            if (type == nullptr) throw gcnew ArgumentNullException("type");
+            if (returnAction == nullptr) throw gcnew ArgumentNullException("returnAction");
+
+            _returners->TryAdd(type->TypeHandle.Value, returnAction);
         }
 
         static void Return(IRaiser^ obj)
@@ -65,6 +67,9 @@ namespace TheLib
         void Disposing(bool disposing);
 
     public:
+        // Register shared raiser pools once for the managed type.
+        static ManagedCallbacks();
+
         ManagedCallbacks(CallbackPolicy policy);
 
     private:

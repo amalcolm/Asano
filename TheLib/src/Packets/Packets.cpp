@@ -1,7 +1,6 @@
 #include "Packets.h"
 #include "CPackets.h"
 #include "WebData.h"
-#include "../_Config.h"
 
 namespace TheLib
 {
@@ -29,7 +28,7 @@ namespace TheLib
     {
         // Avoid resurrecting the object or touching arbitrary managed graph.
         // Only free unmanaged stuff here if you ever add any.
-        // No pooling here—finalization indicates caller didn't Dispose.
+        // No pooling here-finalization indicates caller didn't Dispose.
     }
 
     void Packet::Reset()
@@ -105,10 +104,10 @@ namespace TheLib
 
 
 
-    BlockPacket::BlockPacket()
-    {
-        BlockData = gcnew array<DataPacket ^>( Config::MAX_BLOCKSIZE        );
-		EventData = gcnew array<EventPacket^>( Config::MAX_EVENTS_PER_BLOCK );
+	BlockPacket::BlockPacket()
+	{
+		BlockData = gcnew array<DataPacket ^>(CBlockPacket::MAX_BLOCK_SIZE);
+		EventData = gcnew array<EventPacket^>(CBlockPacket::MAX_EVENTS_PER_BLOCK);
 
         Reset();
 	}

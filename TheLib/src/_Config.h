@@ -24,6 +24,28 @@ namespace TheLib
         property array<UInt32>^ States;
     };
 
+    public ref class DeviceConfig sealed
+    {
+    public:
+        DeviceConfig();
+
+        UInt32 STATE_DURATION_uS     = 3'000;
+        UInt32 HEAD_SETTLE_TIME_uS   =   440;
+        UInt32 POT_UPDATE_OFFSET_uS  =   667;
+        UInt32 A2D_SAMPLING_SPEED_Hz = 2'000;
+        UInt32 A2D_READING_PERIOD_uS =   900;
+        UInt32 MAX_BLOCKSIZE         =   164;
+        UInt32 MAX_EVENTS_PER_BLOCK  =   400;
+        UInt32 MAX_SEQUENCE_STATES   =    64;
+        String^ DEBUG_MODE           = "OFF";
+        UInt32 COMMAND_FLAGS         =     0;
+        List<HeadTestSequenceConfig^>^ TEST_SEQUENCES;
+        String^ DeviceVersion        = String::Empty;
+
+        void ResetHandshakeConfig();
+        void ParseHandshakeResponse(String^ response);
+    };
+
     public ref class Config
     {
     public:
@@ -46,6 +68,7 @@ namespace TheLib
 
         static void ResetHandshakeConfig();
         static void ParseHandshakeResponse(System::String^ response);
+        static void ApplyDeviceConfig(DeviceConfig^ config);
     };
 
 }

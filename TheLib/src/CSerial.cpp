@@ -9,8 +9,6 @@
 #include <atomic>
 #include <sstream>
 
-static CDecoder decoder;
-
 #include <stdexcept> // Include for std::exception
 
 // Error handling macro for Windows API calls
@@ -43,6 +41,8 @@ CSerial::CSerial()
 
 CSerial::~CSerial() {
     Close();  // Ensure proper cleanup
+    delete m_decodedPacket;
+    m_decodedPacket = nullptr;
 }
 
 
@@ -117,7 +117,7 @@ void CSerial::InvokeDataReceived(CPacket& packet) {
 	CDecodedPacket& dataPacket = *m_decodedPacket;  // single reusable decoded packet
 
     for (;;) {
-        auto kind = decoder.process(packet, dataPacket);
+        auto kind = m_decoder.process(packet, dataPacket);
         if (kind == PacketKind::Unknown)
             break;
         packet.bytesRead = 0; // Mark as consumed
@@ -264,6 +264,7 @@ bool CSerial::SetPort(const std::string& portName, DataHandler dataHandler, void
         m_baudRate = baudRate;
         m_hSerial.reset(hSerial);              // take ownership
         hSerial = INVALID_HANDLE_VALUE;        // prevent double-close
+        m_decoder.reset();
         m_isOpen = true;
         m_stopReadLoop = false;
     }
@@ -360,7 +361,7 @@ void CSerial::ReadLoop()
             // we will read and discard below.
         }
         if (queued == 0) {
-            // Nothing buffered right now – short pause to avoid busy-spin
+            // Nothing buffered right now - short pause to avoid busy-spin
                std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
@@ -411,7 +412,7 @@ void CSerial::ReadLoop()
                         // Normal during Close(); exit
                         break;
                     }
-                    // Transient failure — report and continue
+                    // Transient failure - report and continue
                     std::ostringstream os; os << "GetOverlappedResult failed. Error: " << ge;
                     InvokeErrorOccurred(std::runtime_error(os.str()));
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -608,7 +609,7 @@ void CSerial::Clear()
         if (m_isOpen && m_hSerial.get() != INVALID_HANDLE_VALUE) 
             PurgeComm(m_hSerial.get(), PURGE_RXCLEAR | PURGE_TXCLEAR | PURGE_RXABORT | PURGE_TXABORT);
         
-        decoder.reset();
+        m_decoder.reset();
     }
 }
 

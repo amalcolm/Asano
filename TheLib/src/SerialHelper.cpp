@@ -72,48 +72,55 @@ namespace TheLib
     }
 
     void SerialHelper::Disposer(bool disposing) {                                                                                                   if (VERBOSE) Debug::WriteLine(String::Format("SerialHelper: Disposer called (disposing={0}).", disposing));
-        if (!m_disposed) {
-            if (disposing) {                                                                                                                        if (VERBOSE) Debug::WriteLine("SerialHelper: Disposing managed resources...");
-                if (m_managedCallbacks != nullptr) {
-                    delete m_managedCallbacks;
-                    m_managedCallbacks = nullptr;                                                                                                   if (VERBOSE) Debug::WriteLine("SerialHelper: ManagedCallbacks disposed.");
-                }
-                m_delegateDataHandler = nullptr;
-                m_delegateErrorHandler = nullptr;
-                m_delegateConnectionHandler = nullptr;                                                                                              if (VERBOSE) Debug::WriteLine("SerialHelper: Delegate references cleared.");
-            }
-                                                                                                                                                    if (VERBOSE) Debug::WriteLine("SerialHelper: Disposing unmanaged resources (native CSerial)...");
-            if (m_nativeSerial != nullptr) {
-                try {
-                    if (m_nativeSerial->IsOpen()) {                                                                                                 if (VERBOSE) Debug::WriteLine("SerialHelper: Calling native Close() during dispose...");
-                        m_nativeSerial->Close();                                                                                                    if (VERBOSE) Debug::WriteLine("SerialHelper: Native Close() returned.");
-                    }
-                }
-                catch (const std::exception& ex) {
-                    String^ errMsg = gcnew String(ex.what());
-                    Debug::WriteLine(String::Format("SerialHelper: WARNING - Native exception during Close() in Dispose: {0}", errMsg));
-                }
-                catch (...) {
-                    Debug::WriteLine("SerialHelper: WARNING - Unknown native exception during Close() in Dispose.");
-                }
-                delete m_nativeSerial;
-                m_nativeSerial = nullptr;                                                                                                           if (VERBOSE) Debug::WriteLine("SerialHelper: Native CSerial deleted.");
-            }
-            else {
-                Debug::WriteLine("SerialHelper: Native CSerial pointer was already null.");
-            }
+        if (m_disposed) {
+            Debug::WriteLine("SerialHelper: Already disposed.");
+            return;
+        }
 
-            if (m_selfHandle.IsAllocated) {
-                m_selfHandle.Free();                                                                                                                if (VERBOSE) Debug::WriteLine("SerialHelper: GCHandle freed.");
+        // Prevent new callbacks from entering managed handlers while the native read
+        // thread is being stopped. Delegate and GCHandle lifetimes are retained until
+        // after CSerial has closed and joined that thread.
+        m_disposed = true;
+
+                                                                                                                                                    if (VERBOSE) Debug::WriteLine("SerialHelper: Disposing unmanaged resources (native CSerial)...");
+        if (m_nativeSerial != nullptr) {
+            try {
+                if (m_nativeSerial->IsOpen()) {                                                                                                     if (VERBOSE) Debug::WriteLine("SerialHelper: Calling native Close() during dispose...");
+                    m_nativeSerial->Close();                                                                                                        if (VERBOSE) Debug::WriteLine("SerialHelper: Native Close() returned.");
+                }
             }
-            else {
-                Debug::WriteLine("SerialHelper: GCHandle was not allocated or already freed.");
+            catch (const std::exception& ex) {
+                String^ errMsg = gcnew String(ex.what());
+                Debug::WriteLine(String::Format("SerialHelper: WARNING - Native exception during Close() in Dispose: {0}", errMsg));
             }
-            m_disposed = true;                                                                                                                      if (VERBOSE) Debug::WriteLine("SerialHelper: Dispose finished.");
+            catch (...) {
+                Debug::WriteLine("SerialHelper: WARNING - Unknown native exception during Close() in Dispose.");
+            }
+            delete m_nativeSerial;
+            m_nativeSerial = nullptr;                                                                                                               if (VERBOSE) Debug::WriteLine("SerialHelper: Native CSerial deleted.");
         }
         else {
-            Debug::WriteLine("SerialHelper: Already disposed.");
+            Debug::WriteLine("SerialHelper: Native CSerial pointer was already null.");
         }
+
+        if (disposing) {                                                                                                                            if (VERBOSE) Debug::WriteLine("SerialHelper: Disposing managed resources...");
+            if (m_managedCallbacks != nullptr) {
+                delete m_managedCallbacks;
+                m_managedCallbacks = nullptr;                                                                                                       if (VERBOSE) Debug::WriteLine("SerialHelper: ManagedCallbacks disposed.");
+            }
+
+            m_delegateDataHandler = nullptr;
+            m_delegateErrorHandler = nullptr;
+            m_delegateConnectionHandler = nullptr;                                                                                                  if (VERBOSE) Debug::WriteLine("SerialHelper: Delegate references cleared.");
+        }
+
+        if (m_selfHandle.IsAllocated) {
+            m_selfHandle.Free();                                                                                                                     if (VERBOSE) Debug::WriteLine("SerialHelper: GCHandle freed.");
+        }
+        else {
+            Debug::WriteLine("SerialHelper: GCHandle was not allocated or already freed.");
+        }
+                                                                                                                                                    if (VERBOSE) Debug::WriteLine("SerialHelper: Dispose finished.");
     }
 
     const void SerialHelper::ThrowIfDisposed() {

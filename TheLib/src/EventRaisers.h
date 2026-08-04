@@ -25,18 +25,24 @@ namespace TheLib
 			raiser->m_packet = packet;
 			return raiser;
 		}
-		static void Return(IRaiser^ raiser) { s_pool->Return(safe_cast<DataEventRaiser^>(raiser)); }
+		static void Return(IRaiser^ raiser) {
+			DataEventRaiser^ item = safe_cast<DataEventRaiser^>(raiser);
+			item->m_target = nullptr;
+			item->m_packet = nullptr;
+			s_pool->Return(item);
+		}
 
         DataEventRaiser(SerialHelper^ target, IPacket^ packet) : m_target(target), m_packet(packet) {
             if (m_target == nullptr) throw gcnew System::ArgumentNullException("target");
             if (m_packet == nullptr) throw gcnew System::ArgumentNullException("packet");
         }
 
-        virtual void Raise() {
-            if (m_target->m_disposed) return;
-            
-            try { m_target->RaiseDataReceivedEvent(m_packet); }
-            catch (Exception^ ex) 
+		virtual void Raise() {
+			try {
+				if (!m_target->m_disposed)
+					m_target->RaiseDataReceivedEvent(m_packet);
+			}
+			catch (Exception^ ex)
             {
                 if (Debugger::IsAttached || IsDebuggerPresent())
                     Debugger::Break();
@@ -64,7 +70,12 @@ namespace TheLib
 			raiser->m_exception = ex;
 			return raiser;
 		}
-		static void Return(IRaiser^ raiser) { s_pool->Return(safe_cast<ErrorEventRaiser^>(raiser)); }
+		static void Return(IRaiser^ raiser) {
+			ErrorEventRaiser^ item = safe_cast<ErrorEventRaiser^>(raiser);
+			item->m_target = nullptr;
+			item->m_exception = nullptr;
+			s_pool->Return(item);
+		}
 
         ErrorEventRaiser(SerialHelper^ target, Exception^ ex) : m_target(target), m_exception(ex) {
             if (m_target    == nullptr) throw gcnew System::ArgumentNullException("target");
@@ -93,7 +104,12 @@ namespace TheLib
 			raiser->m_state = state;
 			return raiser;
 		}
-		static void Return(IRaiser^ raiser) { s_pool->Return(safe_cast<ConnectionEventRaiser^>(raiser)); }
+		static void Return(IRaiser^ raiser) {
+			ConnectionEventRaiser^ item = safe_cast<ConnectionEventRaiser^>(raiser);
+			item->m_target = nullptr;
+			item->m_state = ConnectionState::Disconnected;
+			s_pool->Return(item);
+		}
 
         ConnectionEventRaiser(SerialHelper^ target, ConnectionState state) : m_target(target), m_state(state) {
             if (m_target == nullptr) throw gcnew System::ArgumentNullException("target");

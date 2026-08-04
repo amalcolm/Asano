@@ -4,25 +4,81 @@
 
 namespace TheLib
 {
+	Int64 TeensySerial::s_nextConfigOwnerToken = 0;
+	Int64 TeensySerial::s_legacyConfigOwnerToken = 0;
+
 	TeensySerial::TeensySerial() :  SerialHelper(CallbackPolicy::Queued)
 	{
+		m_deviceConfig = gcnew DeviceConfig();
+		m_configOwnerToken = Interlocked::Increment(s_nextConfigOwnerToken);
+		Interlocked::CompareExchange(s_legacyConfigOwnerToken, m_configOwnerToken, 0);
 	}
 
 	TeensySerial::~TeensySerial()
 	{
+		DisposeTeensy();
 	}
 
 	TeensySerial::!TeensySerial()
 	{
+		DisposeTeensy();
+	}
+
+	void TeensySerial::DisposeTeensy()
+	{
+		if (m_isDisposing)
+			return;
+
 		m_isDisposing = true;
-		
+
 		if (m_handshakeTask != nullptr && !m_handshakeTask->IsCompleted)
 		{
-			m_handshakeCts->Cancel();
+			if (m_handshakeCts != nullptr)
+				m_handshakeCts->Cancel();
 			m_handshakeEvent->Set();
-			m_handshakeTask->Wait(1000);
+
+			try
+			{
+				m_handshakeTask->Wait(1000);
+			}
+			catch (Exception^ ex)
+			{
+				Debug::WriteLine("TeensySerial: Exception while stopping handshake task: " + ex->Message);
+			}
+
 			m_handshakeTask = nullptr;
 		}
+
+		ReleaseLegacyConfigOwnership();
+	}
+
+	void TeensySerial::UseAsLegacyConfigSource()
+	{
+		if (m_disposed || m_isDisposing)
+			throw gcnew ObjectDisposedException(TeensySerial::typeid->FullName);
+
+		Interlocked::Exchange(s_legacyConfigOwnerToken, m_configOwnerToken);
+		Config::ApplyDeviceConfig(m_deviceConfig);
+	}
+
+	void TeensySerial::PublishLegacyConfigurationIfOwner()
+	{
+		Int64 owner = Interlocked::CompareExchange(
+			s_legacyConfigOwnerToken,
+			m_configOwnerToken,
+			0);
+
+		if (owner == 0 || owner == m_configOwnerToken)
+			Config::ApplyDeviceConfig(m_deviceConfig);
+	}
+
+	void TeensySerial::ReleaseLegacyConfigOwnership()
+	{
+		if (m_configOwnerToken == 0)
+			return;
+
+		Interlocked::CompareExchange(s_legacyConfigOwnerToken, 0, m_configOwnerToken);
+		m_configOwnerToken = 0;
 	}
 
 	bool TeensySerial::Open(String^ portName)
@@ -62,7 +118,7 @@ namespace TheLib
 		try
 		{
 			ClearHandshakeResponses();
-			Config::ResetHandshakeConfig();
+			m_deviceConfig->ResetHandshakeConfig();
 
 			// Simulate handshake process
 			while (!token.IsCancellationRequested)
@@ -102,6 +158,7 @@ namespace TheLib
 
 					if (ReadHandshakeConfig(token))
 					{
+						PublishLegacyConfigurationIfOwner();
 						m_connectionState = ConnectionState::HandshakeSuccessful;
 //						Clear();
 						break;
@@ -143,8 +200,8 @@ namespace TheLib
 		String^ response = GetHandshakeResponse();
 		String^ marker = response->Trim();
 
-		Config::ResetHandshakeConfig();
-		Config::ParseHandshakeResponse(response);
+		m_deviceConfig->ResetHandshakeConfig();
+		m_deviceConfig->ParseHandshakeResponse(response);
 
 		if (!String::Equals(marker, "<CONFIG_BEGIN", StringComparison::OrdinalIgnoreCase))
 			return true;
@@ -157,7 +214,7 @@ namespace TheLib
 
 			response = GetHandshakeResponse();
 			marker = response->Trim();
-			Config::ParseHandshakeResponse(response);
+			m_deviceConfig->ParseHandshakeResponse(response);
 
 			if (String::Equals(marker, "<CONFIG_END", StringComparison::OrdinalIgnoreCase))
 				return true;

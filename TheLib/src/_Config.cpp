@@ -93,10 +93,18 @@ namespace
         return gcnew HeadTestSequenceConfig(name, states->ToArray());
     }
 
-    void SetConfigField(String^ key, String^ value)
+    String^ ResolveConfigFieldName(String^ key)
     {
-        Type^ t = Config::typeid;
-        FieldInfo^ field = t->GetField(key, BindingFlags::Public | BindingFlags::Static);
+        if (String::Equals(key, "DEVICE_VERSION", StringComparison::OrdinalIgnoreCase))
+            return "DeviceVersion";
+
+        return key;
+    }
+
+    void SetConfigField(Object^ target, Type^ configType, BindingFlags scope, String^ key, String^ value)
+    {
+        String^ fieldName = ResolveConfigFieldName(key);
+        FieldInfo^ field = configType->GetField(fieldName, BindingFlags::Public | scope);
         if (field == nullptr)
             return;
 
@@ -104,25 +112,25 @@ namespace
         {
             if (field->FieldType == String::typeid)
             {
-                field->SetValue(nullptr, value);
+                field->SetValue(target, value);
             }
             else if (field->FieldType == UInt32::typeid)
             {
                 UInt32 parsed;
                 double n;
                 if (UInt32::TryParse(value, parsed))
-                    field->SetValue(nullptr, parsed);
+                    field->SetValue(target, parsed);
                 else if (double::TryParse(value, n))
-                    field->SetValue(nullptr, static_cast<UInt32>(n));
+                    field->SetValue(target, static_cast<UInt32>(n));
             }
             else if (field->FieldType == Int32::typeid)
             {
                 Int32 parsed;
                 double n;
                 if (Int32::TryParse(value, parsed))
-                    field->SetValue(nullptr, parsed);
+                    field->SetValue(target, parsed);
                 else if (double::TryParse(value, n))
-                    field->SetValue(nullptr, static_cast<Int32>(n));
+                    field->SetValue(target, static_cast<Int32>(n));
             }
         }
         catch (Exception^ ex)
@@ -131,7 +139,12 @@ namespace
         }
     }
 
-    void ParseHandshakePart(String^ part)
+    void ParseHandshakePart(
+        String^ part,
+        Object^ target,
+        Type^ configType,
+        BindingFlags scope,
+        List<HeadTestSequenceConfig^>^ testSequences)
     {
         String^ line = TrimHandshakeMarker(part);
         if (line->Length == 0)
@@ -139,7 +152,7 @@ namespace
 
         if (String::Equals(line, "CONFIG_BEGIN", StringComparison::OrdinalIgnoreCase))
         {
-            Config::ResetHandshakeConfig();
+            testSequences->Clear();
             return;
         }
 
@@ -155,23 +168,20 @@ namespace
         {
             HeadTestSequenceConfig^ sequence = TryParseTestSequence(value);
             if (sequence != nullptr)
-                Config::TEST_SEQUENCES->Add(sequence);
+                testSequences->Add(sequence);
 
             return;
         }
 
-        SetConfigField(key, value);
-    }
-}
-
-namespace TheLib
-{
-    void Config::ResetHandshakeConfig()
-    {
-        TEST_SEQUENCES->Clear();
+        SetConfigField(target, configType, scope, key, value);
     }
 
-    void Config::ParseHandshakeResponse(String^ response)
+    void ParseHandshakeResponseInto(
+        String^ response,
+        Object^ target,
+        Type^ configType,
+        BindingFlags scope,
+        List<HeadTestSequenceConfig^>^ testSequences)
     {
         if (String::IsNullOrWhiteSpace(response))
             return;
@@ -184,7 +194,76 @@ namespace TheLib
         {
             array<String^>^ parts = line->Split("::", StringSplitOptions::RemoveEmptyEntries);
             for each(String^ part in parts)
-                ParseHandshakePart(part);
+                ParseHandshakePart(part, target, configType, scope, testSequences);
+        }
+    }
+}
+
+namespace TheLib
+{
+    DeviceConfig::DeviceConfig()
+    {
+        TEST_SEQUENCES = gcnew List<HeadTestSequenceConfig^>();
+    }
+
+    void DeviceConfig::ResetHandshakeConfig()
+    {
+        TEST_SEQUENCES->Clear();
+    }
+
+    void DeviceConfig::ParseHandshakeResponse(String^ response)
+    {
+        ParseHandshakeResponseInto(
+            response,
+            this,
+            DeviceConfig::typeid,
+            BindingFlags::Instance,
+            TEST_SEQUENCES);
+    }
+
+    void Config::ResetHandshakeConfig()
+    {
+        TEST_SEQUENCES->Clear();
+    }
+
+    void Config::ParseHandshakeResponse(String^ response)
+    {
+        ParseHandshakeResponseInto(
+            response,
+            nullptr,
+            Config::typeid,
+            BindingFlags::Static,
+            TEST_SEQUENCES);
+    }
+
+    void Config::ApplyDeviceConfig(DeviceConfig^ config)
+    {
+        if (config == nullptr)
+            throw gcnew ArgumentNullException("config");
+
+        STATE_DURATION_uS     = config->STATE_DURATION_uS;
+        HEAD_SETTLE_TIME_uS   = config->HEAD_SETTLE_TIME_uS;
+        POT_UPDATE_OFFSET_uS  = config->POT_UPDATE_OFFSET_uS;
+        A2D_SAMPLING_SPEED_Hz = config->A2D_SAMPLING_SPEED_Hz;
+        A2D_READING_PERIOD_uS = config->A2D_READING_PERIOD_uS;
+        MAX_BLOCKSIZE         = config->MAX_BLOCKSIZE;
+        MAX_EVENTS_PER_BLOCK  = config->MAX_EVENTS_PER_BLOCK;
+        MAX_SEQUENCE_STATES   = config->MAX_SEQUENCE_STATES;
+        DEBUG_MODE            = config->DEBUG_MODE;
+        COMMAND_FLAGS         = config->COMMAND_FLAGS;
+        DeviceVersion         = config->DeviceVersion;
+
+        TEST_SEQUENCES->Clear();
+        for each(HeadTestSequenceConfig^ sequence in config->TEST_SEQUENCES)
+        {
+            if (sequence == nullptr)
+                continue;
+
+            array<UInt32>^ states = sequence->States == nullptr
+                ? gcnew array<UInt32>(0)
+                : safe_cast<array<UInt32>^>(sequence->States->Clone());
+
+            TEST_SEQUENCES->Add(gcnew HeadTestSequenceConfig(sequence->Name, states));
         }
     }
 

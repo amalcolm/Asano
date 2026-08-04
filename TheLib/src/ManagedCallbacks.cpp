@@ -8,6 +8,13 @@ constexpr bool VERBOSE = false; // Set to true for verbose logging
 
 namespace TheLib
 {
+    ManagedCallbacks::ManagedCallbacks()
+    {
+        PoolRegistry::Register(DataEventRaiser::typeid, gcnew Action<IRaiser^>(&DataEventRaiser::Return));
+        PoolRegistry::Register(ErrorEventRaiser::typeid, gcnew Action<IRaiser^>(&ErrorEventRaiser::Return));
+        PoolRegistry::Register(ConnectionEventRaiser::typeid, gcnew Action<IRaiser^>(&ConnectionEventRaiser::Return));
+    }
+
     void ManagedCallbacks::WorkerLoop(CancellationToken token) {
         try {
             for each(IRaiser ^ ev in m_callbackQueue->GetConsumingEnumerable(token)) {
@@ -54,12 +61,9 @@ namespace TheLib
         m_callbackQueue(nullptr),
         m_workerTask(nullptr),
         m_cts(nullptr),
+        m_disposing(false),
         m_disposed(false)
     {
-		PoolRegistry::Register(DataEventRaiser::typeid, gcnew Action<IRaiser^>(&DataEventRaiser::Return));
-		PoolRegistry::Register(ErrorEventRaiser::typeid, gcnew Action<IRaiser^>(&ErrorEventRaiser::Return));
-		PoolRegistry::Register(ConnectionEventRaiser::typeid, gcnew Action<IRaiser^>(&ConnectionEventRaiser::Return));
-
         if (m_policy == CallbackPolicy::Queued) {
             m_cts = gcnew CancellationTokenSource();
             m_callbackQueue = gcnew BlockingCollection<IRaiser^>(gcnew ConcurrentQueue<IRaiser^>());
@@ -120,15 +124,23 @@ namespace TheLib
         }
     }
 
-    // Helper method to execute the Action^ when using ThreadPool.QueueUserWorkItem
+    // Helper method to execute an IRaiser when using ThreadPool.QueueUserWorkItem
     void ManagedCallbacks::ThreadPoolCallback(Object^ state) {
-        Action^ action = dynamic_cast<Action^>(state);
+        IRaiser^ action = dynamic_cast<IRaiser^>(state);
         if (action != nullptr) {
             try {
-                action->Invoke();
+                action->Raise();
             }
             catch (Exception^ ex) {
                 Debug::WriteLine("ManagedCallbacks: Exception in ThreadPool execution: " + ex->Message);
+            }
+            finally {
+                try {
+                    PoolRegistry::Return(action);
+                }
+                catch (Exception^ ex) {
+                    Debug::WriteLine("ManagedCallbacks: Exception returning ThreadPool action to pool: " + ex->Message);
+                }
             }
         }
     }
