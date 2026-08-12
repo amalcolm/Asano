@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Platforms>x64</Platforms>
+    <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
+  </PropertyGroup>
+
+  <Target Name="RemoveVisualStudioNestedGitStub"
+          AfterTargets="Build"
+          Condition="Exists('$(MSBuildProjectDirectory)\.git') and !Exists('$(MSBuildProjectDirectory)\.git\HEAD') and !Exists('$(MSBuildProjectDirectory)\.git\config')">
+    <ItemGroup>
+      <_VisualStudioNestedGitStub Include="$(MSBuildProjectDirectory)\.git\ms-persist.xml" />
+      <_VisualStudioNestedGitStubDirectory Include="$(MSBuildProjectDirectory)\.git" />
+    </ItemGroup>
+
+    <Delete Files="@(_VisualStudioNestedGitStub)" />
+    <RemoveDir Directories="@(_VisualStudioNestedGitStubDirectory)" />
+  </Target>
+
+</Project>

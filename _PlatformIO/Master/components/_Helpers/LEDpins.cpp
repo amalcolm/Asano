@@ -11,6 +11,7 @@
 Adafruit_MCP23X17 mcp;  
 
 void LEDpins::begin()  {
+  return;
   initMCP();
   for (int i = 24; i < 42; i++) 
     pinMode(i, OUTPUT);
@@ -20,7 +21,7 @@ void LEDpins::begin()  {
 } 
 
 void LEDpins::write_raw(uint16_t data) {
-  
+  return;
   _current = data | _debugBits;
   int unsetPins = _numPinsOn;
   int64_t unsetTime = Timer.getConnectTicks();
@@ -42,7 +43,9 @@ void LEDpins::clear (int pin) {  _debugBits &= ~(1u << pin);  write_raw(_current
 void LEDpins::toggle(int pin) {  _debugBits ^=  (1u << pin);  write_raw(_current); }
 
 
-void Pins::flash(int numFlashes) {
+void Pins::flash(int numFlashes) { 
+  return;
+  
   if (CFG::isDebugMode() == false) return; // don't flash if debug mode is off
 
   LEDpins::initMCP();
@@ -63,6 +66,8 @@ void Pins::flash(int numFlashes) {
 
 
 void LEDpins::initMCP(){
+  return;
+
   if (_mcpInitialized) return;
 
   _mcpInitialized = true;   // avoid infinit recursion if MCP init fails and calls ERROR

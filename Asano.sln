@@ -17,7 +17,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		Start-Caldera.ps1 = Start-Caldera.ps1
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "_PlatformIO", "_PlatformIO\_PlatformIO.csproj", "{68A31255-3C3D-4BFF-AE04-ADD942D3E6D9}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_PlatformIO", "_PlatformIO", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Master", "_PlatformIO\Master\Master.csproj", "{56C04F6B-B9CF-EDD0-43C8-848D347FB7A8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tester", "_PlatformIO\Tester\Tester.csproj", "{DDF4B341-BFC8-0353-E747-C9C86588070E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -35,13 +39,21 @@ Global
 		{0A1DB153-B508-B54F-E7E1-7A58B9E0C7D1}.Release|x64.Build.0 = Release|x64
 		{52D8F2DB-5CC0-B276-1E4E-0C4A97FB7003}.Debug|x64.ActiveCfg = Debug|x64
 		{52D8F2DB-5CC0-B276-1E4E-0C4A97FB7003}.Release|x64.ActiveCfg = Release|x64
-		{68A31255-3C3D-4BFF-AE04-ADD942D3E6D9}.Debug|x64.ActiveCfg = Debug|x64
-		{68A31255-3C3D-4BFF-AE04-ADD942D3E6D9}.Debug|x64.Build.0 = Debug|x64
-		{68A31255-3C3D-4BFF-AE04-ADD942D3E6D9}.Release|x64.ActiveCfg = Release|x64
-		{68A31255-3C3D-4BFF-AE04-ADD942D3E6D9}.Release|x64.Build.0 = Release|x64
+		{56C04F6B-B9CF-EDD0-43C8-848D347FB7A8}.Debug|x64.ActiveCfg = Debug|x64
+		{56C04F6B-B9CF-EDD0-43C8-848D347FB7A8}.Debug|x64.Build.0 = Debug|x64
+		{56C04F6B-B9CF-EDD0-43C8-848D347FB7A8}.Release|x64.ActiveCfg = Release|x64
+		{56C04F6B-B9CF-EDD0-43C8-848D347FB7A8}.Release|x64.Build.0 = Release|x64
+		{DDF4B341-BFC8-0353-E747-C9C86588070E}.Debug|x64.ActiveCfg = Debug|x64
+		{DDF4B341-BFC8-0353-E747-C9C86588070E}.Debug|x64.Build.0 = Debug|x64
+		{DDF4B341-BFC8-0353-E747-C9C86588070E}.Release|x64.ActiveCfg = Release|x64
+		{DDF4B341-BFC8-0353-E747-C9C86588070E}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{56C04F6B-B9CF-EDD0-43C8-848D347FB7A8} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{DDF4B341-BFC8-0353-E747-C9C86588070E} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {8341246A-EF79-4A47-B513-787DC18CD5C1}
