@@ -80,6 +80,7 @@
     <ClInclude Include="src\AString.h" />
     <ClInclude Include="src\C64bitTimer.h" />
     <ClInclude Include="src\CRunningAverage.h" />
+    <ClInclude Include="src\CTimer.h" />
     <ClInclude Include="src\CTimerBase.h" />
     <ClInclude Include="src\MyTimer.h" />
     <ClInclude Include="src\EventRaisers.h" />
@@ -114,6 +115,11 @@
     <ClInclude Include="src\Packets\XCommands.h" />
     <ClInclude Include="src\RunningAverage.h" />
     <ClInclude Include="src\SerialHelper.h" />
+    <ClInclude Include="src\Telemetry\0. CTeleValue.h" />
+    <ClInclude Include="src\Telemetry\1. CTeleCounter.h" />
+    <ClInclude Include="src\Telemetry\2. CTeleTimer.h" />
+    <ClInclude Include="src\Telemetry\3. CTelePeriod.h" />
+    <ClInclude Include="src\Telemetry\CTelemetry.h" />
     <ClInclude Include="src\_Config.h" />
     <ClInclude Include="src\TeensySerial.h" />
     <ClInclude Include="src\Utilities.h" />
@@ -121,6 +127,7 @@
   <ItemGroup>
     <ClCompile Include="AssemblyInfo.cpp" />
     <ClCompile Include="src\C64bitTimer.cpp" />
+    <ClCompile Include="src\CTimer.cpp" />
     <ClCompile Include="src\CTimerBase.cpp" />
     <ClCompile Include="src\MyTimer.cpp" />
     <ClCompile Include="src\ScreenHelper.cpp" />
@@ -149,6 +156,9 @@
     <ClCompile Include="src\RunningAverage.cpp" />
     <ClCompile Include="src\SerialHelper.cpp" />
     <ClCompile Include="src\SerialHelper_GetUSBSerialPorts.cpp" />
+    <ClCompile Include="src\Telemetry\2. CTeleTimer.cpp" />
+    <ClCompile Include="src\Telemetry\3. CTelePeriod.cpp" />
+    <ClCompile Include="src\Telemetry\CTelemetry.cpp" />
     <ClCompile Include="src\_Config.cpp" />
     <ClCompile Include="src\TeensySerial.cpp" />
     <ClCompile Include="src\Utilities.cpp" />

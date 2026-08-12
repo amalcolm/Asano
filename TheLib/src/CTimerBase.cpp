@@ -6,11 +6,13 @@
 #include <limits>
 
 CTimerBase::CTimerBase() {
-  s_instanceCount++;
-  LARGE_INTEGER temp; QueryPerformanceFrequency(&temp);
-  s_frequency = temp.QuadPart;
+  ensureInitialized();
+  ++s_instanceCount;
+}
 
-  if (s_instanceCount > 1) return;
+void CTimerBase::initialize() {
+  LARGE_INTEGER temp; QueryPerformanceFrequency(&temp);
+  s_frequency = temp.QuadPart > 0 ? temp.QuadPart : 1;
 
   s_SecondsPerTick      = 1.0 /  s_frequency;
   s_MillisecondsPerTick = 1.0 / (s_frequency * 0.001);

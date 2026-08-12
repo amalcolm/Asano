@@ -37,7 +37,8 @@ public:
       ON  = 1,
       SINGLE_STATE = 2, // for testing a single state without offtime restrictions, set DEBUG_MODE to "SINGLE_STATE"
     };
-    inline static DebugMode debugMode = DebugMode::ON;
+    inline static DebugMode debugMode = DebugMode::SINGLE_STATE; // default debug mode, can be changed at runtime
+    inline static char DEBUG_MODE[16] = "SINGLE_STATE"; // string representation of the debug mode, for USB XCMD headers
 
     static void setDebugMode(DebugMode mode) {
       debugMode = mode;
@@ -59,7 +60,6 @@ public:
 
   private:
     inline static uint32_t _u(CommandFlags flag) { return static_cast<uint32_t>(flag); } 
-    inline static char DEBUG_MODE[16] = "ON";
 
 };
 

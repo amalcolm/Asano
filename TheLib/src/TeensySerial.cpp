@@ -4,8 +4,6 @@
 
 namespace TheLib
 {
-	Int64 TeensySerial::s_nextConfigOwnerToken = 0;
-	Int64 TeensySerial::s_legacyConfigOwnerToken = 0;
 
 	TeensySerial::TeensySerial() :  SerialHelper(CallbackPolicy::Queued)
 	{
