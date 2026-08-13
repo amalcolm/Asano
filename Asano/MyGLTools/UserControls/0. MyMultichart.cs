@@ -100,7 +100,7 @@ namespace Asano.MyGLTools.UserControls
             _dataHoldSettleMilliseconds = Math.Max(1, milliseconds);
             lock (_lock)
                 _expectedRebuildStates = expectedStates is { Count: > 0 }
-                    ? new HashSet<HeadState>(expectedStates)
+                    ? [.. expectedStates]
                     : null;
             MyScheduler.IsPaused = true;
             MyScheduler.IsFrozen = true;
@@ -227,7 +227,7 @@ namespace Asano.MyGLTools.UserControls
 
 
 
-        private void RefreshSingleStateMode() => SingleStateMode = Config.DEBUG_MODE == "SINGLE_STATE";
+        private void RefreshSingleStateMode() => SingleStateMode = Config.DEBUG_MODE == DebugMode.SINGLE_STATE;
 
         private void ParsedParametersReceived(Dictionary<string, double> data)
         {

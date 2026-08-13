@@ -149,7 +149,7 @@ void CSerialWrapper::writeHandshakeResponse() {
   writeHandshakeLine("MAX_BLOCKSIZE=%lu", CFG::MAX_BLOCKSIZE);
   writeHandshakeLine("MAX_EVENTS_PER_BLOCK=%lu", CFG::MAX_EVENTS_PER_BLOCK);
   writeHandshakeLine("DEVICE_VERSION=%s", CFG::DEVICE_VERSION);
-  writeHandshakeLine("DEBUG_MODE=%s", CFG::getDebugModeStr());
+  writeHandshakeLine("DEBUG_MODE=%s", CFG::getDebugModeString());
   writeHandshakeLine("COMMAND_FLAGS=%lu", static_cast<unsigned long>(CFG::commandFlags));
   writeHandshakeLine("MAX_SEQUENCE_STATES=%u", static_cast<unsigned>(XCMD_SetSequence::MAX_STATES));
 

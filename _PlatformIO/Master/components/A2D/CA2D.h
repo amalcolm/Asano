@@ -40,6 +40,7 @@ class CA2D {
     
     inline bool tryAddEvent(const enum EventKind kind, double time = -1.0) { return m_pBlockToFill->tryAddEvent(kind, time); }
     inline double getPollDuration() const { return m_raPollDuration.getAverage(); }
+    void   read24bitData();
 
   private:
     void      configure_ADS1299();

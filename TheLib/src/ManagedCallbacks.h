@@ -68,7 +68,7 @@ namespace TheLib
 
     public:
         // Register shared raiser pools once for the managed type.
-        ManagedCallbacks();
+        static ManagedCallbacks();
 
         ManagedCallbacks(CallbackPolicy policy);
 

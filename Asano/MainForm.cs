@@ -2,7 +2,6 @@ using Timer = System.Windows.Forms.Timer;
 
 namespace Asano
 {
-    using Asano.MyGLTools.Helpers;
     using Asano.MyGLTools.UserControls;
     using TheLib;
 
@@ -11,7 +10,8 @@ namespace Asano
         private bool _closeStarted;
         private bool _closeRequestedFromDataForm;
         private bool _shutdownComplete;
-
+        private const string PortsNotFound = "Device not found";
+        
         public MainForm()
         {
             InitializeComponent();
@@ -105,7 +105,7 @@ namespace Asano
 
         private void cbPorts_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (cbPorts.SelectedItem == null || cbPorts.SelectedItem.ToString() == "No ports found") return;
+            if (cbPorts.SelectedItem == null || cbPorts.SelectedItem.ToString() == PortsNotFound) return;
 
             Program.SerialPort?.Open(cbPorts.SelectedItem.ToString());
         }
@@ -155,7 +155,7 @@ namespace Asano
 
 
                 cbPorts.Items.Clear();
-                cbPorts.Items.Add("No ports found");
+                cbPorts.Items.Add(PortsNotFound);
                 cbPorts.SelectedIndex = 0;
 
                 monitorTimer.Start();

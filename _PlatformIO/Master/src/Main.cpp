@@ -8,6 +8,8 @@
 void setup() {
   activityLED.set();
 
+  CFG::setDebugMode(CFG::DebugMode::SINGLE_STATE); // Set debug mode to MASTER for testing
+
   Head.setSequence( {
 //  Head.RED8, Head.IR8             // States defined in CHead.h, also includes ALL_ON / ALL_OFF
 //  zTest.FullTest,                 // Can use predefined sequences from ZTests.h
@@ -33,6 +35,9 @@ void loop() {
    return;
 
   USB.update();                     // Send USB data from the previous state
+
+//  if (CFG::isMasterMode())
+//    A2D.read24bitData();
 
   Head.waitForReady();              // Wait until Head is ready AND sets A2D to start reading
 

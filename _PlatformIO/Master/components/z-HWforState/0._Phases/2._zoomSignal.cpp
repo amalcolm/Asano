@@ -48,7 +48,7 @@ void HWforState::_zoomSignal() {
     balance.finish = true;
     delayMicroseconds(10);
 
-    if (CFG::debugMode == CFG::DebugMode::SINGLE_STATE)
+    if (CFG::getDebugMode() == CFG::DebugMode::SINGLE_STATE)
       USB.printf("Noise found... reducing gain to: %d\n", gain.getLevel());
     return;
   }

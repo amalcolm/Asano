@@ -6,7 +6,7 @@ enum class CommandFlags : uint32_t;
 class CFG {
 public:
 
-    inline static constexpr bool ADS1299_USE_24BIT = false; // if false, use 10-bit mode TEENSY 4.1 sensors
+    inline static           bool   ADS1299_USE_24BIT = false; // if false, use 10-bit mode TEENSY 4.1 sensors
 
     // hardware timing constants (in microseconds / hertz)
     inline static constexpr double STATE_DURATION_uS       =  4'000;  // time for each state. loop will be slightly longer than this
@@ -28,30 +28,41 @@ public:
     inline static constexpr uint32_t MAX_EVENTS_PER_BLOCK  =    400;  // max number of EventType entries in a BlockType
 
     
-    inline static constexpr char DEVICE_VERSION[]  = "0.1.5+" BUILD_STR;  // this is a #define from the build system
+    inline static constexpr char DEVICE_VERSION[]  = "0.1.6+" BUILD_STR;  // this is a #define from the build system
     inline static constexpr char DEVICE_NAME[]     = "fNIRS (Teensy 4.1)";
     inline static           char HOST_VERSION[16]  = "[unknown]";
 
-     enum class DebugMode : uint8_t {
+    enum class DebugMode : uint8_t {
       OFF = 0,
       ON  = 1,
-      SINGLE_STATE = 2, // for testing a single state without offtime restrictions, set DEBUG_MODE to "SINGLE_STATE"
-    };
-    inline static DebugMode debugMode = DebugMode::SINGLE_STATE; // default debug mode, can be changed at runtime
-    inline static char DEBUG_MODE[16] = "SINGLE_STATE"; // string representation of the debug mode, for USB XCMD headers
+      SINGLE_STATE = 2, 
 
-    static void setDebugMode(DebugMode mode) {
-      debugMode = mode;
-      switch (mode) {
-        case DebugMode::OFF:          strcpy(DEBUG_MODE, "OFF"); break;
-        case DebugMode::ON:           strcpy(DEBUG_MODE, "ON"); break;
-        case DebugMode::SINGLE_STATE: strcpy(DEBUG_MODE, "SINGLE_STATE"); break;
+      MASTER = 10, // for testing with another Teensy
+      TESTER1 = 11,
+
+      none = 255
+    };
+
+    
+
+    static void setDebugMode(DebugMode mode) { debugMode = mode; }
+    static DebugMode getDebugMode() { return debugMode; }
+
+    static const char* getDebugModeString() {
+      switch (debugMode) {
+        case DebugMode::OFF:          return "OFF";
+        case DebugMode::ON:           return "ON";
+        case DebugMode::SINGLE_STATE: return "SINGLE_STATE";
+        case DebugMode::MASTER:       return "MASTER";
+        case DebugMode::TESTER1:      return "TESTER1";
+        case DebugMode::none:         return "NONE";
+        default:                      return "UNKNOWN";
       }
     }
 
-    inline static char* getDebugModeStr() { return DEBUG_MODE; }
     inline static bool isSingleStateMode() { return debugMode == DebugMode::SINGLE_STATE; }
     inline static bool isDebugMode() { return debugMode != DebugMode::OFF; }
+    inline static bool isMasterMode() { return debugMode == DebugMode::MASTER; }
 
     inline static CommandFlags commandFlags{}; // bitfield for various command options, set in USB XCMD headers
     inline static bool    hasCommandFlag(CommandFlags flag) { return (_u(commandFlags) &  _u(flag)) != 0; }
@@ -60,7 +71,7 @@ public:
 
   private:
     inline static uint32_t _u(CommandFlags flag) { return static_cast<uint32_t>(flag); } 
-
+    inline static DebugMode debugMode = DebugMode::none;
 };
 
 

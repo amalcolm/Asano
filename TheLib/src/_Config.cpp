@@ -249,9 +249,26 @@ namespace TheLib
         MAX_BLOCKSIZE         = config->MAX_BLOCKSIZE;
         MAX_EVENTS_PER_BLOCK  = config->MAX_EVENTS_PER_BLOCK;
         MAX_SEQUENCE_STATES   = config->MAX_SEQUENCE_STATES;
-        DEBUG_MODE            = config->DEBUG_MODE;
         COMMAND_FLAGS         = config->COMMAND_FLAGS;
         DeviceVersion         = config->DeviceVersion;
+
+        if (config->DEBUG_MODE == nullptr)
+        {
+            DEBUG_MODE = DebugMode::none;
+        }
+        else
+        {
+            String^ debugModeStr = config->DEBUG_MODE->ToUpperInvariant();
+
+                 if (debugModeStr->Equals("OFF"))          DEBUG_MODE = DebugMode::OFF;
+            else if (debugModeStr->Equals("ON"))           DEBUG_MODE = DebugMode::ON;
+            else if (debugModeStr->Equals("SINGLE_STATE")) DEBUG_MODE = DebugMode::SINGLE_STATE;
+            else if (debugModeStr->Equals("MASTER"))       DEBUG_MODE = DebugMode::MASTER;
+            else if (debugModeStr->Equals("TESTER1"))      DEBUG_MODE = DebugMode::TESTER1;
+			else if (debugModeStr->Equals("NONE"))         DEBUG_MODE = DebugMode::none;
+			else
+                throw gcnew ArgumentException("Invalid DEBUG_MODE value: " + config->DEBUG_MODE);
+        }
 
         TEST_SEQUENCES->Clear();
         for each(HeadTestSequenceConfig^ sequence in config->TEST_SEQUENCES)

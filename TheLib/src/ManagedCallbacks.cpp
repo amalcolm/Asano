@@ -8,7 +8,7 @@ constexpr bool VERBOSE = false; // Set to true for verbose logging
 
 namespace TheLib
 {
-    ManagedCallbacks::ManagedCallbacks()
+    static ManagedCallbacks::ManagedCallbacks()
     {
         PoolRegistry::Register(DataEventRaiser::typeid, gcnew Action<IRaiser^>(&DataEventRaiser::Return));
         PoolRegistry::Register(ErrorEventRaiser::typeid, gcnew Action<IRaiser^>(&ErrorEventRaiser::Return));

@@ -157,12 +157,12 @@ namespace Asano.Caldera
 
         internal void HandlePacket(IPacket packet)
         {
-            switch (packet)
-            {
-                case NoisePacket noisePacket:
-                    // Handle noise packet if needed
-                    break;
-            }
+            // Handle noise packet if needed
+            // switch (packet)
+            // {
+            //     case NoisePacket noisePacket:
+            //         break;
+            // }
         }
 
         protected void SP_ConnectionChanged(ConnectionState state)
@@ -186,7 +186,7 @@ namespace Asano.Caldera
         private readonly BufferedPoster<WipersChangedMessage> _wipersPoster;
         private readonly BufferedPoster<VoltagesChangedMessage> _voltagesPoster;
         private readonly BufferedPoster<StateChangedMessage> _statePoster;
-        private static bool IsSingleStateMode => Config.DEBUG_MODE == "SINGLE_STATE";
+        private static bool IsSingleStateMode => Config.DEBUG_MODE == DebugMode.SINGLE_STATE;
 
         public bool PostWipersChange(WipersChangedMessage wipers, bool force = false)
             => PostToViews(caldera => caldera._wipersPoster.Post(wipers, force));
@@ -292,7 +292,7 @@ namespace Asano.Caldera
                     .Select(sequence => new
                     {
                         name = sequence.Name,
-                        states = sequence.States ?? Array.Empty<uint>(),
+                        states = sequence.States ?? [],
                     })
                     .ToArray(),
             });
@@ -434,10 +434,10 @@ namespace Asano.Caldera
             var virtualScreen = SystemInformation.VirtualScreen;
             var x = (int)Math.Clamp(Math.Round(screenX), virtualScreen.Left, virtualScreen.Right - 1);
             var y = (int)Math.Clamp(Math.Round(screenY), virtualScreen.Top, virtualScreen.Bottom - 1);
-            Action moveCursor = () =>
+            void moveCursor()
             {
-                System.Windows.Forms.Cursor.Position = new Point(x, y);
-            };
+                Cursor.Position = new Point(x, y);
+            }
 
             if (Control.InvokeRequired)
                 Control.BeginInvoke(moveCursor);

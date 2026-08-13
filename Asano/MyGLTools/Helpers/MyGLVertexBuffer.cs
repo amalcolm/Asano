@@ -175,7 +175,6 @@ namespace Asano.MyGLTools.Helpers
                 }
             }
         }
-
         private float[] _latestX = new float[16];
         private int _latestXCount;
 

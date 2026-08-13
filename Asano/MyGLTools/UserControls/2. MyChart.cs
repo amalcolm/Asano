@@ -40,16 +40,10 @@ namespace Asano.MyGLTools.UserControls
 
         private LabelAreaRenderer? _labelAreaRenderer;
 
-        private readonly struct ColouredTextBlock
+        private readonly struct ColouredTextBlock(TextBlock block, Color colour)
         {
-            public ColouredTextBlock(TextBlock block, Color colour)
-            {
-                Block = block;
-                Colour = colour;
-            }
-
-            public TextBlock Block { get; }
-            public Color Colour { get; }
+            public TextBlock Block { get; } = block;
+            public Color Colour { get; } = colour;
         }
 
         struct DataSelectorInfo
@@ -239,7 +233,7 @@ namespace Asano.MyGLTools.UserControls
 
             if (packet.Count == 0) return;
 
-            bool singleStateMode = Config.DEBUG_MODE == "SINGLE_STATE";
+            bool singleStateMode = Config.DEBUG_MODE == DebugMode.SINGLE_STATE;
             uint labelState = (uint)packet  .State;
             uint state = singleStateMode ? SingleStateKey : labelState;
 
