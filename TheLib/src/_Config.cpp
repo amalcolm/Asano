@@ -132,6 +132,12 @@ namespace
                 else if (double::TryParse(value, n))
                     field->SetValue(target, static_cast<Int32>(n));
             }
+            else if (field->FieldType->IsEnum)
+            {
+                Object^ parsed = Enum::Parse(field->FieldType, value, true);
+                if (Enum::IsDefined(field->FieldType, parsed))
+                    field->SetValue(target, parsed);
+            }
         }
         catch (Exception^ ex)
         {
@@ -263,11 +269,25 @@ namespace TheLib
                  if (debugModeStr->Equals("OFF"))          DEBUG_MODE = DebugMode::OFF;
             else if (debugModeStr->Equals("ON"))           DEBUG_MODE = DebugMode::ON;
             else if (debugModeStr->Equals("SINGLE_STATE")) DEBUG_MODE = DebugMode::SINGLE_STATE;
-            else if (debugModeStr->Equals("MASTER"))       DEBUG_MODE = DebugMode::MASTER;
-            else if (debugModeStr->Equals("TESTER1"))      DEBUG_MODE = DebugMode::TESTER1;
-			else if (debugModeStr->Equals("NONE"))         DEBUG_MODE = DebugMode::none;
-			else
+            else if (debugModeStr->Equals("NONE"))         DEBUG_MODE = DebugMode::none;
+            else
                 throw gcnew ArgumentException("Invalid DEBUG_MODE value: " + config->DEBUG_MODE);
+        }
+
+        if (config->DEVICE_ROLE == nullptr)
+        {
+            DEVICE_ROLE = DeviceRole::none;
+        }
+        else
+        {
+            String^ deviceRoleStr = config->DEVICE_ROLE->ToUpperInvariant();
+
+                 if (deviceRoleStr->Equals("STANDALONE")) DEVICE_ROLE = DeviceRole::STANDALONE;
+            else if (deviceRoleStr->Equals("MASTER"))     DEVICE_ROLE = DeviceRole::MASTER;
+            else if (deviceRoleStr->Equals("TESTER1"))    DEVICE_ROLE = DeviceRole::TESTER1;
+            else if (deviceRoleStr->Equals("NONE"))       DEVICE_ROLE = DeviceRole::none;
+            else
+                throw gcnew ArgumentException("Invalid DEVICE_ROLE value: " + config->DEVICE_ROLE);
         }
 
         TEST_SEQUENCES->Clear();

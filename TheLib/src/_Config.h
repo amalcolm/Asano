@@ -28,6 +28,11 @@ namespace TheLib
         OFF = 0,
         ON = 1,
         SINGLE_STATE = 2,
+        none = 255
+    };
+
+    public enum class DeviceRole {
+        STANDALONE = 0,
 
         MASTER = 10, // for testing with another Teensy
         TESTER1 = 11,
@@ -49,6 +54,7 @@ namespace TheLib
         UInt32 MAX_EVENTS_PER_BLOCK  =   400;
         UInt32 MAX_SEQUENCE_STATES   =    64;
         String^ DEBUG_MODE           = "OFF";
+        String^ DEVICE_ROLE          = "STANDALONE";
         UInt32 COMMAND_FLAGS         =     0;
         List<HeadTestSequenceConfig^>^ TEST_SEQUENCES;
         String^ DeviceVersion        = String::Empty;
@@ -66,9 +72,10 @@ namespace TheLib
         static UInt32     A2D_SAMPLING_SPEED_Hz =  2'000;  // A2D sampling speed
         static UInt32     A2D_READING_PERIOD_uS =    900;  // A2D reading speed when in triggered mode
         static UInt32     MAX_BLOCKSIZE         =    164;  // max number of DataType entries in a BlockType
-		static UInt32     MAX_EVENTS_PER_BLOCK  =    400;  // max number of EventType entries in a BlockType
+        static UInt32     MAX_EVENTS_PER_BLOCK  =    400;  // max number of EventType entries in a BlockType
         static UInt32     MAX_SEQUENCE_STATES   =     64;  // max number of states in a sequence command
         static DebugMode  DEBUG_MODE            =  DebugMode::OFF;  // "OFF", "SINGLE_STATE"
+        static DeviceRole DEVICE_ROLE           =  DeviceRole::STANDALONE;
         static UInt32     COMMAND_FLAGS         =      0;  // command flags last reported by the device
         static List<HeadTestSequenceConfig^>^ TEST_SEQUENCES = gcnew List<HeadTestSequenceConfig^>();
 

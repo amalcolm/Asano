@@ -108,10 +108,12 @@ bool CA2D::storeNewData() {
 
 void CA2D::read24bitData() {
   DataType data(Head.getState());  // sets timestamp and stateTime
+  ReadState prevState = m_ReadState;
+  m_ReadState = ReadState::READ;  
   readADS1299(data);
   if (m_mode == ModeType::CONTINUOUS) data.stateTime = m_dataStateTime;
-
   m_pBlockToFill->tryAdd(data);
+  m_ReadState = prevState;
 }
 
 

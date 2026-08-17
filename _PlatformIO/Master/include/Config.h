@@ -6,7 +6,7 @@ enum class CommandFlags : uint32_t;
 class CFG {
 public:
 
-    inline static           bool   ADS1299_USE_24BIT = false; // if false, use 10-bit mode TEENSY 4.1 sensors
+    inline static           bool   ADS1299_USE_24BIT       =  false; // if false, use 10-bit mode TEENSY 4.1 sensors
 
     // hardware timing constants (in microseconds / hertz)
     inline static constexpr double STATE_DURATION_uS       =  4'000;  // time for each state. loop will be slightly longer than this
@@ -16,7 +16,7 @@ public:
     inline static constexpr double POT_UPDATE_OFFSET_uS    =      0;  // A2D -> Potentiometer update offset, minimizes interference
 
     
-    // A2D configuration
+    // 24bit A2D configuration
     inline static constexpr bool   A2D_USE_CONTINUOUS_MODE =  false;  // use continuous A2D mode; else triggered mode with interrupts
     inline static constexpr double A2D_SAMPLING_SPEED_Hz   =  2'000;  // A2D sampling speed set in CONFIG1 register
 
@@ -35,7 +35,12 @@ public:
     enum class DebugMode : uint8_t {
       OFF = 0,
       ON  = 1,
-      SINGLE_STATE = 2, 
+      SINGLE_STATE = 2,
+      none = 255, 
+    };
+
+    enum class DeviceRole : uint8_t {
+      STANDALONE = 0, // default, normal role
 
       MASTER = 10, // for testing with another Teensy
       TESTER1 = 11,
@@ -48,21 +53,33 @@ public:
     static void setDebugMode(DebugMode mode) { debugMode = mode; }
     static DebugMode getDebugMode() { return debugMode; }
 
+    static void setDeviceRole(DeviceRole role) { debugRole = role; }
+    static DeviceRole getDeviceRole() { return debugRole; }
+
     static const char* getDebugModeString() {
       switch (debugMode) {
         case DebugMode::OFF:          return "OFF";
         case DebugMode::ON:           return "ON";
         case DebugMode::SINGLE_STATE: return "SINGLE_STATE";
-        case DebugMode::MASTER:       return "MASTER";
-        case DebugMode::TESTER1:      return "TESTER1";
         case DebugMode::none:         return "NONE";
         default:                      return "UNKNOWN";
       }
     }
 
+    static const char* getDeviceRoleString() {
+      switch (debugRole) {
+        case DeviceRole::STANDALONE: return "STANDALONE";
+        case DeviceRole::MASTER:     return "MASTER";
+        case DeviceRole::TESTER1:    return "TESTER1";
+        case DeviceRole::none:       return "NONE";
+        default:                     return "UNKNOWN";
+      }
+    } 
+
     inline static bool isSingleStateMode() { return debugMode == DebugMode::SINGLE_STATE; }
     inline static bool isDebugMode() { return debugMode != DebugMode::OFF; }
-    inline static bool isMasterMode() { return debugMode == DebugMode::MASTER; }
+    inline static bool isMaster() { return debugRole == DeviceRole::MASTER; }
+    inline static int  isTester() { return debugRole == DeviceRole::TESTER1 ? 1 : 0; }
 
     inline static CommandFlags commandFlags{}; // bitfield for various command options, set in USB XCMD headers
     inline static bool    hasCommandFlag(CommandFlags flag) { return (_u(commandFlags) &  _u(flag)) != 0; }
@@ -72,6 +89,7 @@ public:
   private:
     inline static uint32_t _u(CommandFlags flag) { return static_cast<uint32_t>(flag); } 
     inline static DebugMode debugMode = DebugMode::none;
+    inline static DeviceRole debugRole = DeviceRole::STANDALONE;
 };
 
 

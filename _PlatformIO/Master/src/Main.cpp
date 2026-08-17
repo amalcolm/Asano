@@ -8,7 +8,7 @@
 void setup() {
   activityLED.set();
 
-  CFG::setDebugMode(CFG::DebugMode::SINGLE_STATE); // Set debug mode to MASTER for testing
+  CFG::setDeviceRole(CFG::DeviceRole::MASTER); // Set device role for testing with another Tennsy.
 
   Head.setSequence( {
 //  Head.RED8, Head.IR8             // States defined in CHead.h, also includes ALL_ON / ALL_OFF
@@ -36,8 +36,8 @@ void loop() {
 
   USB.update();                     // Send USB data from the previous state
 
-//  if (CFG::isMasterMode())
-//    A2D.read24bitData();
+  if (CFG::isMaster())
+    A2D.read24bitData();
 
   Head.waitForReady();              // Wait until Head is ready AND sets A2D to start reading
 
