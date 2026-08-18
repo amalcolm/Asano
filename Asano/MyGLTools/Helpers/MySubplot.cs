@@ -92,11 +92,11 @@ namespace Asano.MyGLTools.Helpers
 
         public void SetBlock(BlockPacket block)
         {
-            _waveBuffer_C0 .SetSubPlotData(block, FieldEnum.C0     , _C0_Scale);
-            _waveBuffer_PG .SetSubPlotData(block, FieldEnum.Sensor2, _PG_Scale);
-            _waveBuffer_EV .SetSubPlotData(block, FieldEnum.Events , 1.0);
+            _waveBuffer_C0 .SetSubPlotData(block, null             , 0, _C0_Scale);
+            _waveBuffer_PG .SetSubPlotData(block, FieldEnum.Sensor2,-1, _PG_Scale);
+            _waveBuffer_EV .SetSubPlotData(block, FieldEnum.Events ,-1, 1.0);
 
-            _waveBuffer_TMP.SetSubPlotData(block, FieldEnum.Sensor1, 1.0);
+            _waveBuffer_TMP.SetSubPlotData(block, FieldEnum.Sensor1,-1, 1.0);
 
             SetDataMeasures(block);
         }

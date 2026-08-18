@@ -55,7 +55,7 @@ namespace TheLib
     public enum class FieldEnum
     {
         Timestamp,
-        C0,
+		C0, C1, C2, C3, C4, C5, C6, C7,
         Events,
 
         Mid,
@@ -113,6 +113,13 @@ namespace TheLib
             switch (field) {
                 case FieldEnum::Timestamp:  return StateTime;
                 case FieldEnum::C0:         return Channel[0];
+				case FieldEnum::C1:         return Channel[1];
+				case FieldEnum::C2:         return Channel[2];
+				case FieldEnum::C3:         return Channel[3];
+				case FieldEnum::C4:         return Channel[4];
+				case FieldEnum::C5:         return Channel[5];
+				case FieldEnum::C6:         return Channel[6];
+				case FieldEnum::C7:         return Channel[7];
 				case FieldEnum::Top:        return Top;
 				case FieldEnum::Bot:        return Bot;
                 case FieldEnum::Mid:        return Mid;

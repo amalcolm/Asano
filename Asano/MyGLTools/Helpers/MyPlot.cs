@@ -15,7 +15,8 @@ namespace Asano.MyGLTools.Helpers
         public double     XCounter { get; set;         } = 0.0; // -Math.Pow(2, 20) + 2; // X value counter, for signals without timestamps
                                                                                  // Starts at a large negative value to avoid issues with float precision with ++;
         public bool       Visible  { get; set;         } = true;
-        public FieldEnum? Selector { get; set;         } = null;
+        public FieldEnum? Selector { get; set;         } = null;  
+        public int        Channel  { get; set;         } = -1;     // for multi-channel data, which channel to plot  
 
         public bool AutoScaling { get; set; } = false;
         public bool SharedScaling { get; set; } = false;
@@ -125,7 +126,7 @@ namespace Asano.MyGLTools.Helpers
             if (Selector == null)
                 SetSubplot(block);
 
-            _bufMainPlot.AddBlock(ref block, Selector, onlyLast:true); // only plot last point in block
+            _bufMainPlot.AddBlock(ref block, Selector, Channel, onlyLast:true); // only plot last point in block
 
             LastX = (float)block.BlockData[block.Count - 1].TimeStamp;
         }

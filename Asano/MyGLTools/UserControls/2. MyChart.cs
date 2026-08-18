@@ -46,11 +46,12 @@ namespace Asano.MyGLTools.UserControls
             public Color Colour { get; } = colour;
         }
 
-        struct DataSelectorInfo
+        public struct DataSelectorInfo
         {
-            public string    Name;
-            public FieldEnum Selector;
-            public uint      AdditionalMask;
+            public string     Name;
+            public FieldEnum? Selector;
+            public int        Channel;
+            public uint       AdditionalMask;
         }
 
         static readonly List<DataSelectorInfo> dataSelectorsToOutput = [];
@@ -60,6 +61,7 @@ namespace Asano.MyGLTools.UserControls
         private readonly object _lock = new();
 
         static readonly string[] dataFieldsToPlot = [
+            "C0", "C1", "C2", "C3", "C4", "C5", "C6",
 //            "Top"   , "Bot" , "Mid",
 //            "Offset", "Gain",
               "RawSensor1", // "Sensor1",
@@ -67,6 +69,7 @@ namespace Asano.MyGLTools.UserControls
             ];
 
         static readonly string[] dataFieldsForLabels = [
+              "C0", "C1", "C2", "C3", "C4", "C5", "C6",
               "Top"   , "Bot" , "Mid",
               "Offset", "Gain",
               "RawSensor1", // "Sensor1",
@@ -176,26 +179,45 @@ namespace Asano.MyGLTools.UserControls
                 .Distinct()
                 .ToArray();
 
+            var channelProperty = properties.FirstOrDefault(p => p.Name == "Channel");
+
             for (uint count = 1; count <= allDataFields.Length; count++)
             {
-                
-                var match = properties.Where(p => p.Name == allDataFields[count - 1]);
-                if (!match.Any()) throw new Exception($"Invalid field name '{allDataFields[count - 1]}'.");
+                ref string fieldName = ref allDataFields[count - 1];
+                PropertyInfo? property = null;
+                FieldEnum? field;
+                int channelIndex = -1;
+                if (fieldName[0] == 'C' && fieldName.Length == 2 && char.IsDigit(fieldName[1]))
+                {
+                    property = channelProperty;
+                    channelIndex = fieldName[1] - '0';   if (channelIndex == 0) continue;
+                                                         if (channelIndex < 0 || channelIndex > 7) throw new Exception($"Invalid channel index '{fieldName[1]}' in field name '{fieldName}'.");
+                    field = null;
+                }
+                else
+                {
+                    var match = properties.Where(p => p.Name == allDataFields[count - 1]);
+                    if (!match.Any()) throw new Exception($"Invalid field name '{allDataFields[count - 1]}'.");
 
-                var property = match.First();
-                if (Enum.TryParse<FieldEnum>(property.Name, ignoreCase: true, out var field) == false) continue;
+                    property = match.First();
+                    if (Enum.TryParse(property.Name, ignoreCase: true, out FieldEnum f) == false) continue;
+                    field = f;
+                }
+
+                if (property == null) throw new Exception($"Property for field '{fieldName}' not found.");
 
                 var dsInfo = new DataSelectorInfo
                 {
                     Name = property.Name,
                     Selector = field,
+                    Channel = channelIndex,
                     AdditionalMask = count << 12 // 12 > number of red LEDs.  top bit < 16 (IR1) so as not to overlap state bits
                 };
 
                 dataSelectorsToOutput.Add(dsInfo); // for latest values tracking, which handles both plots and labels
 
-                if (dataFieldsToPlot   .Contains(property.Name)) dataSelectorsToPlot   .Add(dsInfo);
-                if (dataFieldsForLabels.Contains(property.Name)) dataSelectorsForLabels.Add(dsInfo);
+                if (dataFieldsToPlot   .Contains(fieldName)) dataSelectorsToPlot   .Add(dsInfo);
+                if (dataFieldsForLabels.Contains(fieldName)) dataSelectorsForLabels.Add(dsInfo);
             }
 
             this.Resize += (s, e) =>
@@ -243,15 +265,16 @@ namespace Asano.MyGLTools.UserControls
                     if (Plots.ContainsKey(state) == false)
                         if (TestAndSetPending(state) == false)
                         {
-                            AddPlotWithLabelColour(state, new MyPlot(WindowSize, this), MyColour.GetFieldColour(FieldEnum.C0));
+                            AddPlotWithLabelColour(state, new MyPlot(WindowSize, this) { Selector = null, Channel = 0 }, MyColour.GetFieldColour(null, 0));
 
                             foreach (var info in dataSelectorsToPlot)
                                 AddPlotWithLabelColour(state | info.AdditionalMask, new MyPlot(WindowSize, this)
                                 {
                                     Yscale = 1.0,
                                     Colour = MyColour.GetNextColour(),
-                                    Selector = info.Selector
-                                }, MyColour.GetFieldColour(info.Selector));
+                                    Selector = info.Selector,
+                                    Channel = info.Channel
+                                }, MyColour.GetFieldColour(info));
                         }
                         else
                             return;
@@ -271,10 +294,17 @@ namespace Asano.MyGLTools.UserControls
             if (updateLabels)
             {
                 string description = packet.State.Description();
-                CreateOrUpdateTextBlocksForLabel(state, description + " A2D %", "0.0%");
+                CreateOrUpdateTextBlocksForLabel(state, $"{description} A2D C0", "0.0V");
 
                 foreach (var info in dataSelectorsForLabels)
-                    CreateOrUpdateTextBlocksForLabel(state | info.AdditionalMask, description + " " + info.Name, "F2");
+                {
+                    uint flag = state | info.AdditionalMask;
+
+                    if (info.Channel > 0)
+                        CreateOrUpdateTextBlocksForLabel(flag, $"{description} A2D C{info.Channel}", "0");
+                    else
+                        CreateOrUpdateTextBlocksForLabel(flag, $"{description} {info.Name}", "F2");
+                }
 
                 if (singleStateMode)
                     _lastSingleStateLabelState = labelState;
@@ -284,15 +314,24 @@ namespace Asano.MyGLTools.UserControls
 
             if (packet.Count > 0)
             {
-                ref DataPacket data = ref packet.BlockData[packet.Count - 1];
+                ref DataPacket firstData = ref packet.BlockData[0];
+                ref DataPacket lastData = ref packet.BlockData[packet.Count - 1];
 
-                float c0_percentage = (float)(data.Channel[0] * 100.0 * Config.ChannelScale);
 
                 lock (_lock)
                 {
-                    _latestValues[state] = c0_percentage;
+                    _latestValues[state] = firstData.Channel[0];
                     foreach (var info in dataSelectorsToOutput)
-                        _latestValues[state | info.AdditionalMask] = data.get(info.Selector);
+                    {
+                        double val = 0;
+
+                        if (info.Selector.HasValue)
+                            val = lastData.get(info.Selector.Value);
+                        else
+                            val = firstData.Channel[info.Channel];
+
+                        _latestValues[state | info.AdditionalMask] = val;
+                    }
 
                     LastWipersChange.CopyFrom(packet);
                     LastVoltagesChange.CopyFrom(packet);

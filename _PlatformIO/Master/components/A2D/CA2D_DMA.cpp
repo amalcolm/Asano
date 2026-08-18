@@ -16,7 +16,7 @@ void CA2D::init_DMA() {
 
 DataType CA2D::readADS1299(DataType &data) {
 
-  if (s_dmaActive) return DataType(DIRTY);
+  if (s_dmaActive) return DataType(Head.RED8);
 
   s_dmaActive = true;
 
@@ -36,7 +36,7 @@ DataType CA2D::readADS1299(DataType &data) {
 
   SPI.transfer(m_txBuffer, m_rxBuffer, 27, s_spiEvent);
 
-  data.fillFromHardware(*HW, false); 
+//  data.fillFromHardware(*HW, false); 
 
   while (s_dmaActive) yield(); // wait for DMA complete (CS.A2D raised in callback)
 

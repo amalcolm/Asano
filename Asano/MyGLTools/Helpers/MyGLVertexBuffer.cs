@@ -145,9 +145,9 @@ namespace Asano.MyGLTools.Helpers
 
         static readonly FieldEnum[] DoNotJoin = [FieldEnum.C0, FieldEnum.Sensor2];
 
-        public void AddBlock(ref BlockPacket packet, FieldEnum? selector, bool onlyLast)
+        public void AddBlock(ref BlockPacket packet, FieldEnum? selector, int channel, bool onlyLast)
         {
-            MyColour color = MyColour.GetFieldColour(selector ?? FieldEnum.C0);
+            MyColour color = MyColour.GetFieldColour(selector, channel);
 
             lock (_lock)
             {
@@ -163,10 +163,10 @@ namespace Asano.MyGLTools.Helpers
                     CheckSize();
 
                     float x = (float)packet.BlockData[i].TimeStamp;
-                    float y = (selector == null) ? (float)(packet.BlockData[i].Channel[0] * Config.C0to1024) 
+                    float y = (selector == null) ? (float)(packet.BlockData[0].Channel[channel] * Config.C0to1024)   // *** 0 reads MASTER
                                                  : (float)(packet.BlockData[i].get(selector.Value)         );
 
-                    if (y == 0.0f) y = -999.0f;
+                   if (y == 0.0f) y = -999.0f;
                     if (i == start && transparent) AddUnderLock(x, y, 0.0f, MyColour.Transparent);
 
                     AddUnderLock(x, y, 0.0f, color);
@@ -200,7 +200,7 @@ namespace Asano.MyGLTools.Helpers
 
 
         Vertex[] subPlotData = new Vertex[1024];
-        public void SetSubPlotData(BlockPacket packet, FieldEnum field, double scale)
+        public void SetSubPlotData(BlockPacket packet, FieldEnum? field, int channel, double scale)
         {
             if (subPlotData.Length < packet.Count)
                 subPlotData = new Vertex[packet.Count * 2];
@@ -222,12 +222,14 @@ namespace Asano.MyGLTools.Helpers
             }
 
 
-            MyColour colour = MyColour.GetFieldColour(field);
+            MyColour colour = MyColour.GetFieldColour(field, channel);
 
             int i = 0;
             while (i < packet.Count)
             {
-                double value = packet.BlockData[i].get(field) * scale;
+                double value = field.HasValue ? packet.BlockData[i].get(field.Value)
+                                              : packet.BlockData[i].Channel[channel];
+                value *= scale;
 
                 float x = (float)packet.BlockData[i].StateTime;
                 float y = (float)value;

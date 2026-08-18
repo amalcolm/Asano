@@ -38,8 +38,8 @@ void CA2D::configure_ADS1299() {
 
     // 5) channels: CH1 normal input, gain=1; others powered-down & shorted
     SPIwrite({ 0x45, 0x07,
-               0x00,                 // CH1SET: PD=0, GAIN=000 (x1), SRB2=0, MUX=000 (normal)
-               0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81  // CH2..CH8: PD=1, MUX=short
+               0x00, 0x00, 0x00, 0x00,  // CH1..CH4:SET: PD=0, GAIN=000 (x1), SRB2=0, MUX=000 (normal)
+               0x00, 0x00, 0x00, 0x81,  // CH5..CH8: PD=1, MUX=short
     });
 
     // 6) Start conversions, then enable RDATAC

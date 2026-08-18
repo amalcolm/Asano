@@ -1,4 +1,5 @@
-﻿using OpenTK.Mathematics;
+﻿using Asano.MyGLTools.UserControls;
+using OpenTK.Mathematics;
 using TheLib;
 
 namespace Asano.MyGLTools.Helpers
@@ -50,9 +51,18 @@ namespace Asano.MyGLTools.Helpers
         public static readonly MyColour Black   = Color.Black;
         public static readonly MyColour Transparent = new(0, 0, 0, 0);
 
-        public static MyColour GetFieldColour(FieldEnum field)
+        public static MyColour GetFieldColour(MyChart.DataSelectorInfo info)
+            => GetFieldColour(info.Selector, info.Channel);
+
+        public static MyColour GetFieldColour(FieldEnum? selector, int channel)
         {
-            return field switch
+            if (selector.HasValue == false)
+                return BaseColours[channel];
+
+            if (channel > 0)
+                return BaseColours[channel];
+
+            return selector.Value switch
             {
                 FieldEnum.C0             => BaseColours[0],
                 FieldEnum.Mid            => BaseColours[1],
