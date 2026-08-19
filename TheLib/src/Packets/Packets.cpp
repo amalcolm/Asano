@@ -43,7 +43,7 @@ namespace TheLib
 
     DataPacket::DataPacket()
     {
-        Channel = gcnew array<unsigned int>(8);
+        Channel = gcnew array<System::Int32>(8);
         Reset();
     }
 

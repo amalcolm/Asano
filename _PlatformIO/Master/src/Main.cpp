@@ -8,7 +8,8 @@
 void setup() {
   activityLED.set();
 
-  CFG::setDeviceRole(CFG::DeviceRole::MASTER); // Set device role for testing with another Tennsy.
+//  CFG::setDeviceRole(CFG::DeviceRole::MASTER); // Set device role for testing with another Tennsy.
+  CFG::setDebugMode(CFG::DebugMode::ON);  // Set debug mode for testing, can be OFF, ON, or SINGLE_STATE
 
   Head.setSequence( {
 //  Head.RED8, Head.IR8             // States defined in CHead.h, also includes ALL_ON / ALL_OFF

@@ -20,36 +20,43 @@ namespace TheLib::Packets
     {
     private:
         literal double Scalar = 3.3 / 1023.0;
+        bool _hasValue = false;
 
     public:
         [JsonPropertyName("sensor1")] property double Sensor1;
         [JsonPropertyName("sensor2")] property double Sensor2;
-        VoltageValues() { Sensor1 = 0.0; Sensor2 = 0.0; }
+        VoltageValues() { Reset(); }
 
-        void CopyFrom(BlockPacket^ block) {if (block == nullptr || block->Count <= 0 || block->BlockData == nullptr) return;
+        void Reset() { Sensor1 = -999.9; Sensor2 = -999.9; _hasValue = false; }
 
-            DataPacket^ data = block->BlockData[block->Count - 1];                              if (data == nullptr) return;
+        void CopyFrom(BlockPacket^ block) {if (block == nullptr || block->Count <= 0 || block->BlockData == nullptr) { Reset(); return; }
+
+            DataPacket^ data = block->BlockData[block->Count - 1];                              if (data == nullptr) { Reset(); return; }
 
             Sensor1 = data->Sensor1 * Scalar;
             Sensor2 = data->Sensor2 * Scalar;
+
+			_hasValue = true;
         }
-        void CopyFrom(VoltageValues^ other) { if (other == nullptr) return;
+        void CopyFrom(VoltageValues^ other) { if (other == nullptr) { Reset(); return; }
             Sensor1 = other->Sensor1;
             Sensor2 = other->Sensor2;
+            _hasValue = other->_hasValue;
         }
 
-        [JsonIgnore]  property bool IsValid { bool get() { return Sensor1 != 0.0f || Sensor2 != 0.0f; } }
+        [JsonIgnore]  property bool IsValid { bool get() { return _hasValue; } }
 
         virtual bool Equals(Object^ obj) override
         {
             VoltageValues^ other = dynamic_cast<VoltageValues^>(obj); if (other == nullptr) return false;
 
-            return Sensor1 == other->Sensor1 && Sensor2 == other->Sensor2;
+            return _hasValue == other->_hasValue &&Sensor1 == other->Sensor1 && Sensor2 == other->Sensor2;
         }
 
         virtual int GetHashCode() override
         {
             int hash = 17;
+            hash = hash * 31 + _hasValue.GetHashCode();
             hash = hash * 31 + Sensor1.GetHashCode();
             hash = hash * 31 + Sensor2.GetHashCode();
             return hash;
@@ -60,7 +67,7 @@ namespace TheLib::Packets
     public ref class WiperValues sealed
     {
     private:
-        bool _hasValues;
+        bool _hasValue;
 
     public:
         [JsonPropertyName("top"   )] property int Top;
@@ -69,11 +76,12 @@ namespace TheLib::Packets
         [JsonPropertyName("offset")] property int Offset;
         [JsonPropertyName("gain"  )] property int Gain;
 
-        WiperValues() { Top = 0; Bot = 0; Mid = 0; Offset = 0; Gain = 0; _hasValues = false; }
+        WiperValues() { Reset(); }
+        void Reset() { Top = -999; Bot = -999; Mid = -999; Offset = -999; Gain = -999; _hasValue = false; }
 
-        void CopyFrom(BlockPacket^ block) { if (block == nullptr || block->Count <= 0 || block->BlockData == nullptr) return;
+        void CopyFrom(BlockPacket^ block) { if (block == nullptr || block->Count <= 0 || block->BlockData == nullptr) { Reset(); return; }
 
-            DataPacket^ data = block->BlockData[block->Count - 1];                               if (data == nullptr) return;
+            DataPacket^ data = block->BlockData[block->Count - 1];                               if (data == nullptr) { Reset(); return; }
 
             Top    = data->Top;
             Bot    = data->Bot;
@@ -81,7 +89,7 @@ namespace TheLib::Packets
             Offset = data->Offset;
             Gain   = data->Gain;
 
-            _hasValues = true;
+            _hasValue = true;
         }
 
         void CopyFrom(WiperValues^ other) { if (other == nullptr) return;
@@ -92,10 +100,10 @@ namespace TheLib::Packets
             Offset = other->Offset;
             Gain   = other->Gain;
 
-            _hasValues = other->_hasValues;
+            _hasValue = other->_hasValue;
         }
 
-        [JsonIgnore] property bool IsValid { bool get() { return _hasValues; } }
+        [JsonIgnore] property bool IsValid { bool get() { return _hasValue; } }
 
         virtual bool Equals(Object^ obj) override
         {
@@ -129,7 +137,7 @@ namespace TheLib::Packets
         VoltagesChangedMessage() { _type = "voltagesChanged"; _cmdFlags = CommandFlags::None; _voltages = gcnew VoltageValues(); }
 
         [JsonPropertyName("type"    )] virtual property String^        Type     { String^        get() { return _type;     } void set(String^        value) {     _type = value; } }
-        [JsonPropertyName("cmdFlags")] virtual property CommandFlags   CMDflags { CommandFlags   get() { return _cmdFlags; } };
+        [JsonPropertyName("cmdFlags")] virtual property CommandFlags   CMDflags { CommandFlags   get() { return _cmdFlags; } }
         [JsonPropertyName("voltages")]         property VoltageValues^ Voltages { VoltageValues^ get() { return _voltages; } void set(VoltageValues^ value) { _voltages = value; } }
         void CopyFrom(BlockPacket^ block) { if (Voltages == nullptr) Voltages = gcnew VoltageValues();
 
@@ -137,8 +145,9 @@ namespace TheLib::Packets
 			_cmdFlags = CommandFlags::None;
         }
 
-        void CopyFrom(VoltagesChangedMessage^ other) { if (other == nullptr) return; if (Voltages == nullptr) Voltages = gcnew VoltageValues();
-
+        void CopyFrom(VoltagesChangedMessage^ other) { if (Voltages == nullptr) Voltages = gcnew VoltageValues();
+            if (other == nullptr) { Voltages->Reset(); return; }
+            
             Voltages->CopyFrom(other->Voltages);
             _cmdFlags = other->_cmdFlags;
         }
@@ -171,7 +180,7 @@ namespace TheLib::Packets
         WipersChangedMessage() { _type = "wipersChanged"; _cmdFlags = CommandFlags::None; _wipers = gcnew WiperValues(); }
 
         [JsonPropertyName("type"    )] virtual property String^      Type     { String^      get() { return _type;     } void set(String^      value) { _type   = value; } }
-        [JsonPropertyName("cmdFlags")] virtual property CommandFlags CMDflags { CommandFlags get() { return _cmdFlags; } };
+        [JsonPropertyName("cmdFlags")] virtual property CommandFlags CMDflags { CommandFlags get() { return _cmdFlags; } }
         [JsonPropertyName("wipers"  )]         property WiperValues^ Wipers   { WiperValues^ get() { return _wipers;   } void set(WiperValues^ value) { _wipers = value; } }
 
         void CopyFrom(BlockPacket^ block) { if (Wipers == nullptr) Wipers = gcnew WiperValues();
@@ -179,7 +188,9 @@ namespace TheLib::Packets
 			_cmdFlags = CommandFlags::None;
         }
 
-        void CopyFrom(WipersChangedMessage^ other) { if (other == nullptr) return; if (Wipers == nullptr) Wipers = gcnew WiperValues();
+        void CopyFrom(WipersChangedMessage^ other) { if (Wipers == nullptr) Wipers = gcnew WiperValues();
+            if (other == nullptr) { Wipers->Reset(); return;}
+
             Wipers->CopyFrom(other->Wipers);
 			_cmdFlags = other->_cmdFlags;
         }
@@ -210,16 +221,16 @@ namespace TheLib::Packets
     public:
         StateChangedMessage(HeadState state) { _type = "stateChanged"; _cmdFlags = CommandFlags::None; _state = state; }
         [JsonPropertyName("type"    )] virtual property String^      Type     { String^      get() { return _type;     } void set(String^      value) { _type     = value; } }
-        [JsonPropertyName("cmdFlags")] virtual property CommandFlags CMDflags { CommandFlags get() { return _cmdFlags; } void set(CommandFlags value) { _cmdFlags = value; } };
+        [JsonPropertyName("cmdFlags")] virtual property CommandFlags CMDflags { CommandFlags get() { return _cmdFlags; } void set(CommandFlags value) { _cmdFlags = value; } }
         [JsonPropertyName("state"   )]         property HeadState    State    { HeadState    get() { return _state;    } void set(HeadState    value) { _state    = value; } }
 
-        void CopyFrom(BlockPacket^ block) { if (block == nullptr || block->Count <= 0 || block->BlockData == nullptr) return;
-            DataPacket^ data = block->BlockData[block->Count - 1];                               if (data == nullptr) return;
+        void CopyFrom(BlockPacket^ block) { if (block == nullptr || block->Count <= 0 || block->BlockData == nullptr) { State = HeadState::UNSET; _cmdFlags = CommandFlags::None; return; }
+            DataPacket^ data = block->BlockData[block->Count - 1];                               if (data == nullptr) { State = HeadState::UNSET; _cmdFlags = CommandFlags::None; return; }
 			State = static_cast<HeadState>(data->State);
 			_cmdFlags = CommandFlags::None;
             }
 
-        void CopyFrom(StateChangedMessage^ other) { if (other == nullptr) return;
+        void CopyFrom(StateChangedMessage^ other) { if (other == nullptr) { State = HeadState::UNSET; _cmdFlags = CommandFlags::None; return; }
             State = other->State;
 			_cmdFlags = other->_cmdFlags;
         }

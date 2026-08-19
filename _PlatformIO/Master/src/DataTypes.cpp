@@ -7,7 +7,7 @@
 #include "Config.h"
 #include "HWforState.h"
 
-static constexpr uint32_t CHANNELS_BYTESIZE = NUM_CHANNELS * sizeof(int);
+static constexpr uint32_t CHANNELS_BYTESIZE = NUM_CHANNELS * sizeof(int32_t);
 
 
 DataType::DataType() 
@@ -85,7 +85,9 @@ void DataType::fillFromHardware(struct HWforState& HW, bool setTimestamp) {
 
   lightEnv = HW.sensor2.env();
 
-  memset(&channels[0], 0, CHANNELS_BYTESIZE);
+  if (Timer.sampleReady == false)
+    memset(&channels[0], 0, CHANNELS_BYTESIZE);
+  
 }
 
 

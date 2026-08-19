@@ -34,7 +34,7 @@ namespace
                                            + sizeof(double)                                    // Sensor1
                                            + sizeof(double)                                    // Sensor2
                                            + sizeof(double)                                    // lightEnvelope
-                                           + CDataPacket::A2D_NUM_CHANNELS * sizeof(uint32_t); // channel data
+                                           + CDataPacket::A2D_NUM_CHANNELS * sizeof(int32_t);  // channel data
 
     constexpr size_t kBlockEventSize       = sizeof(uint8_t)  // eventKind
                                    		   + sizeof(double);  // eventTimeStamp
@@ -463,8 +463,8 @@ namespace
             readDouble(rP, dp.Sensor2      ); rP += sizeof(double  );
             readDouble(rP, dp.lightEnvelope); rP += sizeof(double  );
 
-            for (size_t ch = 0; ch < CDataPacket::A2D_NUM_CHANNELS; ++ch, rP += sizeof(uint32_t))
-                readU32(rP, dp.channel[ch]);
+            for (size_t ch = 0; ch < CDataPacket::A2D_NUM_CHANNELS; ++ch, rP += sizeof(int32_t))
+                readI32(rP, dp.channel[ch]);
         }
 
         for (uint32_t i = 0; i < count; ++i)

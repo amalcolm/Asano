@@ -83,6 +83,8 @@ namespace TheLib
         static String^ DeviceVersion  = String::Empty;
         static double ChannelScale = 1.0 / 466010000.0;
         static double C0to1024     = 1.0 / 5000.0;
+		static double A2D_24bit_To_Volts = 4.5 / 0x7FFFFF;  // 24-bit A2D conversion factor to volts
+		static double A2D_24bit_To_1024 = 1024.0 / 0x7FFFFF;  // for graphing`
 
         static void ResetHandshakeConfig();
         static void ParseHandshakeResponse(System::String^ response);

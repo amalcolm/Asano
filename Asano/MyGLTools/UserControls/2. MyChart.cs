@@ -61,11 +61,11 @@ namespace Asano.MyGLTools.UserControls
         private readonly object _lock = new();
 
         static readonly string[] dataFieldsToPlot = [
-            "C0", "C1", "C2", "C3", "C4", "C5", "C6",
+              "C0", "C1", "C2", "C3", "C4", "C5", "C6",
 //            "Top"   , "Bot" , "Mid",
 //            "Offset", "Gain",
-              "RawSensor1", // "Sensor1",
-              "RawSensor2", // "Sensor2",
+//              "RawSensor1", // "Sensor1",
+//              "RawSensor2", // "Sensor2",
             ];
 
         static readonly string[] dataFieldsForLabels = [
@@ -198,7 +198,7 @@ namespace Asano.MyGLTools.UserControls
                 {
                     var match = properties.Where(p => p.Name == allDataFields[count - 1]);
                     if (!match.Any()) throw new Exception($"Invalid field name '{allDataFields[count - 1]}'.");
-
+                        
                     property = match.First();
                     if (Enum.TryParse(property.Name, ignoreCase: true, out FieldEnum f) == false) continue;
                     field = f;
@@ -293,15 +293,18 @@ namespace Asano.MyGLTools.UserControls
 
             if (updateLabels)
             {
+                const string SignedA2DValueFormat = "0.0000'V';-0.0000'V';0.0000'V'";
+                const string SignedA2DWidthSample = "-1.1234V";
+
                 string description = packet.State.Description();
-                CreateOrUpdateTextBlocksForLabel(state, $"{description} A2D C0", "0.0V");
+                CreateOrUpdateTextBlocksForLabel(state, $"{description} A2D C0", SignedA2DValueFormat, SignedA2DWidthSample);
 
                 foreach (var info in dataSelectorsForLabels)
                 {
                     uint flag = state | info.AdditionalMask;
 
                     if (info.Channel > 0)
-                        CreateOrUpdateTextBlocksForLabel(flag, $"{description} A2D C{info.Channel}", "0");
+                        CreateOrUpdateTextBlocksForLabel(flag, $"{description} A2D C{info.Channel}", SignedA2DValueFormat, SignedA2DWidthSample);
                     else
                         CreateOrUpdateTextBlocksForLabel(flag, $"{description} {info.Name}", "F2");
                 }
@@ -320,7 +323,7 @@ namespace Asano.MyGLTools.UserControls
 
                 lock (_lock)
                 {
-                    _latestValues[state] = firstData.Channel[0];
+                    _latestValues[state] = firstData.Channel[0] * Config.A2D_24bit_To_Volts;
                     foreach (var info in dataSelectorsToOutput)
                     {
                         double val = 0;
@@ -328,7 +331,7 @@ namespace Asano.MyGLTools.UserControls
                         if (info.Selector.HasValue)
                             val = lastData.get(info.Selector.Value);
                         else
-                            val = firstData.Channel[info.Channel];
+                            val = firstData.Channel[info.Channel] * Config.A2D_24bit_To_Volts;
 
                         _latestValues[state | info.AdditionalMask] = val;
                     }
@@ -338,7 +341,7 @@ namespace Asano.MyGLTools.UserControls
 
                     if (LastWipersChange.IsValid == false || LastVoltagesChange.IsValid == false)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Invalid WipersChangedMessage or VoltagesChangedMessage in MyChart after receiving BlockPacket. WipersValid: {LastWipersChange.IsValid}, VoltagesValid: {LastVoltagesChange.IsValid}");
+//                        System.Diagnostics.Debug.WriteLine($"Invalid WipersChangedMessage or VoltagesChangedMessage in MyChart after receiving BlockPacket. WipersValid: {LastWipersChange.IsValid}, VoltagesValid: {LastVoltagesChange.IsValid}");
                     }
                 }
             }
@@ -499,7 +502,7 @@ namespace Asano.MyGLTools.UserControls
             _labelAreaRenderer?.Shutdown();
         }
 
-        private void CreateTextBlocksForLabel(uint state, string label, string valueFormat = "F2")
+        private void CreateTextBlocksForLabel(uint state, string label, string valueFormat = "F2", string? minimumWidthText = null)
         {
             if (font == null) return;
 
@@ -512,6 +515,8 @@ namespace Asano.MyGLTools.UserControls
 
                 var labelBlock = new TextBlock(labelText, 126, 0, font);
                 var valueBlock = new TextBlock("0.00", 120, 0, font, TextAlign.Right, valueFormat);
+                if (!string.IsNullOrEmpty(minimumWidthText))
+                    valueBlock.MinimumWidth = font.MeasureString(minimumWidthText);
 
                 labelBlock.Y = yPos;
                 valueBlock.Y = yPos + 0.01f;  // to maintain ordering
@@ -521,17 +526,19 @@ namespace Asano.MyGLTools.UserControls
             _pendingStates.TryRemove(state, out _);
         }
 
-        private void CreateOrUpdateTextBlocksForLabel(uint state, string label, string valueFormat = "F2")
+        private void CreateOrUpdateTextBlocksForLabel(uint state, string label, string valueFormat = "F2", string? minimumWidthText = null)
         {
             lock (_lock)
             {
                 if (_blocks.TryGetValue(state, out var tuple))
                 {
                     tuple.Item1.SetValue($": {label}");
+                    if (!string.IsNullOrEmpty(minimumWidthText) && font != null)
+                        tuple.Item2.MinimumWidth = font.MeasureString(minimumWidthText);
                     return;
                 }
 
-                CreateTextBlocksForLabel(state, label, valueFormat);
+                CreateTextBlocksForLabel(state, label, valueFormat, minimumWidthText);
             }
         }
 

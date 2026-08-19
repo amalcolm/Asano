@@ -163,7 +163,7 @@ namespace Asano.MyGLTools.Helpers
                     CheckSize();
 
                     float x = (float)packet.BlockData[i].TimeStamp;
-                    float y = (selector == null) ? (float)(packet.BlockData[0].Channel[channel] * Config.C0to1024)   // *** 0 reads MASTER
+                    float y = (selector == null) ? (float)(packet.BlockData[0].Channel[channel] * Config.A2D_24bit_To_1024)   // *** 0 reads MASTER
                                                  : (float)(packet.BlockData[i].get(selector.Value)         );
 
                    if (y == 0.0f) y = -999.0f;

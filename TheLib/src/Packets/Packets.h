@@ -94,7 +94,7 @@ namespace TheLib
 		property double         Sensor2;
         property double         LightEnvelope;
 
-        property array<unsigned int>^ Channel;
+        property array<System::Int32>^ Channel;
 
 
         property int Mid            { int get() { return (int)((HardwareState >> 56) & ByteMask); } }
@@ -145,7 +145,7 @@ namespace TheLib
             if (other->Channel == nullptr) return;
 
             if (Channel == nullptr || Channel->Length != other->Channel->Length)
-                Channel = gcnew array<unsigned int>(other->Channel->Length);
+                Channel = gcnew array<System::Int32>(other->Channel->Length);
             Array::Copy(other->Channel, Channel, other->Channel->Length);
 		}
     

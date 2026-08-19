@@ -97,6 +97,9 @@ bool CA2D::storeNewData() {
     readADS1299(data);
   else
     data.fillFromHardware(*HW, false);
+
+  if (Timer.sampleReady)
+    readADS1299(data);
   
   if (m_mode == ModeType::CONTINUOUS) data.stateTime = m_dataStateTime;
 

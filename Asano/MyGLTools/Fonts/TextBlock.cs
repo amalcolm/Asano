@@ -23,6 +23,19 @@ namespace Asano.MyGLTools.Fonts
         public float     Y     {get => _y;         set { if (_y     != value) { _y     = value; Changed(nameof(Y    )); } } }
         public float     Scale {get => _scale;     set { if (_scale != value) { _scale = value; Changed(nameof(Scale)); } } }
         public TextAlign Align {get => _align;     set { if (_align != value) { _align = value; Changed(nameof(Align)); } } }
+        public float MinimumWidth
+        {
+            get => _minimumWidth;
+            set
+            {
+                float newValue = Math.Max(0.0f, value);
+                if (_minimumWidth != newValue)
+                {
+                    _minimumWidth = newValue;
+                    Changed(nameof(MinimumWidth));
+                }
+            }
+        }
 
         public ReadOnlySpan<char> Span => _buffer.AsSpan(0, _length);
 
@@ -189,6 +202,7 @@ namespace Asano.MyGLTools.Fonts
         private float     _x;
         private float     _y;
         private float     _scale = 1.0f;
+        private float     _minimumWidth = 0.0f;
         private TextAlign _align;
         private string    _valueFormat;
 
@@ -237,7 +251,7 @@ namespace Asano.MyGLTools.Fonts
 
                 _vertexCount = FontVertex.BuildString(_vertices, 0, Span, Font, X, Y, effectiveScaling, Align);
 
-                Bounds = CalculateBoundsFromVertices();
+                Bounds = CalculateBoundsFromVertices(effectiveScaling);
                 _lastScaling = effectiveScaling;
                 _hasChanged = false;
             }
@@ -247,7 +261,7 @@ namespace Asano.MyGLTools.Fonts
 
 
 
-        private RectangleF CalculateBoundsFromVertices()
+        private RectangleF CalculateBoundsFromVertices(float effectiveScaling)
         {
             if (_vertexCount == 0)
                 return RectangleF.Empty;
@@ -267,7 +281,14 @@ namespace Asano.MyGLTools.Fonts
                 maxY = Math.Max(maxY, topLeft.Y);
             }
 
-            return new RectangleF(minX, minY, maxX - minX, maxY - minY);
+            RectangleF bounds = new(minX, minY, maxX - minX, maxY - minY);
+            float minimumWidth = _minimumWidth * effectiveScaling;
+            if (bounds.Width >= minimumWidth)
+                return bounds;
+
+            return Align == TextAlign.Right
+                ? new RectangleF(bounds.Right - minimumWidth, bounds.Y, minimumWidth, bounds.Height)
+                : new RectangleF(bounds.X, bounds.Y, minimumWidth, bounds.Height);
         }
  
     }

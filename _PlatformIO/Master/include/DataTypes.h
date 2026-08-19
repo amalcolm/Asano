@@ -25,7 +25,7 @@ struct DataType {
   double     sensor1;
   double     sensor2;
   double     lightEnv;     // continuous relative value derived from sensor2 accounting for wiper changes
-  uint32_t   channels[NUM_CHANNELS];
+  int32_t    channels[NUM_CHANNELS];
 
   DataType();
   DataType(StateType state);
