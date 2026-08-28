@@ -1,0 +1,317 @@
+.floating-graph-frame {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid rgba(255, 242, 145, 0.2);
+  border-radius: 14px;
+  overflow: hidden;
+  color: #edf4ff;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(52, 60, 54, 0.08)),
+    #101714;
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.floating-graph-frame [hidden] {
+  display: none !important;
+}
+
+.floating-graph-frame__toolbar {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  border-bottom: 1px solid rgba(255, 242, 145, 0.14);
+  padding: 6px 8px 6px 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 242, 145, 0.08), rgba(52, 60, 54, 0.15)),
+    rgba(24, 31, 28, 0.97);
+}
+
+.floating-graph-frame__title {
+  min-width: 0;
+  overflow: hidden;
+  color: #f4f7f2;
+  font-size: 16px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floating-graph-frame__status {
+  flex: 0 1 auto;
+  border: 1px solid rgba(143, 199, 255, 0.24);
+  border-radius: 999px;
+  padding: 3px 9px;
+  color: #a9d5ff;
+  background: rgba(47, 102, 166, 0.18);
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.floating-graph-frame__status[data-error="true"] {
+  border-color: rgba(255, 137, 137, 0.34);
+  color: #ffc2c2;
+  background: rgba(168, 50, 58, 0.22);
+}
+
+.floating-graph-frame__modebar-host {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-width: 0;
+  margin-left: auto;
+  overflow: visible;
+}
+
+.floating-graph-frame__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  margin-left: 0;
+}
+
+.floating-graph-frame__button {
+  min-height: 34px;
+  border: 1px solid rgba(255, 242, 145, 0.3);
+  border-radius: 9px;
+  padding: 6px 12px;
+  color: #eef3ef;
+  background:
+    linear-gradient(180deg, rgba(255, 242, 145, 0.12), rgba(52, 60, 54, 0.2)),
+    rgba(43, 49, 45, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.floating-graph-frame__button:hover {
+  border-color: rgba(255, 242, 145, 0.54);
+  filter: brightness(1.1);
+}
+
+.floating-graph-frame__button:focus-visible {
+  outline: 2px solid var(--button-focus-ring);
+  outline-offset: 2px;
+}
+
+.floating-graph-frame__button--icon {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  min-height: 34px;
+  padding: 3px;
+  font-family: "Segoe UI Symbol", "Segoe UI", sans-serif;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.floating-graph-frame__body {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.floating-graph-frame__stage {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+.floating-graph-frame--popped-out .floating-graph-frame__stage {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.floating-graph-frame__stage > .js-plotly-plot,
+.floating-graph-frame__stage .plot-container,
+.floating-graph-frame__stage .svg-container {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.floating-graph-frame__placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 30px;
+  color: #d7dde8;
+  text-align: center;
+  background:
+    radial-gradient(circle at center, rgba(47, 102, 166, 0.12), transparent 58%),
+    rgba(8, 20, 28, 0.72);
+}
+
+.floating-graph-frame__placeholder strong {
+  color: #f4f7f2;
+  font-size: 18px;
+}
+
+.floating-graph-frame--maximised {
+  position: fixed;
+  z-index: 2000;
+  inset: 12px;
+  width: auto;
+  height: auto;
+  border-color: rgba(255, 242, 145, 0.34);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.62);
+}
+
+.floating-graph-frame--disconnected {
+  border-color: rgba(255, 137, 137, 0.34);
+}
+
+.floating-graph-frame__modebar-host .modebar-container {
+  position: static !important;
+  display: flex;
+  align-items: center;
+  background: transparent !important;
+}
+
+.floating-graph-frame__modebar-host .modebar.modebar--custom {
+  position: static !important;
+  display: flex;
+  align-items: center;
+  top: auto !important;
+  right: auto !important;
+  border: 1px solid rgba(255, 242, 145, 0.18);
+  border-radius: 8px;
+  padding: 2px !important;
+  background: transparent !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.floating-graph-frame__modebar-host .modebar-group {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding-left: 6px;
+  background: transparent !important;
+  white-space: nowrap;
+}
+
+.floating-graph-frame__modebar-host .modebar-group:first-child {
+  padding-left: 0;
+}
+
+.floating-graph-frame__modebar-host .modebar-btn {
+  position: relative;
+  display: grid;
+  place-content: center;
+  height: 28px;
+  border: 0;
+  padding: 3px 5px !important;
+  color: #d7dde8 !important;
+  background: transparent;
+  font-family: "Segoe UI", sans-serif;
+  line-height: normal;
+  cursor: pointer;
+}
+
+.floating-graph-frame__modebar-host .modebar-btn:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--button-focus-ring);
+  outline-offset: 1px;
+}
+
+.floating-graph-frame__modebar-host .modebar-btn svg {
+  position: relative;
+}
+
+.floating-graph-frame__modebar-host .modebar-btn path {
+  fill: currentColor !important;
+}
+
+.floating-graph-frame__modebar-host [data-title]::before,
+.floating-graph-frame__modebar-host [data-title]::after {
+  position: absolute;
+  z-index: 1001;
+  top: 110%;
+  right: 50%;
+  display: none;
+  pointer-events: none;
+}
+
+.floating-graph-frame__modebar-host [data-title]::before {
+  content: "";
+  z-index: 1002;
+  border: 6px solid transparent;
+  border-bottom-color: #101714;
+  margin-top: -12px;
+  margin-right: -6px;
+}
+
+.floating-graph-frame__modebar-host [data-title]::after {
+  content: attr(data-title);
+  margin-right: -18px;
+  border: 1px solid rgba(255, 242, 145, 0.18);
+  border-radius: 5px;
+  padding: 7px 9px;
+  color: #edf4ff;
+  background: #101714;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.35);
+  font-size: 12px;
+  line-height: 12px;
+  white-space: nowrap;
+}
+
+.floating-graph-frame__modebar-host [data-title]:hover::before,
+.floating-graph-frame__modebar-host [data-title]:hover::after,
+.floating-graph-frame__modebar-host [data-title]:focus-visible::before,
+.floating-graph-frame__modebar-host [data-title]:focus-visible::after {
+  display: block;
+}
+
+#app.floating-graph-popup-view {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  min-width: 0;
+  min-height: 0;
+  padding: 12px;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(16, 23, 32, 0.9), rgba(21, 63, 35, 0.55)),
+    #121714;
+}
+
+.floating-graph-popup-error {
+  margin: 24px;
+  color: #ffc2c2;
+  font-size: 18px;
+}
+
+@media (max-width: 760px) {
+  .floating-graph-frame__toolbar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .floating-graph-frame__actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .floating-graph-frame__button {
+    flex: 1 1 auto;
+  }
+}

@@ -3,6 +3,12 @@ import { Constants } from "../../Constants.js";
 
 export const THREE_POT_WIPER_IDS = Object.freeze(["top", "bot", "mid"]);
 
+export const DEFAULT_THREE_POT_WIPERS = Object.freeze({
+  bot: 124,
+  mid: 128,
+  top: 132,
+});
+
 // Each outer pot has its own 22 kOhm feed. The measured 0.601 V high
 // terminal implies about 4.899 kOhm for a nominal 5 kOhm pot, so keep the
 // practical calibrated value at 4.9 kOhm until the fitted part is measured.
@@ -12,6 +18,7 @@ export const DEFAULT_THREE_POT_OPTIONS = Object.freeze({
   supplyResistanceOhms: 22000,
   supplyVoltage: Constants.SUPPLY_VOLTAGE,
   wiperResistanceOhms: 0,
+  wipers: DEFAULT_THREE_POT_WIPERS,
 });
 
 const NODE_SUPPLY = "supply";
@@ -39,7 +46,7 @@ export class ThreePotModel {
     supplyResistanceOhms = DEFAULT_THREE_POT_OPTIONS.supplyResistanceOhms,
     supplyVoltage = DEFAULT_THREE_POT_OPTIONS.supplyVoltage,
     wiperResistanceOhms = DEFAULT_THREE_POT_OPTIONS.wiperResistanceOhms,
-    wipers = {},
+    wipers = DEFAULT_THREE_POT_OPTIONS.wipers,
   } = {}) {
     this.digipotResistanceOhms = requirePositiveNumber(
       digipotResistanceOhms,
@@ -58,7 +65,10 @@ export class ThreePotModel {
     );
     this.state = null;
 
-    const initialWipers = wipers && typeof wipers === "object" ? wipers : {};
+    const initialWipers = {
+      ...DEFAULT_THREE_POT_WIPERS,
+      ...(wipers && typeof wipers === "object" ? wipers : {}),
+    };
 
     this.top = this.makeDigiPot("top", initialWipers.top);
     this.bot = this.makeDigiPot("bot", initialWipers.bot);

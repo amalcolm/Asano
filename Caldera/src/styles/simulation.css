@@ -196,25 +196,15 @@
 
 .simulation-voltage-graph {
   position: relative;
-  contain: layout paint size;
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
-  border: 1px solid rgba(255, 242, 145, 0.16);
+  border: 0;
   border-radius: 14px;
-  overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(52, 60, 54, 0.08)),
-    #101714;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.simulation-voltage-graph > .js-plotly-plot,
-.simulation-voltage-graph .plot-container,
-.simulation-voltage-graph .svg-container {
-  width: 100% !important;
-  height: 100% !important;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
 }
 
 @media (max-width: 760px) {

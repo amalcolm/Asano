@@ -46,6 +46,7 @@ export class SimulationSweepController {
     this.started = false;
     this.startedAt = null;
     this.sweep = null;
+    this.wiperRestore = null;
 
     this.handleBothClick = this.handleBothClick.bind(this);
     this.handleMidClick = this.handleMidClick.bind(this);
@@ -84,9 +85,12 @@ export class SimulationSweepController {
       return;
     }
 
+    const runId = this.runId;
+
     this.started = false;
-    this.runId += 1;
     this.cancelAnimationFrame();
+    this.restoreWipers(runId);
+    this.runId += 1;
     this.running = false;
     this.startedAt = null;
     this.sweep = null;
@@ -128,9 +132,12 @@ export class SimulationSweepController {
     }
 
     const runId = this.runId + 1;
+    const initialWipers = getWiperSnapshot(this.scene);
+    const sweep = this.createSweep(type);
 
-    this.sweep = this.createSweep(type);
     this.runId = runId;
+    this.sweep = sweep;
+    this.wiperRestore = { runId, wipers: initialWipers };
     this.running = true;
     this.activeSweep = type;
     this.startedAt = null;
@@ -294,6 +301,7 @@ export class SimulationSweepController {
     }
 
     this.cancelAnimationFrame();
+    this.restoreWipers(runId);
     this.running = false;
     this.startedAt = null;
     this.sweep = null;
@@ -301,6 +309,19 @@ export class SimulationSweepController {
     this.setButtonsDisabled(!this.started);
     this.clearBusyState();
     this.activeSweep = null;
+  }
+
+  restoreWipers(runId) {
+    const restore = this.wiperRestore;
+
+    if (!restore || restore.runId !== runId) {
+      return;
+    }
+
+    // Clear first so a stale completion/error cannot restore the same run over
+    // a subsequent sweep that has already captured its own starting values.
+    this.wiperRestore = null;
+    this.scene.setWipers(restore.wipers);
   }
 
   handleError(error, runId, type) {
@@ -357,6 +378,16 @@ function requireWiper(value, name) {
   }
 
   return wiper;
+}
+
+function getWiperSnapshot(scene) {
+  const wipers = scene.getWiperValues();
+
+  return Object.freeze({
+    bot: requireWiper(wipers.bot, "bottom wiper"),
+    mid: requireWiper(wipers.mid, "middle wiper"),
+    top: requireWiper(wipers.top, "top wiper"),
+  });
 }
 
 function getOuterSweepRange(scene) {

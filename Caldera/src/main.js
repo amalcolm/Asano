@@ -5,6 +5,10 @@ import { COMMAND_FLAGS } from "./helpers/CommandFlags.js";
 import { DebugFlagsControl } from "./helpers/DebugFlagsControl.js";
 import { DebugSettingsControl } from "./helpers/DebugSettingsControl.js";
 import { FB_Store } from "./firebase/FB_Store.js";
+import {
+  FLOATING_GRAPH_VIEW,
+  mountFloatingGraphPopup,
+} from "./helpers/graph/index.js";
 import { Model } from "./model/Model.js";
 import { ModelStore } from "./model/ModelStorage.js";
 import { DIFF_AMP_COMPONENT, createDifferentialAmpModelAdapter } from "./model/components/diff-amp/DA_Adapter.js";
@@ -34,12 +38,18 @@ const ledButtonOnTickSound = new TickSound({ frequency: LED_BUTTON_ON_TICK_FREQU
 
 const view = getRequestedView();
 
-if (view === VIEW_ANALYSIS) {
+if (view === FLOATING_GRAPH_VIEW) {
+  mountFloatingGraphView();
+} else if (view === VIEW_ANALYSIS) {
   mountAnalysisView();
 } else if (view === VIEW_SIMULATION) {
   mountSimulationView();
 } else {
   mountCircuitView();
+}
+
+function mountFloatingGraphView() {
+  mountFloatingGraphPopup(document.querySelector("#app"));
 }
 
 function mountSimulationView() {
@@ -101,8 +111,6 @@ function mountSimulationView() {
                 <div
                   class="simulation-voltage-graph"
                   data-simulation-voltage-graph
-                  role="img"
-                  aria-label="ThreePot voltage sweep graph"
                 ></div>
               </div>
             </div>
@@ -1204,7 +1212,11 @@ function updateAnalysisButton(button, activeViews) {
 function getRequestedView() {
   const requestedView = new URLSearchParams(window.location.search).get("view");
 
-  if (requestedView === VIEW_ANALYSIS || requestedView === VIEW_SIMULATION) {
+  if (
+    requestedView === FLOATING_GRAPH_VIEW
+    || requestedView === VIEW_ANALYSIS
+    || requestedView === VIEW_SIMULATION
+  ) {
     return requestedView;
   }
 
