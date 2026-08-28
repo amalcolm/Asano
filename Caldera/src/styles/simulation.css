@@ -1,0 +1,240 @@
+.view-launch-buttons {
+  position: absolute;
+  z-index: 12;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.view-launch-buttons .view-launch-button {
+  position: static;
+}
+
+.app-layout--simulation {
+  display: block;
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.simulation-view {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 18px;
+  overflow: hidden;
+}
+
+.simulation-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 2px solid rgba(41, 44, 42, 0.75);
+  border-radius: 20px;
+  overflow: hidden;
+  color: #f4ffed;
+  background:
+    linear-gradient(180deg, rgba(50, 50, 50, 0.46), rgba(30, 30, 30, 0.3)),
+    rgba(33, 33, 33, 0.2);
+  box-shadow:
+    5px 10px 10px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.simulation-tabs {
+  display: flex;
+  align-items: flex-end;
+  min-height: 76px;
+  border-bottom: 2px solid rgba(41, 44, 42, 0.55);
+  padding: 12px 18px 0;
+  background: rgba(33, 33, 33, 0.18);
+}
+
+.simulation-tab {
+  min-height: 56px;
+  border: 1px solid rgba(255, 242, 145, 0.26);
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+  padding: 12px 24px;
+  color: #fff8c7;
+  background:
+    linear-gradient(180deg, rgba(255, 242, 145, 0.13), rgba(52, 60, 54, 0.25)),
+    rgba(43, 49, 45, 0.5);
+  box-shadow:
+    0 -2px 14px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  font: inherit;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: default;
+}
+
+.simulation-tab:focus-visible {
+  outline: 2px solid var(--button-focus-ring);
+  outline-offset: -4px;
+}
+
+.simulation-tab-panel {
+  display: grid;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(16, 23, 32, 0.42), rgba(21, 63, 35, 0.2)),
+    rgba(20, 25, 22, 0.36);
+}
+
+.simulation-tab-panel:focus {
+  outline: none;
+}
+
+.simulation-pane {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.simulation-pane--top {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 30px;
+  background: rgba(16, 23, 32, 0.1);
+}
+
+.simulation-control-button {
+  min-width: 190px;
+  min-height: 56px;
+  border: 1px solid rgba(255, 242, 145, 0.34);
+  border-radius: 13px;
+  padding: 13px 22px;
+  color: #f4f7f2;
+  background:
+    linear-gradient(180deg, rgba(255, 242, 145, 0.14), rgba(52, 60, 54, 0.28)),
+    rgba(43, 49, 45, 0.72);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.13);
+  font: inherit;
+  font-size: 21px;
+  font-weight: 750;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    filter 120ms ease,
+    transform 120ms ease;
+}
+
+.simulation-control-button:hover:not(:disabled) {
+  border-color: rgba(255, 242, 145, 0.56);
+  filter: brightness(1.1);
+}
+
+.simulation-control-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.simulation-control-button:focus-visible {
+  outline: 2px solid var(--button-focus-ring);
+  outline-offset: 3px;
+}
+
+.simulation-control-button:disabled {
+  opacity: 0.58;
+  cursor: wait;
+}
+
+.simulation-pane--bottom {
+  isolation: isolate;
+  border-top: 2px solid rgba(255, 242, 145, 0.14);
+  background: rgba(16, 16, 8, 0.5);
+}
+
+.simulation-three-pot-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.simulation-three-pot-stage .circuit-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.simulation-graph-float {
+  position: absolute;
+  z-index: 20;
+  top: 30px;
+  right: 30px;
+  bottom: 30px;
+  left: calc(var(--simulation-graph-anchor-x, 42%) + 30px);
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid rgba(255, 242, 145, 0.16);
+  border-radius: 18px;
+  padding: 30px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(52, 60, 54, 0.16)),
+    rgba(24, 31, 28, 0.94);
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.simulation-voltage-graph {
+  position: relative;
+  contain: layout paint size;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid rgba(255, 242, 145, 0.16);
+  border-radius: 14px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(52, 60, 54, 0.08)),
+    #101714;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.simulation-voltage-graph > .js-plotly-plot,
+.simulation-voltage-graph .plot-container,
+.simulation-voltage-graph .svg-container {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+@media (max-width: 760px) {
+  .simulation-view {
+    padding: 10px;
+  }
+
+  .simulation-tabs {
+    min-height: 68px;
+    padding: 10px 10px 0;
+  }
+
+  .simulation-tab {
+    min-height: 50px;
+    padding: 10px 18px;
+    font-size: 22px;
+  }
+
+  .simulation-pane--top {
+    padding: 20px;
+  }
+
+}

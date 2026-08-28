@@ -525,7 +525,7 @@ export class CircuitScene {
     this.dragControls = [
       ...this.controlById.values(),
       threePot.linkedWiperControl,
-    ];
+    ].filter(Boolean);
 
     this.add(new Wire({
       from: threePot.port("output"),

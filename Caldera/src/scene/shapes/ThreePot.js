@@ -20,7 +20,13 @@ const LINK_ARROW_OFFSET_Y = LINK_HANDLE_HEIGHT / 2 + 0.12;
 const LINK_HIT_PADDING = 0.09;
 
 export class ThreePot extends Shape {
-  constructor({ color = COMPONENT_BLUE, model = null, position = [0, 0, 0] } = {}) {
+  constructor({
+    color = COMPONENT_BLUE,
+    model = null,
+    position = [0, 0, 0],
+    showLinkedWiperControl = true,
+    voltageLabelStyle = null,
+  } = {}) {
     super({ name: "ThreePot", position });
 
     this.topPot = new PoweredDigipot({
@@ -30,6 +36,7 @@ export class ThreePot extends Shape {
       model: model?.top ?? null,
       position: [0, 2.1, 0],
       supplyResistance: "22K",
+      voltageLabelStyle,
     });
     this.botPot = new PoweredDigipot({
       color,
@@ -38,6 +45,7 @@ export class ThreePot extends Shape {
       model: model?.bot ?? null,
       position: [0, -2.1, 0],
       supplyResistance: "22K",
+      voltageLabelStyle,
     });
     this.midPot = new Digipot({
       color,
@@ -49,11 +57,13 @@ export class ThreePot extends Shape {
     this.topDigipot = this.topPot.digipot;
     this.botDigipot = this.botPot.digipot;
     this.midDigipot = this.midPot;
-    this.linkedWiperControl = new LinkedWiperControl({
-      bottomDigipot: this.botDigipot,
-      color,
-      topDigipot: this.topDigipot,
-    });
+    this.linkedWiperControl = showLinkedWiperControl
+      ? new LinkedWiperControl({
+        bottomDigipot: this.botDigipot,
+        color,
+        topDigipot: this.topDigipot,
+      })
+      : null;
 
     this.internalWires = [
       new Wire({
@@ -61,24 +71,30 @@ export class ThreePot extends Shape {
         hideVoltageLabels: "start",
         outputLeadLength: DIGIPOT_OUTPUT_LEAD_LENGTH,
         to: this.midPot.port("topInput"),
+        voltageLabelStyle,
       }),
       new Wire({
         from: this.botPot.port("output"),
         hideVoltageLabels: "start",
         outputLeadLength: DIGIPOT_OUTPUT_LEAD_LENGTH,
         to: this.midPot.port("bottomInput"),
+        voltageLabelStyle,
       }),
     ];
 
     this.ports.set("output", this.midPot.port("wiper"));
-    this.add(this.topPot, this.botPot, this.midPot, ...this.internalWires, this.linkedWiperControl);
+    this.add(this.topPot, this.botPot, this.midPot, ...this.internalWires);
+
+    if (this.linkedWiperControl) {
+      this.add(this.linkedWiperControl);
+    }
   }
 
   update() {
     this.topPot.update();
     this.botPot.update();
     this.internalWires.forEach((wire) => wire.update());
-    this.linkedWiperControl.update();
+    this.linkedWiperControl?.update();
   }
 
   evaluateVoltage() {

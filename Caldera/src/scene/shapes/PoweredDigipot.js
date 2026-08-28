@@ -30,6 +30,7 @@ export class PoweredDigipot extends Shape {
     supplyResistance = DEFAULT_RAIL_RESISTANCE,
     supplySecondaryLabel = null,
     voltage = SUPPLY_VOLTAGE,
+    voltageLabelStyle = null,
   } = {}) {
     super({ name: "PoweredDigipot", position });
 
@@ -77,6 +78,7 @@ export class PoweredDigipot extends Shape {
       route: leftStandoffRoute,
       shortRoute,
       to: this.digipot.port("topInput"),
+      voltageLabelStyle,
     });
     const groundWires = this.makeRailWires({
       from: this.ground.port("node"),
@@ -85,6 +87,7 @@ export class PoweredDigipot extends Shape {
       route: leftStandoffRoute,
       shortRoute,
       to: this.digipot.port("bottomInput"),
+      voltageLabelStyle,
     });
 
     this.internalWires = [...supplyWires, ...groundWires];
@@ -130,7 +133,15 @@ export class PoweredDigipot extends Shape {
     return resistor;
   }
 
-  makeRailWires({ from, hideResistorOutputLabel = false, resistor, route, shortRoute, to }) {
+  makeRailWires({
+    from,
+    hideResistorOutputLabel = false,
+    resistor,
+    route,
+    shortRoute,
+    to,
+    voltageLabelStyle,
+  }) {
     if (!resistor) {
       return [
         new Wire({
@@ -138,6 +149,7 @@ export class PoweredDigipot extends Shape {
           hideVoltageLabels: "start",
           route,
           to,
+          voltageLabelStyle,
         }),
       ];
     }
@@ -148,12 +160,14 @@ export class PoweredDigipot extends Shape {
         hideVoltageLabel: true,
         route: shortRoute,
         to: resistor.port("input"),
+        voltageLabelStyle,
       }),
       new Wire({
         from: resistor.port("output"),
         hideVoltageLabels: hideResistorOutputLabel ? "start" : [],
         route,
         to,
+        voltageLabelStyle,
       }),
     ];
   }

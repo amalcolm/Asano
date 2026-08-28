@@ -10,6 +10,9 @@ import { ModelStore } from "./model/ModelStorage.js";
 import { DIFF_AMP_COMPONENT, createDifferentialAmpModelAdapter } from "./model/components/diff-amp/DA_Adapter.js";
 import { DifferentialAmpSensorModel } from "./model/components/diff-amp/DA_SensorModel.js";
 import { STATE_LED_ROWS, StateControl } from "./helpers/StateControl.js";
+import { SimulationSweepController } from "./simulation/SimulationSweepController.js";
+import { SimulationVoltageGraph } from "./simulation/SimulationVoltageGraph.js";
+import { ThreePotSimulationScene } from "./simulation/ThreePotSimulationScene.js";
 import { TEST_PANEL_HTML, TestPanel } from "./analysis/TestPanel.js";
 import { TickSound } from "./helpers/TickSound.js";
 import { WebView } from "./WebView.js";
@@ -23,6 +26,8 @@ const ANALYSIS_CHANNEL_NAME = "caldera:analysis:v1";
 const FORMULA_TELEMETRY_SETTLE_DELAY_MS = 500;
 const VIEW_CIRCUIT = "circuit";
 const VIEW_ANALYSIS = "analysis";
+const VIEW_SIMULATION = "simulation";
+const SIMULATION_POPUP_FEATURES = "popup=yes,width=1280,height=1920,resizable=yes,scrollbars=yes";
 const buttonTickSound = new TickSound({ frequency: BUTTON_TICK_FREQUENCY });
 const ledButtonOffTickSound = new TickSound({ frequency: LED_BUTTON_OFF_TICK_FREQUENCY });
 const ledButtonOnTickSound = new TickSound({ frequency: LED_BUTTON_ON_TICK_FREQUENCY });
@@ -31,8 +36,114 @@ const view = getRequestedView();
 
 if (view === VIEW_ANALYSIS) {
   mountAnalysisView();
+} else if (view === VIEW_SIMULATION) {
+  mountSimulationView();
 } else {
   mountCircuitView();
+}
+
+function mountSimulationView() {
+  document.querySelector("#app").innerHTML = `
+    <div class="app-layout app-layout--simulation">
+      <section class="simulation-view" aria-label="Simulation">
+        <div class="simulation-panel">
+          <div class="simulation-tabs" role="tablist" aria-label="Simulation models">
+            <button
+              class="simulation-tab"
+              id="simulation-tab-three-pot"
+              type="button"
+              role="tab"
+              aria-controls="simulation-panel-three-pot"
+              aria-selected="true"
+            >
+              ThreePot
+            </button>
+          </div>
+          <section
+            class="simulation-tab-panel"
+            id="simulation-panel-three-pot"
+            role="tabpanel"
+            aria-labelledby="simulation-tab-three-pot"
+            tabindex="0"
+          >
+            <div class="simulation-pane simulation-pane--top">
+              <button
+                class="simulation-control-button"
+                data-simulation-sweep-mid
+                type="button"
+              >
+                Sweep Mid
+              </button>
+              <button
+                class="simulation-control-button"
+                data-simulation-sweep-top-bot
+                type="button"
+              >
+                Sweep Top/Bot
+              </button>
+              <button
+                class="simulation-control-button"
+                data-simulation-sweep-both
+                type="button"
+              >
+                Sweep Both
+              </button>
+            </div>
+            <div class="simulation-pane simulation-pane--bottom">
+              <div
+                class="simulation-three-pot-stage"
+                data-simulation-three-pot-stage
+              ></div>
+              <div
+                class="simulation-graph-float"
+                data-simulation-graph-float
+              >
+                <div
+                  class="simulation-voltage-graph"
+                  data-simulation-voltage-graph
+                  role="img"
+                  aria-label="ThreePot voltage sweep graph"
+                ></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+  `;
+
+  const sceneRoot = document.querySelector("[data-simulation-three-pot-stage]");
+  const graphFloat = document.querySelector("[data-simulation-graph-float]");
+  const graphRoot = document.querySelector("[data-simulation-voltage-graph]");
+  const sweepBothButton = document.querySelector("[data-simulation-sweep-both]");
+  const sweepMidButton = document.querySelector("[data-simulation-sweep-mid]");
+  const sweepTopBotButton = document.querySelector(
+    "[data-simulation-sweep-top-bot]",
+  );
+  const voltageGraph = new SimulationVoltageGraph(graphRoot);
+  const threePotScene = new ThreePotSimulationScene(sceneRoot, {
+    onLayout: ({ contentRightPx }) => {
+      graphFloat.style.setProperty(
+        "--simulation-graph-anchor-x",
+        `${Math.ceil(contentRightPx)}px`,
+      );
+    },
+  });
+  const sweepController = new SimulationSweepController({
+    bothButton: sweepBothButton,
+    graph: voltageGraph,
+    midButton: sweepMidButton,
+    scene: threePotScene,
+    topBotButton: sweepTopBotButton,
+  });
+
+  threePotScene.start();
+  sweepController.start(voltageGraph.start());
+  window.addEventListener("beforeunload", () => {
+    sweepController.stop();
+    voltageGraph.stop();
+    threePotScene.stop();
+  }, { once: true });
 }
 
 function mountAnalysisView() {
@@ -179,9 +290,14 @@ function mountCircuitView() {
     </div>
     <div class="app-layout app-layout--circuit">
       <section class="circuit-div" data-circuit-div>
-        <button class="view-launch-button" type="button" data-open-analysis-view>
-          Analysis
-        </button>
+        <div class="view-launch-buttons">
+          <button class="view-launch-button" type="button" data-open-simulation-view>
+            Simulation
+          </button>
+          <button class="view-launch-button" type="button" data-open-analysis-view>
+            Analysis
+          </button>
+        </div>
         <div class="scene-stage" data-scene></div>
         <div class="state-panel">
           <div class="state-panel__grid">
@@ -316,6 +432,7 @@ function mountCircuitView() {
   const debugLoadSettingsButton = document.querySelector("[data-debug-load-settings]");
   const debugSaveSettingsButton = document.querySelector("[data-debug-save-settings]");
   const debugSettingsStatus = document.querySelector("[data-debug-settings-status]");
+  const openSimulationButton = document.querySelector("[data-open-simulation-view]");
   const openAnalysisButton = document.querySelector("[data-open-analysis-view]");
   const activeViews = new Map();
   const testPanelRoot = document.querySelector("[data-test-panel]");
@@ -332,6 +449,8 @@ function mountCircuitView() {
   let liveWipers = null;
   let formulaTelemetrySettleTimer = null;
   let formulaTelemetrySettleRevision = 0;
+  let simulationWindow = null;
+  let simulationCloseTimer = null;
   const hasHostTelemetry = Boolean(window.chrome?.webview);
   const analysisChannel = createAnalysisChannel();
   const headlessAnalysisPanel = new AnalysisPanel({
@@ -420,6 +539,9 @@ function mountCircuitView() {
   });
 
   updateAnalysisButton(openAnalysisButton, activeViews);
+  updateSimulationButton();
+
+  openSimulationButton?.addEventListener("click", toggleSimulationView);
 
   openAnalysisButton?.addEventListener("click", () => {
     toggleAnalysisView(webView, activeViews, openAnalysisButton);
@@ -491,6 +613,55 @@ function mountCircuitView() {
   webView.postGetActiveViews();
   updateWiperDebug(null, { applied: false });
   webView.postReady();
+
+  function toggleSimulationView() {
+    if (simulationWindow && !simulationWindow.closed) {
+      simulationWindow.close();
+      clearSimulationWindow();
+      return;
+    }
+
+    simulationWindow = window.open(
+      getViewUrl(VIEW_SIMULATION),
+      "_blank",
+      SIMULATION_POPUP_FEATURES,
+    );
+
+    if (!simulationWindow) {
+      return;
+    }
+
+    updateSimulationButton();
+    simulationCloseTimer = window.setInterval(() => {
+      if (!simulationWindow?.closed) {
+        return;
+      }
+
+      clearSimulationWindow();
+    }, 500);
+  }
+
+  function clearSimulationWindow() {
+    if (simulationCloseTimer !== null) {
+      window.clearInterval(simulationCloseTimer);
+      simulationCloseTimer = null;
+    }
+
+    simulationWindow = null;
+    updateSimulationButton();
+  }
+
+  function updateSimulationButton() {
+    if (!openSimulationButton) {
+      return;
+    }
+
+    const active = Boolean(simulationWindow && !simulationWindow.closed);
+
+    openSimulationButton.dataset.active = String(active);
+    openSimulationButton.setAttribute("aria-pressed", String(active));
+    openSimulationButton.textContent = active ? "Close simulation" : "Simulation";
+  }
 
   function saveStoredSettings(settings = circuitScene.getSettings()) {
     const sceneSettings = settings && typeof settings === "object"
@@ -1033,7 +1204,11 @@ function updateAnalysisButton(button, activeViews) {
 function getRequestedView() {
   const requestedView = new URLSearchParams(window.location.search).get("view");
 
-  return requestedView === VIEW_ANALYSIS ? VIEW_ANALYSIS : VIEW_CIRCUIT;
+  if (requestedView === VIEW_ANALYSIS || requestedView === VIEW_SIMULATION) {
+    return requestedView;
+  }
+
+  return VIEW_CIRCUIT;
 }
 
 function readStoredSettings() {

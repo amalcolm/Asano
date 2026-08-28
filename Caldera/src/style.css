@@ -1,6 +1,7 @@
 @import "katex/dist/katex.min.css";
 @import "./styles/base.css";
 @import "./styles/analysis.css";
+@import "./styles/simulation.css";
 @import "./styles/scene.css";
 @import "./styles/state-panel.css";
 @import "./styles/debug-panel.css";

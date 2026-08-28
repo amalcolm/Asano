@@ -21,6 +21,7 @@ export class Wire extends Shape {
     singleVoltageLabel = "auto",
     to,
     voltage = null,
+    voltageLabelStyle = null,
     waypoints = [],
   } = {}) {
     super({ name });
@@ -37,17 +38,21 @@ export class Wire extends Shape {
     this.voltage = null;
     this.waypoints = waypoints;
     this.line = makeLine([]);
+    const voltageLabelColor = voltageLabelStyle?.color ?? INK;
+    const voltageLabelHeight = voltageLabelStyle?.height ?? VOLTAGE_LABEL_HEIGHT;
+    const voltageLabelWidth = voltageLabelStyle?.width ?? VOLTAGE_LABEL_WIDTH;
+
     this.startVoltageLabel = new TextLabel("?V", {
-      color: INK,
-      height: VOLTAGE_LABEL_HEIGHT,
+      color: voltageLabelColor,
+      height: voltageLabelHeight,
       renderOrder: 4,
-      width: VOLTAGE_LABEL_WIDTH,
+      width: voltageLabelWidth,
     });
     this.endVoltageLabel = new TextLabel("?V", {
-      color: INK,
-      height: VOLTAGE_LABEL_HEIGHT,
+      color: voltageLabelColor,
+      height: voltageLabelHeight,
       renderOrder: 4,
-      width: VOLTAGE_LABEL_WIDTH,
+      width: voltageLabelWidth,
     });
 
     this.add(this.line, this.startVoltageLabel, this.endVoltageLabel);
