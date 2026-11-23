@@ -185,17 +185,20 @@ namespace Asano.MyGLTools.Helpers
 
             float midY = (minY + maxY) * 0.5f;
 
-            float padding = 200f;
+            const float defaultMinHeight = 500f;
+            const float defaultPadding = 200f;
+            float minHeight = _plotter.MinimumAutoScaleYSpan ?? defaultMinHeight;
+            float padding = defaultPadding * Math.Min(1.0f, minHeight / defaultMinHeight);
             float targetHeight = range + padding;
 
             // Ramp-in based on sample count
             float t = Math.Clamp(count / 100f, 0f, 1f);
 //          t = t * t * (3f - 2f * t); // smoothstep (optional but nicer)
 
-            float startHeight = 120000f;              // big & stable at the beginning
-            float desiredHeight = startHeight + (targetHeight - startHeight) * t;
+            float startHeight = Math.Max(120000f, minHeight);
+            float desiredHeight = startHeight * (1.0f - t) + targetHeight * t;
 
-            desiredHeight = Math.Clamp(desiredHeight, 500f, 120000f);
+            desiredHeight = Math.Clamp(desiredHeight, minHeight, startHeight);
 
             float bottom = midY - desiredHeight * 0.5f;
             float top = midY + desiredHeight * 0.5f;

@@ -151,7 +151,7 @@ namespace Asano.DataTools.Controls
 
         private float GetAnchoredViewHeight(float midY, float minY, float maxY, float midRatio)
         {
-            float minHeight = Math.Max(1.0f, Height);
+            float minHeight = Math.Max(1.0f, Height / PixelScaleY);
             float lowerHeight = (midY - minY) / midRatio;
             float upperHeight = (maxY - midY) / (1.0f - midRatio);
 

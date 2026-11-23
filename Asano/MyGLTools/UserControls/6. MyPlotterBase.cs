@@ -54,6 +54,13 @@ namespace Asano.MyGLTools.UserControls
         protected abstract void DrawPlots();
         protected virtual void DrawPlotOverlays() { }
 
+        internal float? MaximumYPixelsPerUnit { get; set; }
+
+        internal float? MinimumAutoScaleYSpan =>
+            MaximumYPixelsPerUnit is float scale && float.IsFinite(scale) && scale > 0.0f
+                ? Math.Max(1.0f, GLDisplaySize.Height) / scale
+                : null;
+
         protected virtual bool BeginPlotClip() => false;
 
         protected void BeginPlotClip(Rectangle clipRect)

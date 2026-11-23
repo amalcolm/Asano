@@ -15,6 +15,7 @@ namespace Asano.DataTools.Controls
         public DataControl()
         {
             InitializeComponent();
+            chart.MaximumYPixelsPerUnit = SignalViewer.PixelScaleY;
 
             MyColour colour = chart.BackColor;
             chart.BackColor = colour.Darken(0.3).ToColor();

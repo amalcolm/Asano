@@ -1,5 +1,6 @@
 #include "AString.h"
 #include <vcclr.h>
+#include <algorithm>
 
 using namespace System;
 using namespace System::Collections::Concurrent;
@@ -114,7 +115,7 @@ namespace TheLib
      
         const int MAX_UTF8_LENGTH = 256; // ample, line based text packets from serial
 		wchar_t pChars[MAX_UTF8_LENGTH]; // Temporary stack buffer for decoding
-		memset(pChars, 0, sizeof(pChars)); // Clear the buffer
+		std::ranges::fill(pChars, '\0');  // Clear the whole buffer
 
         int written = Encoding::UTF8->GetChars(
             (unsigned char*)src,   // byte* (from native buffer)
