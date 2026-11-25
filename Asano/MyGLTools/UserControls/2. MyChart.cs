@@ -61,15 +61,15 @@ namespace Asano.MyGLTools.UserControls
         private readonly object _lock = new();
 
         static readonly string[] dataFieldsToPlot = [
-              "C0", "C1", "C2", "C3", "C4", "C5", "C6",
+//            "C0", "C1", "C2", "C3", "C4", "C5", "C6",
 //            "Top"   , "Bot" , "Mid",
 //            "Offset", "Gain",
-//              "RawSensor1", // "Sensor1",
-//              "RawSensor2", // "Sensor2",
+              "RawSensor1", // "Sensor1",
+              "RawSensor2", // "Sensor2",
             ];
 
         static readonly string[] dataFieldsForLabels = [
-              "C0", "C1", "C2", "C3", "C4", "C5", "C6",
+ //           "C0", "C1", "C2", "C3", "C4", "C5", "C6",
               "Top"   , "Bot" , "Mid",
               "Offset", "Gain",
               "RawSensor1", // "Sensor1",

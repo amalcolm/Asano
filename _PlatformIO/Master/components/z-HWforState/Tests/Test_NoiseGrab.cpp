@@ -12,7 +12,7 @@ bool HWTools::testGetNoiseSample() {
 
   static constexpr double desiredDuration = CFG::STATE_DURATION_uS * 0.000'001; // seconds
 
-  double timeLeft = desiredDuration - Timer.getStateTime() - 0.000'050; // subtract 50 uS for overhead
+  double timeLeft = desiredDuration - Timer.getStateTime() - 0.000'250; // subtract 250 uS for overhead
   if (timeLeft <= 0) return false;
   
   double readPeriod = idealReadPeriod;

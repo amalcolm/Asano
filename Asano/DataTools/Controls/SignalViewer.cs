@@ -10,7 +10,7 @@ namespace Asano.DataTools.Controls
         #region Constants
 
         private const int VERTICES_PER_SAMPLE = 6;
-        internal const float PixelScaleY = 20.0f; // Pixels per signal unit at maximum automatic Y zoom for both plots.
+        internal const float PixelScaleY = 500.0f; // Pixels per signal unit at maximum automatic Y zoom for both plots.
         private const string XAxisUnit = "mS";
         private const float XAxisUnitRightMargin = 8.0f;
         private const float XAxisUnitBottomMargin = -8.0f;

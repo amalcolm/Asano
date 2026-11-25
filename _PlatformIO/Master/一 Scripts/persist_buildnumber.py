@@ -30,15 +30,16 @@ def read_int(path):
 
 last = read_int(build_file)
 this_build = last + 1
-# Make it available to the firmware for *this* build
-env.Append(CPPDEFINES=[
-    ("BUILD_NUM", this_build),
-    ("BUILD_STR", f'\\"{this_build}\\"'),
-])
+
+def compile_build_string(env, node):
+    build_string = ("BUILD_STR", env.StringifyMacro(str(this_build)))
+    return env.Object(node, CPPDEFINES=[*env["CPPDEFINES"], build_string])
+
+env.AddBuildMiddleware(compile_build_string, "*_Helpers/BuildString.cpp")
 
 # Only commit the increment if the build actually produces an ELF
 def persist_build_number(target, source, env):
     with open(build_file, "w", encoding="utf-8") as f:
-        f.write(str(this_build))
+        f.write(f"{this_build}\n")
 
 env.AddPostAction("$BUILD_DIR/${PROGNAME}.elf", persist_build_number)

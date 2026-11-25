@@ -1,6 +1,8 @@
 #pragma once
 #include <cstdint>
-#include <cstring>
+
+#define ASANO_FIRMWARE_VERSION "1.1.7"
+
 enum class CommandFlags : uint32_t;
 
 class CFG {
@@ -9,7 +11,7 @@ public:
     inline static           bool   ADS1299_USE_24BIT       =  false; // if false, use 10-bit mode TEENSY 4.1 sensors
 
     // hardware timing constants (in microseconds / hertz)
-    inline static constexpr double STATE_DURATION_uS       =  4'000;  // time for each state. loop will be slightly longer than this
+    inline static constexpr double STATE_DURATION_uS       =  6'000;  // time for each state. loop will be slightly longer than this
 
     inline static constexpr double HEAD_SETTLE_TIME_uS     =  1'200;  // delay between Head change and first A2D read
     
@@ -28,7 +30,7 @@ public:
     inline static constexpr uint32_t MAX_EVENTS_PER_BLOCK  =    400;  // max number of EventType entries in a BlockType
 
     
-    inline static constexpr char DEVICE_VERSION[]  = "0.1.6+" BUILD_STR;  // this is a #define from the build system
+           static const     char DEVICE_VERSION[]; // built at compile time using ASANO_FIRMWARE_VERSION and BUILD_STR
     inline static constexpr char DEVICE_NAME[]     = "fNIRS (Teensy 4.1)";
     inline static           char HOST_VERSION[16]  = "[unknown]";
 
@@ -50,11 +52,8 @@ public:
 
     
 
-    static void setDebugMode(DebugMode mode) { debugMode = mode; }
-    static DebugMode getDebugMode() { return debugMode; }
-
-    static void setDeviceRole(DeviceRole role) { debugRole = role; }
-    static DeviceRole getDeviceRole() { return debugRole; }
+    static void setDebugMode (DebugMode  mode) { debugMode = mode; }  static DebugMode  getDebugMode () { return debugMode; }
+    static void setDeviceRole(DeviceRole role) { debugRole = role; }  static DeviceRole getDeviceRole() { return debugRole; }
 
     static const char* getDebugModeString() {
       switch (debugMode) {
