@@ -12,7 +12,9 @@ const std::array<std::pair<uint32_t, uint8_t>, 8> SpeedLookup = {{
 }};
 
 CA2D::CA2D() {
-  m_mode = CFG::A2D_USE_CONTINUOUS_MODE ? ModeType::CONTINUOUS : ModeType::TRIGGERED;
+  m_mode = CFG::ADS1299_USE_24BIT ? CFG::A2D_USE_CONTINUOUS_MODE ? ModeType::CONTINUOUS : ModeType::TRIGGERED
+                                  : ModeType::UNSET;
+                                  
   m_ReadState = ReadState::IDLE;
 }
 
@@ -30,6 +32,8 @@ void CA2D::begin() {
   m_pBlockToSend = &m_BlockB;
   m_BlockA.clear();
   m_BlockB.clear();
+
+  if (CFG::ADS1299_USE_24BIT == false) return;
 
   NVIC_SET_PRIORITY(IRQ_GPIO2_0_15, 1);  // raise priority of GPIO1 interrupts
 
@@ -67,6 +71,8 @@ bool CA2D::poll() {
 
   switch (m_mode) {
     case ModeType::CONTINUOUS: if (!m_dataReady       ) return false; else break;
+
+    case ModeType::UNSET     :  // we still wait for the A2D timer as it's applicable to the 10bit A2D system
     case ModeType::TRIGGERED : if (Timer.A2D.waiting()) return false; else break;
     default: return false;
   }
@@ -97,9 +103,6 @@ bool CA2D::storeNewData() {
     readADS1299(data);
   else
     data.fillFromHardware(*HW, false);
-
-  if (Timer.sampleReady)
-    readADS1299(data);
   
   if (m_mode == ModeType::CONTINUOUS) data.stateTime = m_dataStateTime;
 
@@ -109,7 +112,7 @@ bool CA2D::storeNewData() {
 }
 
 
-void CA2D::read24bitData() {
+void CA2D::read24bitData() { if (CFG::ADS1299_USE_24BIT == false) return;
   DataType data(Head.getState());  // sets timestamp and stateTime
   ReadState prevState = m_ReadState;
   m_ReadState = ReadState::READ;  

@@ -8,7 +8,7 @@
 void setup() {
   activityLED.set();
   
-//  CFG::setDeviceRole(CFG::DeviceRole::MASTER); // Set device role for testing with another Tennsy.
+  CFG::setDeviceRole(CFG::DeviceRole::STANDALONE); // Set device role for testing with another Tennsy.
   CFG::setDebugMode(CFG::DebugMode::SINGLE_STATE);  // Set debug mode for testing, can be OFF, ON, or SINGLE_STATE
 
   Head.setSequence( {
@@ -16,7 +16,7 @@ void setup() {
 //  zTest.FullTest,                 // Can use predefined sequences from ZTests.h
 //  Head.RED1 | Head.IR1,           // use OR ( | ) to combine LEDs
   
-    Head.ALL_OFF, 
+    Head.ALL_OFF,
 //    Head.RED1,
 //    Head.IR1, 
 //    Head.RED1 | Head.IR1,

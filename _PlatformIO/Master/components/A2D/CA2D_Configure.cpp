@@ -4,11 +4,12 @@
 
 void CA2D::configure_ADS1299() {
 
-  uint8_t cfg1 = getConfig1();
+  uint8_t cfg1 = CFG::ADS1299_USE_24BIT ? getConfig1() : 0xD6;
   uint8_t id = 0;
 
   SPI.beginTransaction(spiSettings);
   {
+    SPIwrite({0x02});  // WAKEUP
 
     // 2) Reset & pause
     SPIwrite({0x06});                 // RESET
@@ -43,7 +44,13 @@ void CA2D::configure_ADS1299() {
     });
 
     // 6) Start conversions, then enable RDATAC
-    SPIwrite({ 0x08 });                 // START (START pin must be held low on the board)
+    if (m_mode == ModeType::UNSET)
+    {
+      SPIwrite({0x0A});  // STOP
+//    SPIwrite({0x04});  // STANDBY
+    }
+    else
+      SPIwrite({0x08});  // START4 (START pin must be held low on the board)
 
     if (m_mode == ModeType::CONTINUOUS) 
       SPIwrite({ 0x10 });                 // RDATAC
@@ -58,6 +65,9 @@ void CA2D::configure_ADS1299() {
     case ModeType::TRIGGERED : USB.printf("A2D: Triggered mode%s", warning); 
       break;
     case ModeType::CONTINUOUS: USB.printf("A2D: Continuous mode (@%d)%s", CFG::A2D_SAMPLING_SPEED_Hz, warning);
+      break;
+    case ModeType::UNSET:
+      USB.printf("A2D: Not using ADS1299%s", warning);
       break;
       
     default:                   USB.printf("A2D: Mode set to UNSET or unknown value%s", warning);
